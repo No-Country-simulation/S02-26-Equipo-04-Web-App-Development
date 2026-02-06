@@ -1,0 +1,66 @@
+services:
+
+  api:
+    build: ./api
+    container_name: fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+      - REDIS_HOST=redis
+      - MINIO_ENDPOINT=minio:9000
+    depends_on:
+      - db
+      - redis
+      - minio
+    volumes:
+      - ./api:/app
+
+  worker:
+    build: ./worker
+    container_name: worker
+    environment:
+      - REDIS_HOST=redis
+      - MINIO_ENDPOINT=minio:9000
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
+    depends_on:
+      - redis
+      - minio
+      - db
+    volumes:
+      - ./worker:/app
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  db:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fastapi_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=miniopass #requiere 8 caracteres como minimo
+      - MINIO_DEFAULT_BUCKETS=buck1
+    volumes:
+      - minio_data:/data
+
+
+volumes:
+  pgdata:
+  minio_data:
