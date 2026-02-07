@@ -9,6 +9,8 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - REDIS_HOST=redis
       - MINIO_ENDPOINT=minio:9000
+      - DEBUG=True
+      - LOG_FORMAT=text
     depends_on:
       - db
       - redis
