@@ -54,6 +54,13 @@ Reglas:
 - Ideal: al menos 1 reviewer.
 - CI en verde antes de merge.
 - Evitar PR gigantes (ideal 200 a 400 lineas de diff).
+- Usar bitacora local basada en `docs/frontend-pr-log.template.md`.
+
+Para crearla en local:
+
+```bash
+cp docs/frontend-pr-log.template.md docs/frontend-pr-log.md
+```
 
 ## Vida util de ramas
 

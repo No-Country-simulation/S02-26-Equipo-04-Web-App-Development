@@ -13,5 +13,5 @@ Este proyecto busca automatizar la generacion de videos verticales a partir de v
 ## Documentacion de equipo frontend
 
 - Guia de ramas y PRs: `docs/frontend-git-workflow.md`
-- Bitacora para PR a `develop`: `docs/frontend-pr-log.md`
+- Template de bitacora para PR a `develop`: `docs/frontend-pr-log.template.md`
 - Setup local frontend: `frontend/README.md`
