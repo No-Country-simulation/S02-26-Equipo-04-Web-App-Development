@@ -30,3 +30,7 @@ htmlcov/
 .idea/
 *.swp
 *.swo
+.venv/
+__pycache__/
+*.pyc
+bin/
