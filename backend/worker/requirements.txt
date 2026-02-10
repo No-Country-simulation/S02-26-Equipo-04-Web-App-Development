@@ -1,0 +1,5 @@
+redis
+opencv-python
+numpy
+ffmpeg-python
+boto3
