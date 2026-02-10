@@ -15,3 +15,18 @@ Thumbs.db
 
 # Docker
 *.log
+# Python virtual environments
+.venv/
+venv/
+env/
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
