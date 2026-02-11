@@ -1,0 +1,130 @@
+.bodyAuth{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background:  radial-gradient(
+      900px 900px at 75% 20%,
+      rgba(120, 80, 255, 0.35),
+      transparent 80%
+    ),
+
+    /* Bola azul */
+    radial-gradient(
+      900px 900px at 25% 30%,
+      rgba(60, 130, 255, 0.35),
+      transparent 80%
+    ),
+
+    /* Bola verde/teal */
+    radial-gradient(
+      700px 700px at 50% 90%,
+      rgba(40, 200, 180, 0.30),
+      transparent 100%
+    ),
+
+    /* Fondo base oscuro */
+    linear-gradient(
+      180deg,
+      #050814,
+      #0b1020
+    );
+}
+.cardAuth{
+    padding: 1.75rem;
+    background-color: rgba(7,11,22,60%);
+    border-radius: 2rem;
+    
+
+}
+.form{
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0 0 0;
+}
+.selectRegistro{
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.3rem;
+  background-color:rgba(255, 255, 255, 5%) ;
+  border: 1px solid rgba(255, 255, 255, 10%);
+  border-radius: 10px;
+}
+.botonRegistro{
+  padding: 0.4rem 4.75rem; 
+  color: rgba(255, 255, 255, 0.7);
+  border: none;
+  border-radius: 0.5rem; 
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+
+}
+.hoverBoton:hover{
+  background-color: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.botonRegistroSleccionado{
+  background-color:rgba(0, 245, 255, 0.15) ;
+  color: #00f5ff;
+}
+.tituloCard{
+  color: #00f5ff;
+  text-transform: uppercase;
+
+}
+.subtituloCard{
+  font-size: 1.5rem;
+  color: white;
+  margin-top: 0.5rem;
+}
+.label{
+  display: flex;
+  flex-direction: column;
+
+}
+.tituloLabel{
+  color: rgba(255, 255, 255 , 0.65);
+  font-size: 14px;
+}
+.campoForm{
+ background-color: rgba(18, 26, 46, 0.3);
+  padding: 0.6rem 0.7rem 0.6rem 0.7rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 10%);
+  outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+}
+.campoForm:focus{
+  border: 1px solid #00f5ff;
+}
+
+.boton{
+  margin-top: 14px;
+  padding: 0.5rem 0;
+  border-radius: 0.6rem;
+    background-color:rgba(255, 255, 255, 5%) ;
+  border: 1px solid rgba(255, 255, 255, 10%);
+    color: rgba(255, 255, 255, 0.7);
+
+}
+.botonAzul{
+  background: linear-gradient(
+  90deg,
+  #4FAED4 0%,
+  #6F7DE4 100%
+)
+;
+color: black;
+}
+.iconGoogle{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.botonVolver{
+  width: 100%;
+}
