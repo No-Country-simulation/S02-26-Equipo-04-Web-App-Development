@@ -1,4 +1,4 @@
-import { Link, useRouteError } from "react-router-dom";
+import { Link, useRouteError } from "react-router";
 
 export function NotFoundPage() {
   const error = useRouteError();
