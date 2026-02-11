@@ -1,8 +1,49 @@
 @import url("https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --font-sans: "Space Grotesk", "Segoe UI", sans-serif;
+  --font-display: "Sora", "Segoe UI", sans-serif;
+
+  --color-night-950: #060b16;
+  --color-night-900: #0a1020;
+  --color-night-800: #121a2e;
+  --color-night-700: #1b2740;
+
+  --color-neon-cyan: #35d0ff;
+  --color-neon-magenta: #ff4fd8;
+  --color-neon-violet: #6f7cff;
+  --color-neon-mint: #4bffd2;
+
+  --shadow-glow: 0 10px 35px rgba(53, 208, 255, 0.24);
+  --shadow-panel: 0 20px 60px rgba(5, 8, 20, 0.55);
+
+  --animate-fade-up: fade-up 0.55s ease-out both;
+  --animate-drift: drift 5s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
 
 :root {
   font-family: "Space Grotesk", "Segoe UI", sans-serif;
