@@ -23,7 +23,7 @@ frontend/
 - `src/router/`: configuracion de rutas, guards y helpers de redireccion.
 - `src/store/`: estado global con Zustand (auth, preferencias, etc.).
 - `src/config/`: configuraciones del entorno y constantes base.
-- `src/index.css`: estilos globales y base visual.
+- `src/index.css`: estilos globales, `@theme` de Tailwind v4 y tokens Tokyo Night.
 
 ## Convenciones recomendadas
 
