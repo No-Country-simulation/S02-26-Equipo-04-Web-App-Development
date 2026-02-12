@@ -2,28 +2,30 @@
 
 ## Objetivo de la rama
 
-Aplicar en Next.js la landing publica con estilo Tokyo Night que estaba en `feature/frontend-landing-tokyo`, manteniendo las rutas de auth/protegidas ya migradas.
+Redisenar `/auth/login` y `/auth/register` para alinearlos con el estilo Tokyo Night del proyecto en Next.js, con componentes listos para integrar API real.
 
-Rama de trabajo: `feature/frontend-next-landing-tokyo`.
+Rama de trabajo: `feature/frontend-next-auth-tokyo`.
 
 ## Cambios realizados
 
-- Se implemento la landing Tokyo Night en `src/app/page.tsx` con hero, bloques de roadmap y workflow.
-- Se migro la navegacion de CTA de `react-router` a `next/link` para `/auth/login`, `/auth/register` y `/app`.
-- Se aplico el tema visual Tokyo Night en `src/app/globals.css` (tipografias, paleta neon, gradientes, sombras y animaciones).
-- Se actualizo metadata base del layout para reflejar la landing publica.
-- Se actualizo esta bitacora para el nuevo objetivo de la rama.
+- Se rediseno `src/app/auth/login/page.tsx` con look Tokyo Night, panel lateral y formulario visual de acceso.
+- Se rediseno `src/app/auth/register/page.tsx` con layout de onboarding, checklist visual y formulario base de registro.
+- Se incorporaron iconos de `lucide-react` para reforzar jerarquia visual en inputs, CTAs y elementos informativos.
+- Se mantuvieron redirecciones de rutas publicas (`getPublicOnlyRedirect`) y flujo demo de login hacia `/app`.
+- Se agregaron animaciones coherentes con el tema usando clases y tokens existentes (`animate-fade-up`, `animate-drift`).
+- Se actualizo esta bitacora para reflejar el trabajo de la rama.
 
 ## Commits realizados
 
-- `feat(frontend): add tokyo style landing to next app router`
-- `docs(frontend): update worklog for tokyo landing migration`
+- `feat(frontend): redesign auth pages with tokyo night style`
+- `docs(frontend): update worklog for auth redesign`
 
 ## Archivos clave
 
-- `frontend/src/app/page.tsx`
-- `frontend/src/app/globals.css`
-- `frontend/src/app/layout.tsx`
+- `frontend/src/app/auth/login/page.tsx`
+- `frontend/src/app/auth/register/page.tsx`
+- `frontend/package.json`
+- `frontend/package-lock.json`
 - `docs/frontend-pr-log.md`
 
 ## Validaciones locales
