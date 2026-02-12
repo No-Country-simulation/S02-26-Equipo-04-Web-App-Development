@@ -28,6 +28,96 @@ export default function RegisterPage() {
       </div>
 
       <section className="relative mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+        
+
+        <article className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel backdrop-blur-xl [animation-delay:120ms] sm:p-8">
+          <p className="inline-flex items-center gap-2 rounded-full border border-neon-violet/35 bg-neon-violet/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-neon-violet">
+            <Rocket className="h-3.5 w-3.5" />
+            Registro inicial
+          </p>
+
+          <h1 className="mt-5 font-display text-[clamp(2rem,3.2vw,3rem)] leading-tight text-white">Crear cuenta</h1>
+          {/* <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">
+            Esta pantalla queda lista para integrar validaciones, API de registro y activacion por email.
+          </p> */}
+          <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-white/5 p-1">
+
+            <Link
+              href="/auth/login"
+              className="   rounded-lg px-3 py-2 text-center text-sm font-semibold text-white/70 transition hover:bg-white/5 hover:text-white"
+            >
+              Iniciar sesión
+            </Link>
+
+            <Link
+              href=""
+              className="rounded-lg bg-neon-cyan/15 px-3 py-2 text-center text-sm font-semibold text-neon-cyan transition "
+            >
+              Registrate
+            </Link>
+
+          </div>
+
+          <div className="mt-7 space-y-4">
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Correo</span>
+              <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
+                <UserRound className="h-4 w-4 text-neon-mint" />
+                <input
+                  type="email"
+                  placeholder="usuario@hacelocorto.com"
+                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                />
+              </span>
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Contraseña</span>
+              <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
+                <Mail className="h-4 w-4 text-neon-cyan" />
+                <input
+                  type="password"
+                  placeholder="*****"
+                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                />
+              </span>
+              
+            </label>
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Repetir contraseña</span>
+              <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
+                <Mail className="h-4 w-4 text-neon-cyan" />
+                <input
+                  type="password"
+                  placeholder="*****"
+                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                />
+              </span>
+              
+            </label>
+          </div>
+
+          <button
+            type="button"
+            className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-violet/45 bg-neon-violet/15 px-6 text-sm font-semibold text-white transition hover:bg-neon-violet/25"
+          >
+            Crear cuenta
+          </button>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
+            {/* <p>
+              Ya tienes cuenta?{" "}
+              <Link href="/auth/login" className="font-semibold text-neon-cyan underline decoration-neon-cyan/40 underline-offset-4">
+                Inicia sesion
+              </Link>
+            </p> */}
+
+            <Link href="/" className="inline-flex items-center gap-2 text-white/70 transition hover:text-neon-mint">
+              <ArrowLeft className="h-4 w-4" />
+              Volver a la landing
+            </Link>
+          </div>
+        </article>
         <aside className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/50 p-6 shadow-panel sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neon-violet/80">Onboarding</p>
           <h2 className="mt-3 font-display text-[clamp(1.8rem,2.8vw,2.6rem)] text-white">Activa tu cuenta en minutos</h2>
@@ -45,65 +135,6 @@ export default function RegisterPage() {
             ))}
           </ul>
         </aside>
-
-        <article className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel backdrop-blur-xl [animation-delay:120ms] sm:p-8">
-          <p className="inline-flex items-center gap-2 rounded-full border border-neon-violet/35 bg-neon-violet/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-neon-violet">
-            <Rocket className="h-3.5 w-3.5" />
-            Registro inicial
-          </p>
-
-          <h1 className="mt-5 font-display text-[clamp(2rem,3.2vw,3rem)] leading-tight text-white">Crear cuenta</h1>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">
-            Esta pantalla queda lista para integrar validaciones, API de registro y activacion por email.
-          </p>
-
-          <div className="mt-7 space-y-4">
-            <label className="block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Nombre del equipo</span>
-              <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
-                <UserRound className="h-4 w-4 text-neon-mint" />
-                <input
-                  type="text"
-                  placeholder="Equipo Growth"
-                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
-                />
-              </span>
-            </label>
-
-            <label className="block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Email de trabajo</span>
-              <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
-                <Mail className="h-4 w-4 text-neon-cyan" />
-                <input
-                  type="email"
-                  placeholder="equipo@hacelocorto.app"
-                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
-                />
-              </span>
-            </label>
-          </div>
-
-          <button
-            type="button"
-            className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-violet/45 bg-neon-violet/15 px-6 text-sm font-semibold text-white transition hover:bg-neon-violet/25"
-          >
-            Crear cuenta demo
-          </button>
-
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
-            <p>
-              Ya tienes cuenta?{" "}
-              <Link href="/auth/login" className="font-semibold text-neon-cyan underline decoration-neon-cyan/40 underline-offset-4">
-                Inicia sesion
-              </Link>
-            </p>
-
-            <Link href="/" className="inline-flex items-center gap-2 text-white/70 transition hover:text-neon-mint">
-              <ArrowLeft className="h-4 w-4" />
-              Volver a la landing
-            </Link>
-          </div>
-        </article>
       </section>
     </main>
   );

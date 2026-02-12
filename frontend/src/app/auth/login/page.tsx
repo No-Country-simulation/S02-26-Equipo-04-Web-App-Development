@@ -1,5 +1,5 @@
 "use client";
-
+import clsx from 'clsx'
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -41,10 +41,27 @@ export default function LoginPage() {
           </p>
 
           <h1 className="mt-5 font-display text-[clamp(2rem,3.2vw,3rem)] leading-tight text-white">Iniciar sesion</h1>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">
+          {/* <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">
             Entra a tu workspace para gestionar subidas, monitorear jobs y descargar tus clips procesados.
-          </p>
+          </p> */}
 
+          <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-white/5 p-1">
+
+            <Link
+              href="/auth/login"
+              className="rounded-lg bg-neon-cyan/15 px-3 py-2 text-center text-sm font-semibold text-neon-cyan transition"
+            >
+              Iniciar sesión
+            </Link>
+
+            <Link
+              href="/auth/register"
+              className="rounded-lg px-3 py-2 text-center text-sm font-semibold text-white/70 transition hover:bg-white/5 hover:text-white"
+            >
+              Registrate
+            </Link>
+
+          </div>
           <div className="mt-7 space-y-4">
             <label className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Email</span>
@@ -52,7 +69,7 @@ export default function LoginPage() {
                 <Mail className="h-4 w-4 text-neon-cyan" />
                 <input
                   type="email"
-                  placeholder="team@hacelocorto.app"
+                  placeholder="usuario@hacelocorto.com"
                   className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
                 />
               </span>
@@ -73,18 +90,24 @@ export default function LoginPage() {
 
           <button
             type="button"
-            className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-cyan/45 bg-neon-cyan/15 px-6 text-sm font-semibold text-neon-cyan transition hover:bg-neon-cyan/25"
+            className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-cyan/45 bg-neon-cyan/15  px-6 text-sm font-semibold text-neon-cyan  transition hover:bg-neon-cyan/25"
             onClick={handleDemoLogin}
           >
             <ShieldCheck className="h-4 w-4" />
-            Entrar en modo demo
+            Entrar
           </button>
+            <button
+            type="button"
+            className="mt-6 inline-flex h-12 w-full items-center justify-center bg-white/5 gap-2 rounded-xl border border-white/45   px-6 text-sm font-semibold text-white/80  transition hover:bg-white/25"
+            onClick={handleDemoLogin}
+          >
+            ingresar con Google <img width="20" height="20" src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo"/>
 
+          </button>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
             <p>
-              No tienes cuenta?{" "}
-              <Link href="/auth/register" className="font-semibold text-neon-cyan underline decoration-neon-cyan/40 underline-offset-4">
-                Registrate
+              <Link href="" className="font-semibold text-neon-cyan underline decoration-neon-cyan/40 underline-offset-4">
+                Olvide mi contraseña
               </Link>
             </p>
 
