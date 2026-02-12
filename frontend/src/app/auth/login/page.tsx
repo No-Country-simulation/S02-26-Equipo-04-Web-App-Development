@@ -1,12 +1,11 @@
 "use client";
-import clsx from 'clsx'
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, KeyRound, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
-
+import Image from "next/image";
 export default function LoginPage() {
   const login = useAuthStore((state) => state.login);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -101,7 +100,8 @@ export default function LoginPage() {
             className="mt-6 inline-flex h-12 w-full items-center justify-center bg-white/5 gap-2 rounded-xl border border-white/45   px-6 text-sm font-semibold text-white/80  transition hover:bg-white/25"
             onClick={handleDemoLogin}
           >
-            ingresar con Google <img width="20" height="20" src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo"/>
+            ingresar con Google 
+            <Image width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo"/>
 
           </button>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
