@@ -19,11 +19,11 @@ export function Login(){
         <form className="form">
         <label className ="label">
             <span className="tituloLabel">Correo</span>
-            <input placeholder="correo@correo.com" className="campoForm"/>
+            <input required placeholder="correo@correo.com" className="campoForm"/>
         </label>
         <label className ="label">
             <span className="tituloLabel">password</span>
-            <input placeholder="******" className="campoForm"/>
+            <input required placeholder="******" className="campoForm"/>
         </label>
         <button className="boton botonAzul">Entrar</button>
         
