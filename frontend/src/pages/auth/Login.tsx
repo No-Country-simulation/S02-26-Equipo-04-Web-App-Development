@@ -1,7 +1,6 @@
 import {  Link, useNavigate } from "react-router-dom";
 
 export function Login(){
-    const navegate = useNavigate()
     return(
         
     <div>
@@ -26,7 +25,12 @@ export function Login(){
             <input required placeholder="******" className="campoForm"/>
         </label>
         <button className="boton botonAzul">Entrar</button>
-        
+        <div>
+            <Link to="">
+            <p className="olvidasteContrasenia">¿Olvidaste tu contraseña?</p>
+            </Link>
+            
+        </div>
         <button className="boton iconGoogle">
             Ingresar con Google
             <img className="iconGoogle" width="20" height="20" src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo"/>
