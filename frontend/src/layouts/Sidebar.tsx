@@ -1,4 +1,3 @@
-import clsx from 'clsx'
 import { Film, Home, Settings2, Upload, Waypoints, X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
@@ -21,17 +20,13 @@ export function Sidebar({ mobileOpen, closeMobile }: SidebarProps) {
   return (
     <>
       <div
-        className={clsx(
-          'fixed inset-0 z-30 bg-[#01030d]/60 backdrop-blur-sm transition md:hidden',
-          mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
+        className={`fixed inset-0 z-30 bg-[#01030d]/60 backdrop-blur-sm transition md:hidden ${
+        mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={closeMobile}
       />
       <aside
-        className={clsx(
-          ' fixed left-0 top-0 z-40 h-full w-72 border-r border-white/10 bg-night-900/90 p-5 backdrop-blur-xl transition-transform md:sticky md:z-20 md:translate-x-0',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full',
-        )}
+        className={`fixed left-0 top-0 z-40 h-full w-72 border-r border-white/10 bg-night-900/90 p-5 backdrop-blur-xl transition-transform md:sticky md:z-20 md:translate-x-0 ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className="flex items-center justify-between md:justify-start">
           <p className="font-display text-lg tracking-wide text-white">HACELO CORTO</p>
@@ -57,12 +52,10 @@ export function Sidebar({ mobileOpen, closeMobile }: SidebarProps) {
                 // navigate(item.href)
                 closeMobile()
               }}
-              className={clsx(
-                'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition',
-                active
-                  ? 'bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20'
-                  : 'text-white/60 hover:bg-white/10 hover:text-white',
-              )}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
+              active
+                ? 'bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
             >
               <item.icon size={16} />
               {item.label}
