@@ -2,12 +2,32 @@
 
 import NavBar from "@/src/layouts/NavBar";
 import { Sidebar } from "@/src/layouts/Sidebar";
-import { useState,ReactNode } from "react";
+import { useAuthStore } from "@/src/store/useAuthStore";
+import { useRouter } from "next/navigation";
+import { ReactNode, useEffect, useState } from "react";
 
 
 export default function Layout({children}:{children:ReactNode} ){
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+    const router = useRouter();
+    const bootstrapSession = useAuthStore((state) => state.bootstrapSession);
+    const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+    const isBootstrapped = useAuthStore((state) => state.isBootstrapped);
+
+    useEffect(() => {
+        void bootstrapSession();
+    }, [bootstrapSession]);
+
+    useEffect(() => {
+        if (isBootstrapped && !isAuthenticated) {
+            router.replace("/auth/login");
+        }
+    }, [isAuthenticated, isBootstrapped, router]);
+
+    if (!isBootstrapped || !isAuthenticated) {
+        return null;
+    }
 
     return (<div >
         <NavBar onOpenMenu={() => setMobileMenuOpen(prev => !prev)}/>

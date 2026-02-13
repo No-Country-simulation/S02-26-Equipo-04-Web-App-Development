@@ -2,7 +2,7 @@
 
 import { LogOut, Menu, UserRound } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore } from '@/src/store/useAuthStore';
 interface TopbarProps {
   onOpenMenu: () => void
 }
@@ -10,12 +10,18 @@ interface TopbarProps {
 
 export default function NavBar({ onOpenMenu }: TopbarProps){
     const logout = useAuthStore((state) => state.logout);
+    const user = useAuthStore((state) => state.user);
+    const isLoading = useAuthStore((state) => state.isLoading);
 
     const router = useRouter()
-    const handleClick=() =>{
-        logout();
-        router.push("/auth/login")
+    const handleClick=async() =>{
+        await logout();
+        router.replace("/auth/login")
     };
+
+    const userName = user?.email ? user.email.split("@")[0] : "Usuario";
+    const userEmail = user?.email ?? "sin-correo";
+
     return(
     <header className=" top-0 z-10 sticky border-b bg-night-900/60 border-white/10 px-4 py-3 backdrop-blur-xl sm:px-6">
         <div className='flex mx-auto max-w-7xl items-center gap-3 justify-between'>
@@ -43,14 +49,18 @@ export default function NavBar({ onOpenMenu }: TopbarProps){
                     <UserRound size={14}/>
                 </div>
                 <div className='hidden text-right sm:block'>
-                    <p className='text-sm font-semibold text-white'>Nombre</p>
-                    <p className='text-xs text-white/60'>correo@correo.com</p>
+                    <p className='text-sm font-semibold text-white'>{userName}</p>
+                    <p className='text-xs text-white/60'>{userEmail}</p>
                 </div>
                 
             </div>
-            <button onClick={handleClick} className='inline-flex items-center gap-2 rounded-lg border border-rose-400/35 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:-translate-y-0.5 hover:bg-rose-400/200'>
+            <button
+                onClick={handleClick}
+                className='inline-flex items-center gap-2 rounded-lg border border-rose-400/35 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:-translate-y-0.5 hover:bg-rose-400/200 disabled:cursor-not-allowed disabled:opacity-70'
+                disabled={isLoading}
+            >
                 <LogOut size={14}/>
-                Cerrar sessión
+                {isLoading ? "Saliendo..." : "Cerrar sesion"}
                 </button>
         </div>
         </div>
