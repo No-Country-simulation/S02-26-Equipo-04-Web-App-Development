@@ -101,7 +101,7 @@ export default function LoginPage() {
             onClick={handleDemoLogin}
           >
             ingresar con Google 
-            <Image width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo"/>
+            <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo"/>
 
           </button>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
