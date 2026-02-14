@@ -37,6 +37,7 @@ previsualizar en el front y ofrecer micro ajustes y sus resultados ??
 ========================================================================
 """
 
+DEBUG = True
 
 # output routes and dirs
 OUTPUT_DIR = Path("output")
@@ -50,12 +51,21 @@ PROCESSED_VIDEO.mkdir(exist_ok=True)
 RESULT_VIDEO.mkdir(exist_ok=True)
 
 
+# face tracking
+EDGE_MARGIN_RATIO = 0.10
+SUBJECT_LOST_TIMEOUT_SEC = 2.0
+MIN_FACE_RATIO = 0.003  # 0.3% shows / escenario
+#MIN_FACE_RATIO = 0.0015 # si la cámara está lejos:
+#MIN_FACE_RATIO = 0.01 # si está cerca
+
+
 # camera direction parameters
 SWITCH_DISTANCE_RATIO = 0.25
 CANDIDATE_CONFIRMATION_SEC = 0.5
 NO_FACE_HOLD_SEC = 1.0
 SMOOTHING_FACTOR = 0.15
 MIN_HOLD_SEC = 0.8
+
 
 # audio analysis parameters
 AUDIO_SAMPLE_RATE = 16000
@@ -74,6 +84,204 @@ if face_cascade.empty():
     raise RuntimeError("Failed to load face cascade classifier")
 #========================================================================   
 
+
+class CameraDirector:
+    """
+    Cinematic camera direction logic for automated reframing.
+
+    This class acts as the "brain" of the virtual camera. It converts noisy
+    detection data (faces, speaker position, motion) into stable, human-like
+    camera behavior.
+
+    The director enforces cinematic rules to avoid jitter and unnatural motion.
+
+    Core behaviors implemented
+    --------------------------
+    • Minimum hold time before camera can move
+    • Consensus-based subject switching (prevents false jumps)
+    • Smooth transitions with bounded duration
+    • Intelligent hard cuts for strong speaker changes
+    • Fusion of audio (speech) and visual detection
+    • Anti ping-pong logic (prevents rapid back-and-forth)
+
+    Camera States
+    -------------
+    HOLD        : Camera remains stable
+    TRANSITION  : Camera smoothly moves toward a new framing target
+
+    Parameters
+    ----------
+    frame_width : int
+        Width of the input video frame. Used to scale movement thresholds.
+    fps : float
+        Frame rate of the video. Used to convert timing rules into frame counts.
+
+    Notes
+    -----
+    This class does NOT:
+    - detect faces
+    - analyze audio
+    - crop frames
+
+    It ONLY decides *where the camera should point*.
+    """
+    def __init__(self, frame_width, final_w, fps):
+        self.w = frame_width
+        self.crop_w = final_w
+        self.fps = fps
+
+        self.current_x = frame_width // 2
+        self.target_x = None
+        self.mode = "HOLD"
+
+        self.frames_in_state = 0
+        self.hold_frames = 0
+
+        self.possible_target = None
+        self.possible_counter = 0
+
+        # Parámetros
+        self.MOVE_THRESHOLD = int(frame_width * 0.18)
+        self.HARD_CUT_THRESHOLD = int(frame_width * 0.35)
+
+        self.HOLD_MIN = int(fps * 0.5)
+        self.CONSENSUS = int(fps * 0.25)
+
+        self.TRANSITION_MIN = int(fps * 0.3)
+        self.TRANSITION_MAX = int(fps * 0.6)
+
+        # Historical
+        self.last_detected_x = None
+        self.detected_persistence = 0
+        self.MIN_DETECTED_PERSISTENCE = int(self.fps * 0.4)
+
+    def update(self, detected_x, is_voice):
+        """
+        Updates camera position based on subject detection and speech activity.
+
+        Decision flow
+        -------------
+        1. Hard cut if:
+           - Voice is active
+           - Subject jump is very large
+
+        2. Build consensus if subject is drifting away:
+           - Candidate must persist for several frames
+
+        3. HOLD state:
+           - Enforces minimum time before moving
+           - Switches to TRANSITION if consensus is reached
+
+        4. TRANSITION state:
+           - Smoothly interpolates camera position
+           - Stops when close enough to target
+
+        Parameters
+        ----------
+        detected_x : int
+            X coordinate of detected subject.
+        is_voice : bool
+            Whether speech is present in this frame.
+
+        Returns
+        -------
+        int
+            Updated camera X position.
+        """
+        if detected_x == self.last_detected_x:
+            self.detected_persistence += 1
+        else:
+            self.detected_persistence = 1
+            self.last_detected_x = detected_x
+
+        if detected_x is None:
+            # No subject detected → hold position
+            print(f"\n🔔 NO SUBJECT DETECTED, CURRENT POSITION: {self.current_x}\n")
+            return self.current_x
+        
+        #Eso hace que:
+        # espere estabilidad del activo
+        # ignore cambios efímeros
+        # evite cortes nerviosos
+        if self.detected_persistence < self.MIN_DETECTED_PERSISTENCE:
+            return self.current_x
+        
+        # ================= HARD CUT ================= 
+        if is_voice and abs(detected_x - self.current_x) > self.HARD_CUT_THRESHOLD:
+            self.current_x = max(
+                self.crop_w // 2,
+                min(self.w - self.crop_w // 2, detected_x)
+            )
+            self.mode = "HOLD"
+            self.hold_frames = 0
+            self.frames_in_state = 0
+            return self.current_x
+
+        # ================= SAFE ZONE CHECK =================
+        left  = self.current_x - self.crop_w // 2
+        right = self.current_x + self.crop_w // 2
+
+        margin = int(self.crop_w * 0.25)
+
+        safe_left  = left + margin
+        safe_right = right - margin
+
+        if detected_x < safe_left or detected_x > safe_right:
+            # subject outside secure focus zone → builds conscensus
+            if self.possible_target is None:
+                self.possible_target = detected_x
+                self.possible_counter = 1
+            else:
+                if abs(detected_x - self.possible_target) < self.MOVE_THRESHOLD:
+                    self.possible_counter += 1
+                else:
+                    self.possible_target = detected_x
+                    self.possible_counter = 1
+        else:
+            # subject inside secure focus zone → cancels vars
+            self.possible_target = None
+            self.possible_counter = 0
+
+        # ================= HOLD =================
+        if self.mode == "HOLD":
+
+            self.hold_frames += 1
+
+            if (
+                self.possible_counter > self.CONSENSUS and
+                self.hold_frames > self.HOLD_MIN
+            ):
+                self.mode = "TRANSITION"
+                self.target_x = self.possible_target
+                self.frames_in_state = 0
+                self.hold_frames = 0
+
+        # ================= TRANSITION =================
+        elif self.mode == "TRANSITION":
+
+            self.frames_in_state += 1
+
+            progress = min(
+                1.0,
+                self.frames_in_state / self.TRANSITION_MAX
+            )
+
+            self.current_x = int(
+                self.current_x +
+                (self.target_x - self.current_x) * progress
+            )
+
+            if (
+                self.frames_in_state > self.TRANSITION_MIN and
+                abs(self.current_x - self.target_x) < 5
+            ):
+                self.mode = "HOLD"
+                self.current_x = self.target_x
+                self.target_x = None
+                self.frames_in_state = 0
+
+        return self.current_x
+#========================================================================
 
 
 def get_video_metadata(video_path):
@@ -111,6 +319,30 @@ def get_video_metadata(video_path):
     return w, h, fps
 
 
+def init_stream_decoder(video_path):
+    """Opens FFmpeg process that streams raw BGR frames."""
+    return (
+        ffmpeg
+        .input(video_path)
+        .output('pipe:', format='rawvideo', pix_fmt='bgr24')
+        .run_async(pipe_stdout=True)
+    )
+
+def init_stream_encoder(output_path, actual_w, actual_h, fps):
+    """Opens FFmpeg encoder process receiving raw frames via stdin."""
+    return (
+        ffmpeg
+        .input('pipe:', format='rawvideo', pix_fmt='bgr24',
+               s=f"{actual_w}x{actual_h}", framerate=fps)
+        .output(
+            output_path,
+            vcodec='libx264',
+            pix_fmt='yuv420p',
+            movflags='+faststart'
+        )
+        .overwrite_output()
+        .run_async(pipe_stdin=True)
+    )
 
 
 def normalize_video_segment(video_path, start_sec, end_sec,
@@ -232,185 +464,6 @@ def normalize_video_segment(video_path, start_sec, end_sec,
     return output_path
 
 
-
-
-def analyze_speech_activity(video_segment_path):
-    """
-    Estimate speech activity from a normalized video segment.
-
-    Audio is extracted in-memory via FFmpeg, converted to mono 16 kHz,
-    and analyzed using RMS energy.
-
-    Returns a boolean mask aligned with video frames.
-    """
-
-    # 🎧 Extraer audio RAW en memoria
-    cmd = [
-        "ffmpeg",
-        "-i", video_segment_path,
-        "-ac", "1",          # mono
-        "-ar", str(AUDIO_SAMPLE_RATE),      # sample rate
-        "-f", "f32le",       # float32 PCM
-        "-"
-    ]
-
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    audio_bytes = process.stdout.read()
-    audio = np.frombuffer(audio_bytes, np.float32)
-
-    sr = AUDIO_SAMPLE_RATE 
-    hop = int(sr / TARGET_FPS)
-
-    # 📈 Energía RMS por frame de video
-    rms = librosa.feature.rms(y=audio, hop_length=hop)[0]
-
-    # 🧠 Más robusto que percentil fijo
-    threshold = np.median(rms) + 0.5 * np.std(rms)
-
-    speech_mask = rms > threshold
-
-    return speech_mask
-
-
-
-
-def estimate_speaker_center(frame, voice_active, prev_center):
-    """
-    Estimates the most likely speaking person's face center in a frame.
-
-    The function combines:
-    - Face detection
-    - Mouth region motion (variance)
-    - Audio voice activity
-
-    When voice is active, the face with the highest mouth motion is selected.
-    When no voice is detected, the previous center is maintained.
-
-    Filters out:
-    - Faces too large/small
-    - Faces too low in frame
-    - Non-human false positives
-
-    Parameters
-    ----------
-    frame : np.ndarray
-        BGR image.
-    voice_active : bool
-        Whether speech is present at this frame.
-    prev_center : tuple[int, int]
-        Previously selected face center.
-
-    Returns
-    -------
-    tuple[int, int]
-        Estimated speaker center.
-    """
-
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    h, w = gray.shape
-    faces = face_cascade.detectMultiScale(gray, 1.2, 5)
-
-    best_motion = 0
-    best_center = prev_center if prev_center else (w//2, h//2)
-    frame_area = w * h
-
-    MIN_FACE_AREA = 0.03
-    MAX_FACE_AREA = 0.40
-
-    for (x, y, fw, fh) in faces:
-        if fw > w * 0.6:
-            continue
-        if y > h * 0.5:
-            continue
-
-        ratio = (fw * fh) / frame_area
-        if ratio < MIN_FACE_AREA or ratio > MAX_FACE_AREA:
-            continue
-
-        mouth_y1 = int(y + fh * 0.6)
-        mouth_y2 = int(y + fh * 0.85)
-        mouth = gray[mouth_y1:mouth_y2, x:x+fw]
-
-        motion = np.var(mouth)
-
-        if motion > best_motion:
-            best_motion = motion
-            best_center = (x + fw//2, y + fh//2)
-
-    if voice_active:
-        return best_center
-    else:
-        return prev_center
-    
-
-
-
-#def track_face_center_stable(frame, prev_center):
-#    """
-#    Detects faces and returns a stable face center based on previous frame.
-#
-#    If multiple faces are detected, the function selects:
-#    - the rightmost face on first detection
-#    - the face closest to the previous center on subsequent frames
-#
-#    This provides basic temporal stability but does NOT handle:
-#    - speaker detection
-#    - scene logic
-#    - camera decisions
-#
-#    Parameters
-#    ----------
-#    frame : np.ndarray
-#        BGR image frame.
-#    prev_center : tuple[int, int] or None
-#        Face center from previous frame.
-#
-#    Returns
-#    -------
-#    tuple[int, int] or None
-#        Selected face center.
-#    """
-#    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-#    faces = face_cascade.detectMultiScale(gray, 1.1, 5)
-#
-#    if len(faces) == 0:
-#        return prev_center
-#
-#    centers = [(x + w//2, y + h//2) for (x,y,w,h) in faces]
-#
-#    if prev_center is None:
-#        return max(centers, key=lambda c: c[0])  # o por tamaño si querés
-#
-#    # distancia euclídea al centro anterior
-#    return min(
-#        centers,
-#        key=lambda c: math.hypot(c[0] - prev_center[0], c[1] - prev_center[1])
-#    )
-
-
-
-
-def detect_face_centers(frame):
-    """
-    Detects faces and returns their center coordinates.
-
-    This function performs raw face detection only.
-    It does not decide which face to follow.
-
-    Returns
-    -------
-    list of (x, y)
-        Center points of detected faces.
-    """
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.1, 5)
-
-    # devolver centros
-    return [(x + w//2, y + h//2) for (x, y, w, h) in faces]
-
-
-
-
 def merge_audio_track(processed_video_path,
                       normalized_video_path):
     """
@@ -462,199 +515,111 @@ def merge_audio_track(processed_video_path,
     return output_path
 
 
+def resize_with_letterbox(frame, final_w, final_h):
+    h, w = frame.shape[:2]
+
+    scale = min(final_w / w, final_h / h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+
+    resized = cv2.resize(frame, (new_w, new_h))
+
+    canvas = np.zeros((final_h, final_w, 3), dtype=np.uint8)
+
+    x_offset = (final_w - new_w) // 2
+    y_offset = (final_h - new_h) // 2
+
+    canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
+
+    return canvas
 
 
-class CameraDirector:
+def reframe_vertical(frame, camera_x, final_w, final_h):
+    """Crops frame to vertical 9:16 region centered on camera_x."""
+    h, w = frame.shape[:2]
+
+    if h != final_h:
+        print(f"\n🚨 WARNING: HEIGHT MISMACHT\n CURRENT H: {h}, EXCPECTED: {final_h}\n")
+
+    x1 = max(0, min(w - final_w, camera_x - final_w // 2))
+    crop = frame[0:final_h, x1:x1 + final_w]
+
+    return crop  # 👈 tamaño fijo
+
+
+def close_streams(decoder, encoder):
+    """Properly closes FFmpeg pipes."""
+    decoder.stdout.close()
+    encoder.stdin.close()
+    decoder.wait()
+    encoder.wait()
+#========================================================================
+
+
+
+def detect_face_centers(frame, gray, prev_gray):
     """
-    Cinematic camera direction logic for automated reframing.
+    Detects faces and returns their center coordinates, bounding box and area.
 
-    This class acts as the "brain" of the virtual camera. It converts noisy
-    detection data (faces, speaker position, motion) into stable, human-like
-    camera behavior.
+    This function performs raw face detection only.
+    It does not decide which face to follow.
 
-    The director enforces cinematic rules to avoid jitter and unnatural motion.
-
-    Core behaviors implemented
-    --------------------------
-    • Minimum hold time before camera can move
-    • Consensus-based subject switching (prevents false jumps)
-    • Smooth transitions with bounded duration
-    • Intelligent hard cuts for strong speaker changes
-    • Fusion of audio (speech) and visual detection
-    • Anti ping-pong logic (prevents rapid back-and-forth)
-
-    Camera States
-    -------------
-    HOLD        : Camera remains stable
-    TRANSITION  : Camera smoothly moves toward a new framing target
-
-    Parameters
-    ----------
-    frame_width : int
-        Width of the input video frame. Used to scale movement thresholds.
-    fps : float
-        Frame rate of the video. Used to convert timing rules into frame counts.
-
-    Notes
-    -----
-    This class does NOT:
-    - detect faces
-    - analyze audio
-    - crop frames
-
-    It ONLY decides *where the camera should point*.
+    Returns
+    -------
+    dict of 
+        center: (x, y)
+        bbox: x, y, w, h
+        area: w * h
+        motion: 
     """
-    def __init__(self, frame_width, fps):
-        self.w = frame_width
-        self.fps = fps
+    #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        self.current_x = frame_width // 2
-        self.target_x = None
-        self.mode = "HOLD"
+    detections = face_cascade.detectMultiScale(gray, 1.1, 5)
 
-        self.frames_in_state = 0
-        self.hold_frames = 0
+    height, width = frame.shape[:2]
+    frame_area = height * width
 
-        self.possible_target = None
-        self.possible_counter = 0
+    edge_margin = int(width * EDGE_MARGIN_RATIO)
 
-        # Parámetros
-        self.MOVE_THRESHOLD = int(frame_width * 0.18)
-        self.HARD_CUT_THRESHOLD = int(frame_width * 0.35)
+    faces = []
 
-        self.HOLD_MIN = int(fps * 0.5)
-        self.CONSENSUS = int(fps * 0.25)
+    for (x, y, w, h) in detections:
 
-        self.TRANSITION_MIN = int(fps * 0.3)
-        self.TRANSITION_MAX = int(fps * 0.6)
+        area = w * h
+        center_x = x + w // 2
+        center_y = y + h // 2
+        aspect_ratio = w / h
 
-    def update(self, detected_x, is_voice):
-        """
-        Updates camera position based on subject detection and speech activity.
-
-        Decision flow
-        -------------
-        1. Hard cut if:
-           - Voice is active
-           - Subject jump is very large
-
-        2. Build consensus if subject is drifting away:
-           - Candidate must persist for several frames
-
-        3. HOLD state:
-           - Enforces minimum time before moving
-           - Switches to TRANSITION if consensus is reached
-
-        4. TRANSITION state:
-           - Smoothly interpolates camera position
-           - Stops when close enough to target
-
-        Parameters
-        ----------
-        detected_x : int
-            X coordinate of detected subject.
-        is_voice : bool
-            Whether speech is present in this frame.
-
-        Returns
-        -------
-        int
-            Updated camera X position.
-        """
-
-
-        # ================= HARD CUT =================
-        if is_voice and abs(detected_x - self.current_x) > self.HARD_CUT_THRESHOLD:
-            self.current_x = detected_x
-            self.mode = "HOLD"
-            self.hold_frames = 0
-            self.frames_in_state = 0
-            return self.current_x
-
-        # ================= CONSENSO =================
-        if abs(detected_x - self.current_x) > self.MOVE_THRESHOLD:
-            if self.possible_target is None:
-                self.possible_target = detected_x
-                self.possible_counter = 1
-            else:
-                if abs(detected_x - self.possible_target) < self.MOVE_THRESHOLD:
-                    self.possible_counter += 1
-                else:
-                    self.possible_target = detected_x
-                    self.possible_counter = 1
+        mouth_y1 = int(y + h * 0.6)
+        mouth_y2 = int(y + h * 0.85)
+        mouth_now = gray[mouth_y1:mouth_y2, x:x+w]
+        mouth_prev = prev_gray[mouth_y1:mouth_y2, x:x+w]
+        if mouth_now.shape == mouth_prev.shape:
+            motion_score = np.mean(cv2.absdiff(mouth_now, mouth_prev))
         else:
-            self.possible_target = None
-            self.possible_counter = 0
+            motion_score = 0
 
-        # ================= HOLD =================
-        if self.mode == "HOLD":
+        
+        ## ❌ filters by min size realted to frame w/h
+        if area < frame_area * MIN_FACE_RATIO:
+            continue
+        ## ❌ filters by edge/margin proximity
+        if center_x < edge_margin or center_x > width - edge_margin:
+            continue
+        ## ❌ filters by aspect ratio
+        if aspect_ratio < 0.6 or aspect_ratio > 1.4:
+            continue
 
-            self.hold_frames += 1
-
-            if (
-                self.possible_counter > self.CONSENSUS and
-                self.hold_frames > self.HOLD_MIN
-            ):
-                self.mode = "TRANSITION"
-                self.target_x = self.possible_target
-                self.frames_in_state = 0
-                self.hold_frames = 0
-
-        # ================= TRANSITION =================
-        elif self.mode == "TRANSITION":
-
-            self.frames_in_state += 1
-
-            progress = min(
-                1.0,
-                self.frames_in_state / self.TRANSITION_MAX
-            )
-
-            self.current_x = int(
-                self.current_x +
-                (self.target_x - self.current_x) * progress
-            )
-
-            if (
-                self.frames_in_state > self.TRANSITION_MIN and
-                abs(self.current_x - self.target_x) < 5
-            ):
-                self.mode = "HOLD"
-                self.current_x = self.target_x
-                self.target_x = None
-                self.frames_in_state = 0
-
-        return self.current_x
+        faces.append({
+            "center": (center_x, center_y),
+            "bbox": (x, y, w, h),
+            "area": area,
+            "motion": motion_score
+        })
 
 
+    return faces
 
-
-def init_stream_decoder(video_path):
-    """Opens FFmpeg process that streams raw BGR frames."""
-    return (
-        ffmpeg
-        .input(video_path)
-        .output('pipe:', format='rawvideo', pix_fmt='bgr24')
-        .run_async(pipe_stdout=True)
-    )
-
-
-
-def init_stream_encoder(output_path, actual_w, actual_h, fps):
-    """Opens FFmpeg encoder process receiving raw frames via stdin."""
-    return (
-        ffmpeg
-        .input('pipe:', format='rawvideo', pix_fmt='bgr24',
-               s=f"{actual_w}x{actual_h}", framerate=fps)
-        .output(
-            output_path,
-            vcodec='libx264',
-            pix_fmt='yuv420p',
-            movflags='+faststart'
-        )
-        .overwrite_output()
-        .run_async(pipe_stdin=True)
-    )
 
 
 
@@ -724,12 +689,13 @@ def update_active_speaker(faces, active_center, candidate_center,
     • Abandons subject after ~1 second of absence  
     • Prevents rapid “ping-pong” switching between faces
     """
+
     # ================= NO FACES =================
     if not faces:
         active_lock_frames -= 1
 
         # Lost subject for too long → no active subject
-        if active_lock_frames < -fps:
+        if active_lock_frames < -fps * SUBJECT_LOST_TIMEOUT_SEC :
             return None, None, 0, active_lock_frames
 
         return active_center, candidate_center, candidate_frames, active_lock_frames
@@ -738,55 +704,93 @@ def update_active_speaker(faces, active_center, candidate_center,
     if active_center:
         nearest = min(
             faces,
-            key=lambda c: math.hypot(c[0]-active_center[0], c[1]-active_center[1])
+            key=lambda f: math.hypot(
+                f["center"][0]-active_center[0],
+                f["center"][1]-active_center[1]
+            )
         )
-        dist = math.hypot(nearest[0]-active_center[0], nearest[1]-active_center[1])
+        dist = math.hypot(
+            nearest["center"][0]-active_center[0],
+            nearest["center"][1]-active_center[1]
+        )
     else:
-        nearest = max(faces, key=lambda c: c[0])  # heuristic
+        
+        # elegir la cara más grande(?)
+        # nearest = max(faces, key=lambda f: f["area"])
+        
+        # el más cerca del centrado
+        #frame_center_x = w // 2
+        #nearest = min(faces, key=lambda f: abs(f["center"][0] - frame_center_x))
+        
+        # elegir donde hay mayor 'movimiento'
+        nearest = max(faces, key=lambda f: f["motion"])
         dist = 0
 
-    SWITCH_DIST = w * 0.25
-
     # ================= SAME SUBJECT =================
-    if dist < SWITCH_DIST:
-        return nearest, None, 0, active_lock_frames + 1
+    SWITCH_DIST = w * 0.25
+    MNI_MOTION_SCORE = 15
+    if dist < SWITCH_DIST * 0.6 and nearest["motion"] > MNI_MOTION_SCORE:
+        return nearest["center"], None, 0, active_lock_frames + 1
 
     # ================= CANDIDATE SUBJECT =================
     if candidate_center is None:
-        return active_center, nearest, 1, active_lock_frames
+        return active_center, nearest["center"], 1, active_lock_frames
 
-    if math.hypot(nearest[0]-candidate_center[0], nearest[1]-candidate_center[1]) < 50:
+    if math.hypot(
+        nearest["center"][0]-candidate_center[0],
+        nearest["center"][1]-candidate_center[1]
+    ) < 50:
         candidate_frames += 1
     else:
         return active_center, None, 0, active_lock_frames
 
     # Switch only if persistent
     if candidate_frames > fps * 0.5:
-        return candidate_center, None, 0, active_lock_frames
+        return nearest["center"], None, 0, active_lock_frames
+        #return candidate_center, None, 0, active_lock_frames
 
     return active_center, candidate_center, candidate_frames, active_lock_frames
 
 
 
 
-def reframe_vertical(frame, camera_x, final_w, final_h):
-    """Crops frame to vertical 9:16 region centered on camera_x."""
-    h, w = frame.shape[:2]
+def analyze_speech_activity(video_segment_path):
+    """
+    Estimate speech activity from a normalized video segment.
 
-    x1 = max(0, min(w - final_w, camera_x - final_w // 2))
-    crop = frame[:, x1:x1 + final_w]
+    Audio is extracted in-memory via FFmpeg, converted to mono 16 kHz,
+    and analyzed using RMS energy.
 
-    return crop  # 👈 tamaño fijo
+    Returns a boolean mask aligned with video frames.
+    """
 
+    # 🎧 Extraer audio RAW en memoria
+    cmd = [
+        "ffmpeg",
+        "-i", video_segment_path,
+        "-ac", "1",          # mono
+        "-ar", str(AUDIO_SAMPLE_RATE),      # sample rate
+        "-f", "f32le",       # float32 PCM
+        "-"
+    ]
 
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    audio_bytes = process.stdout.read()
+    audio = np.frombuffer(audio_bytes, np.float32)
 
+    sr = AUDIO_SAMPLE_RATE 
+    hop = int(sr / TARGET_FPS)
 
-def close_streams(decoder, encoder):
-    """Properly closes FFmpeg pipes."""
-    decoder.stdout.close()
-    encoder.stdin.close()
-    decoder.wait()
-    encoder.wait()
+    # 📈 Energía RMS por frame de video
+    rms = librosa.feature.rms(y=audio, hop_length=hop)[0]
+
+    # 🧠 Más robusto que percentil fijo
+    threshold = np.median(rms) + 0.5 * np.std(rms)
+
+    speech_mask = rms > threshold
+
+    return speech_mask
+
 
 
 
@@ -799,6 +803,8 @@ def stream_processing(video_path):
     """
     print("\n🎬 PROCESSING STREAM...\n", flush=True)
 
+    # =============== SETUP ===============
+
     output_path = str(PROCESSED_VIDEO / Path(video_path).name)
 
     w, h, fps = get_video_metadata(video_path)
@@ -809,10 +815,13 @@ def stream_processing(video_path):
     FINAL_W = crop_w
     FINAL_H = h
 
-    director = CameraDirector(w, fps)
+    director = CameraDirector(w, FINAL_H, fps)
 
     decoder = init_stream_decoder(video_path)
-    encoder = init_stream_encoder(output_path, FINAL_W, FINAL_H, fps)
+    if DEBUG:
+        encoder = init_stream_encoder(output_path, w, h, fps)
+    else:
+        encoder = init_stream_encoder(output_path, FINAL_W, FINAL_H, fps)
 
     voice_mask = analyze_speech_activity(video_path)
 
@@ -823,32 +832,102 @@ def stream_processing(video_path):
     candidate_center = None
     candidate_frames = 0
     active_lock_frames = 0
+    prev_gray = None
 
+    # =============== LOOP BY FRAME ===============
     while True:
         in_bytes = decoder.stdout.read(frame_size)
         if not in_bytes:
             break
 
-        frame = np.frombuffer(in_bytes, np.uint8).reshape([h, w, 3])
+        # copy del array(frame del video) para poder alterarlo
+        frame = np.frombuffer(in_bytes, np.uint8).reshape([h, w, 3]).copy()
 
-        faces = detect_face_centers(frame)
+        # escala de grises del frame actual
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if prev_gray is None:
+            prev_gray = gray.copy()
 
+        faces = detect_face_centers(frame, gray, prev_gray)
+
+        # decide QUIÉN
         active_center, candidate_center, candidate_frames, active_lock_frames = update_active_speaker(
             faces, active_center, candidate_center,
             candidate_frames, active_lock_frames,
             fps, w
         )
+        
+        detected_x = active_center[0] if active_center else None
 
-        detected_x = active_center[0] if active_center else w // 2
         is_voice = frame_idx < len(voice_mask) and voice_mask[frame_idx]
 
+        # decide COMO mover
         camera_x = director.update(detected_x, is_voice)
 
-        out_frame = reframe_vertical(frame, camera_x, FINAL_W, FINAL_H)
+        # ===== DEBUG VISUAL =====
+        """
+        🔵 → ALL faces/subjects detected by Haar (candidate_center)
+        🟢 → active_center
+        🔴 → on evaluation subject
+        🟡 → dirctor cut
+        """
+        if DEBUG:
+            height, width = frame.shape[:2]
+            # ===== FACES =====
+            for f in faces:
+                x, y, w_box, h_box = f["bbox"]
+                cv2.rectangle(frame, (x, y), (x + w_box, y + h_box), (255,0,0), 2) # red
+
+            if active_center:
+                cv2.circle(frame, active_center, 20, (0,255,0), 2) # green
+
+            if candidate_center:
+                cv2.circle(frame, candidate_center, 20, (0,0,255), 2) # blue
+            # ===== Foco del director =====
+            if camera_x is not None:
+                h, w = frame.shape[:2]
+                cx = int(camera_x)
+                cy = h // 2  # centro vertical del frame
+                size = 20  # tamaño de la cruz
+
+                cv2.line(frame, (cx - size, cy), (cx + size, cy), (0,255,255), 2)
+                cv2.line(frame, (cx, cy - size), (cx, cy + size), (0,255,255), 2)
+                
+                half_w = FINAL_W // 2
+                x1 = int(max(0, camera_x - half_w))
+                x2 = int(min(width, camera_x + half_w))
+                y1 = 0
+                y2 = FINAL_H
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,255), 2)  # amarillo
+
+            # ===== Texto centrado arriba =====
+            if director.mode:
+                text = f"MODE: {director.mode}"
+
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.6   # más chico
+                thickness = 1      # más fino
+
+                text_size, _ = cv2.getTextSize(text, font, font_scale, thickness)
+                text_width = text_size[0]
+
+                x = (width - text_width) // 2
+                y = 30  # margen superior
+
+                cv2.putText(frame, text, (x, y),
+                            font, font_scale,
+                            (255,255,255), thickness)
+
+        if DEBUG:
+            out_frame = frame.copy()
+        else:
+            out_frame = reframe_vertical(frame, camera_x, FINAL_W, FINAL_H)
 
         encoder.stdin.write(out_frame.tobytes())
 
         frame_idx += 1
+        prev_gray = gray.copy()
+
     close_streams(decoder, encoder)
 
     print(f"\n✅ VIDEO PROCESSED: {output_path}\n", flush=True)
