@@ -16,6 +16,7 @@ Rama de trabajo: `feature/backend-cors-local-origins`.
 ## Commits realizados
 
 - `fix(cors): permitir origins locales de frontend`
+- `docs(backend): agregar bitacora PR y ejemplo CORS Railway`
 
 ## Archivos clave
 
