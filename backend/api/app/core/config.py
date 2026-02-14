@@ -44,7 +44,14 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY debe tener al menos 32 caracteres en producción")
         return v
     
-    ALLOWED_ORIGINS: list[str] = Field(default=["http://localhost:3000", "http://localhost:5173"])
+    ALLOWED_ORIGINS: list[str] = Field(
+        default=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+    )
     
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
