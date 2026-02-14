@@ -50,8 +50,11 @@ class Settings(BaseSettings):
             "http://127.0.0.1:3000",
             "http://localhost:5173",
             "http://127.0.0.1:5173",
+            "https://s02-26-equipo-04-web-app-development-90o9vopyq.vercel.app",
         ]
     )
+
+    ALLOWED_ORIGIN_REGEX: str | None = Field(default=None)
     
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
