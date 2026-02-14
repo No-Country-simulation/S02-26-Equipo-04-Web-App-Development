@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+
 from app.core.config import settings
 
 engine = create_engine(
@@ -7,11 +8,12 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
-    echo=settings.DB_ECHO
+    echo=settings.DB_ECHO,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 def init_db():
     """Inicializa la base de datos creando todas las tablas"""

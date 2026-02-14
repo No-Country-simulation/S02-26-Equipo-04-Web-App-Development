@@ -1,14 +1,18 @@
-from typing import Any, List
+from typing import List
+
 from pydantic import BaseModel
+
 
 class ErrorDetail(BaseModel):
     loc: List[str | int]
     msg: str
     type: str
 
+
 class ErrorResponse(BaseModel):
     error: str
     details: List[ErrorDetail] | None = None
+
 
 class APIException(Exception):
     def __init__(self, status_code: int, detail: str):

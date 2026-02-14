@@ -2,17 +2,19 @@
 Script para ver los datos de la base de datos
 Ejecutar: docker exec fastapi python view_db.py
 """
+
 import sys
-sys.path.insert(0, '/app')
+
+sys.path.insert(0, "/app")
 
 from app.database.base import SessionLocal
 from app.models.user import User
 
 db = SessionLocal()
 
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("👥 USUARIOS EN LA BASE DE DATOS")
-print("="*60 + "\n")
+print("=" * 60 + "\n")
 
 users = db.query(User).all()
 
