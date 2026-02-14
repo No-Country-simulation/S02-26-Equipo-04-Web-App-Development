@@ -1,0 +1,40 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  backend-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install API dependencies
+        run: uv pip install --system -r backend/api/requirements.txt
+
+      - name: Install Ruff
+        run: uv pip install --system ruff
+
+      - name: Ruff check
+        run: ruff check backend/api/app
+
+      - name: Python compile check
+        run: python -m compileall backend/api/app
