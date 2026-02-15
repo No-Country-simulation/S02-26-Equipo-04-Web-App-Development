@@ -6,6 +6,7 @@ import { ArrowLeft, KeyRound, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import Image from "next/image";
+import { Button } from "@/src/components/ui/Button";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,13 +16,16 @@ export default function LoginPage() {
   const bootstrapSession = useAuthStore((state) => state.bootstrapSession);
   const clearError = useAuthStore((state) => state.clearError);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isBootstrapped = useAuthStore((state) => state.isBootstrapped);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
   const router = useRouter();
 
   useEffect(() => {
-    void bootstrapSession();
-  }, [bootstrapSession]);
+    if (!isBootstrapped) {
+      void bootstrapSession();
+    }
+  }, [bootstrapSession, isBootstrapped]);
 
   useEffect(() => {
     const redirectPath = getPublicOnlyRedirect(isAuthenticated);
@@ -120,24 +124,16 @@ export default function LoginPage() {
             </label>
             {error ? <p className="text-sm font-medium text-rose-300">{error}</p> : null}
 
-            <button
-              type="submit"
-              className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-cyan/45 bg-neon-cyan/15  px-6 text-sm font-semibold text-neon-cyan  transition hover:bg-neon-cyan/25 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isLoading}
-            >
+            <Button type="submit" className="mt-6" disabled={isLoading}>
               <ShieldCheck className="h-4 w-4" />
               {isLoading ? "Entrando..." : "Entrar"}
-            </button>
+            </Button>
           </form>
-          <button
-            type="button"
-            className="mt-6 inline-flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/45 bg-white/5 px-6 text-sm font-semibold text-white/55 transition"
-            disabled
-          >
+          <Button type="button" variant="neutral" className="mt-6" disabled>
             Google proximamente
             <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo" />
 
-          </button>
+          </Button>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
             <p>
               <Link href="" className="font-semibold text-neon-cyan underline decoration-neon-cyan/40 underline-offset-4">

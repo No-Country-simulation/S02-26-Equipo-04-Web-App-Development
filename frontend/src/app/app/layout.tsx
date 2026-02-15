@@ -2,6 +2,7 @@
 
 import NavBar from "@/src/layouts/NavBar";
 import { Sidebar } from "@/src/layouts/Sidebar";
+import { getProtectedRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
@@ -20,8 +21,10 @@ export default function Layout({children}:{children:ReactNode} ){
     }, [bootstrapSession]);
 
     useEffect(() => {
-        if (isBootstrapped && !isAuthenticated) {
-            router.replace("/auth/login");
+        const redirectPath = isBootstrapped ? getProtectedRedirect(isAuthenticated) : null;
+
+        if (redirectPath) {
+            router.replace(redirectPath);
         }
     }, [isAuthenticated, isBootstrapped, router]);
 

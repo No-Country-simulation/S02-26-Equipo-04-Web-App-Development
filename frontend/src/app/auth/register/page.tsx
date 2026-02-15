@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CircleCheckBig, Mail, Rocket, UserRound } from "lucide-react";
 import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
+import { Button } from "@/src/components/ui/Button";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -17,13 +18,16 @@ export default function RegisterPage() {
   const register = useAuthStore((state) => state.register);
   const bootstrapSession = useAuthStore((state) => state.bootstrapSession);
   const clearError = useAuthStore((state) => state.clearError);
+  const isBootstrapped = useAuthStore((state) => state.isBootstrapped);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
   const router = useRouter();
 
   useEffect(() => {
-    void bootstrapSession();
-  }, [bootstrapSession]);
+    if (!isBootstrapped) {
+      void bootstrapSession();
+    }
+  }, [bootstrapSession, isBootstrapped]);
 
   useEffect(() => {
     const redirectPath = getPublicOnlyRedirect(isAuthenticated);
@@ -157,13 +161,9 @@ export default function RegisterPage() {
             </label>
             {formError ? <p className="text-sm font-medium text-rose-300">{formError}</p> : null}
 
-            <button
-              type="submit"
-              className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-violet/45 bg-neon-violet/15 px-6 text-sm font-semibold text-white transition hover:bg-neon-violet/25 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isLoading}
-            >
+            <Button type="submit" variant="violet" className="mt-6" disabled={isLoading}>
               {isLoading ? "Creando cuenta..." : "Crear cuenta"}
-            </button>
+            </Button>
           </form>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
