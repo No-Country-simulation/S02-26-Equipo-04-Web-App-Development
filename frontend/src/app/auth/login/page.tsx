@@ -106,6 +106,7 @@ export default function LoginPage() {
                   type="password"
                   placeholder="********"
                   value={password}
+                  autoComplete="username"
                   onChange={(event) => {
                     setPassword(event.target.value);
                     if (error) {
@@ -128,13 +129,13 @@ export default function LoginPage() {
               {isLoading ? "Entrando..." : "Entrar"}
             </button>
           </form>
-            <button
+          <button
             type="button"
             className="mt-6 inline-flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/45 bg-white/5 px-6 text-sm font-semibold text-white/55 transition"
             disabled
           >
             Google proximamente
-            <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo"/>
+            <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo" />
 
           </button>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">

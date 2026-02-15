@@ -59,7 +59,7 @@ export default function RegisterPage() {
       </div>
 
       <section className="relative mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-        
+
 
         <article className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel backdrop-blur-xl [animation-delay:120ms] sm:p-8">
           <p className="inline-flex items-center gap-2 rounded-full border border-neon-violet/35 bg-neon-violet/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-neon-violet">
@@ -119,6 +119,7 @@ export default function RegisterPage() {
                   type="password"
                   placeholder="*****"
                   value={password}
+                  autoComplete="username"
                   onChange={(event) => {
                     setPassword(event.target.value);
                     setLocalError(null);
@@ -130,7 +131,7 @@ export default function RegisterPage() {
                   required
                 />
               </span>
-              
+
             </label>
             <label className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Repetir contraseña</span>
@@ -140,6 +141,7 @@ export default function RegisterPage() {
                   type="password"
                   placeholder="*****"
                   value={repeatPassword}
+                  autoComplete="username"
                   onChange={(event) => {
                     setRepeatPassword(event.target.value);
                     setLocalError(null);
@@ -151,7 +153,7 @@ export default function RegisterPage() {
                   required
                 />
               </span>
-              
+
             </label>
             {formError ? <p className="text-sm font-medium text-rose-300">{formError}</p> : null}
 
