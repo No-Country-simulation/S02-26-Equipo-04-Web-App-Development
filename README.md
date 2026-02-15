@@ -7,7 +7,7 @@ Este proyecto busca automatizar la generacion de videos verticales a partir de v
 ## Estructura del monorepo
 
 - `backend/`: APIs, procesamiento y servicios de infraestructura.
-- `frontend/`: aplicacion web (React + TypeScript + Tailwind + Zustand).
+- `frontend/`: aplicacion web (Next.js + TypeScript + Tailwind CSS v4 + Zustand + Vitest).
 - `docs/`: guias de trabajo para el equipo.
 
 ## Documentacion de equipo frontend

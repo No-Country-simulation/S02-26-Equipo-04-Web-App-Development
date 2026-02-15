@@ -2,7 +2,7 @@
 
 ## Objetivo de la rama
 
-Redisenar `/auth/login` y `/auth/register` para alinearlos con el estilo Tokyo Night del proyecto en Next.js, con componentes listos para integrar API real.
+Consolidar el flujo auth en Next.js y preparar una base de componentes reutilizables/documentacion para escalar frontend por dominio.
 
 Rama de trabajo: `feature/frontend-next-auth-tokyo`.
 
@@ -13,19 +13,31 @@ Rama de trabajo: `feature/frontend-next-auth-tokyo`.
 - Se incorporaron iconos de `lucide-react` para reforzar jerarquia visual en inputs, CTAs y elementos informativos.
 - Se mantuvieron redirecciones de rutas publicas (`getPublicOnlyRedirect`) y flujo demo de login hacia `/app`.
 - Se agregaron animaciones coherentes con el tema usando clases y tokens existentes (`animate-fade-up`, `animate-drift`).
-- Se actualizo esta bitacora para reflejar el trabajo de la rama.
+- Se creo `src/components/ui/Button.tsx` como primer componente reusable para estandarizar CTAs.
+- Se migraron botones de submit en login/registro al nuevo componente reusable.
+- Se centralizo redirect protegido en `src/app/app/layout.tsx` usando `getProtectedRedirect`.
+- Se evito bootstrap redundante de sesion en login/registro chequeando `isBootstrapped`.
+- Se actualizo `frontend/README.md` con arquitectura hibrida por dominio y reglas para juniors (incluye que NO conviene hacer).
+- Se actualizo esta bitacora para reflejar el trabajo actual.
 
 ## Commits realizados
 
 - `feat(frontend): redesign auth pages with tokyo night style`
 - `docs(frontend): update worklog for auth redesign`
+- `refactor(frontend): centralize protected redirect and auth bootstrap guard`
+- `feat(frontend): add reusable button component for auth screens`
+- `docs(frontend): update readmes with next architecture guidelines`
 
 ## Archivos clave
 
 - `frontend/src/app/auth/login/page.tsx`
 - `frontend/src/app/auth/register/page.tsx`
+- `frontend/src/app/app/layout.tsx`
+- `frontend/src/components/ui/Button.tsx`
+- `frontend/src/components/layout/README.md`
 - `frontend/package.json`
-- `frontend/package-lock.json`
+- `frontend/README.md`
+- `README.md`
 - `docs/frontend-pr-log.md`
 
 ## Validaciones locales
