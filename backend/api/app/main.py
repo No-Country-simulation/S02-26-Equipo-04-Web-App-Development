@@ -13,6 +13,7 @@ from app.database.base import init_db
 from app.api.v1.router import api_router
 from app.schemas.response import APIException, ErrorResponse, ErrorDetail
 from app.utils.redis_client import redis_client
+from app.utils.exceptions import AppException
 
 logger = setup_logging()
 
@@ -91,6 +92,16 @@ async def api_exception_handler(request: Request, exc: APIException):
         status_code=exc.status_code,
         content=ErrorResponse(
             error=exc.detail,
+            details=None
+        ).model_dump()
+    )
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(
+            error=exc.message,
             details=None
         ).model_dump()
     )
