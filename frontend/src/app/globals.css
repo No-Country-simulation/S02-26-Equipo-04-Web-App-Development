@@ -37,7 +37,7 @@
 @keyframes drift {
   0%,
   100% {
-    transform: translateY(0px);
+    transform: translateY(0);
   }
 
   50% {
@@ -83,8 +83,4 @@ body {
     radial-gradient(circle at 50% 90%, rgba(53, 208, 255, 0.2), transparent 48%),
     #060b16;
   color: #d8e6ff;
-}
-
-#root {
-  min-height: 100vh;
 }

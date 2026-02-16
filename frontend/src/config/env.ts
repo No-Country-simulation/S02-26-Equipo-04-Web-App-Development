@@ -10,5 +10,5 @@ function normalizeBaseUrl(value: string | undefined) {
 }
 
 export const env = {
-  apiBaseUrl: normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL),
+  apiBaseUrl: normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL),
 };

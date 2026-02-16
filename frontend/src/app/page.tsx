@@ -1,6 +1,6 @@
-import { Link } from "react-router";
+import Link from "next/link";
 
-export function LandingPage() {
+export default function HomePage() {
   return (
     <div className="relative min-h-screen overflow-hidden px-4 pb-20 pt-8 sm:px-8">
       <div className="pointer-events-none absolute inset-0">
@@ -17,13 +17,13 @@ export function LandingPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              to="/auth/login"
+              href="/auth/login"
               className="rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
             >
               Ingresar
             </Link>
             <Link
-              to="/auth/register"
+              href="/auth/register"
               className="inline-flex items-center gap-2 rounded-lg border border-neon-cyan/45 bg-neon-cyan/15 px-4 py-2 text-sm font-semibold text-neon-cyan transition hover:bg-neon-cyan/25"
             >
               Crear cuenta
@@ -50,19 +50,19 @@ export function LandingPage() {
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
-              to="/auth/register"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-neon-cyan/45 bg-neon-cyan/15 px-6 text-sm font-semibold text-neon-cyan transition hover:bg-neon-cyan/25"
-            >
-              Empezar gratis
-              <span aria-hidden="true">*</span>
-            </Link>
-            <Link
-              to="/app"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-neon-violet/45 bg-neon-violet/15 px-6 text-sm font-semibold text-white transition hover:bg-neon-violet/25"
-            >
-              Probar rutas seguras
-              <span aria-hidden="true">[]</span>
-            </Link>
+                href="/auth/register"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-neon-cyan/45 bg-neon-cyan/15 px-6 text-sm font-semibold text-neon-cyan transition hover:bg-neon-cyan/25"
+              >
+                Empezar gratis
+                <span aria-hidden="true">*</span>
+              </Link>
+              <Link
+                href="/app"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-neon-violet/45 bg-neon-violet/15 px-6 text-sm font-semibold text-white transition hover:bg-neon-violet/25"
+              >
+                Probar rutas seguras
+                <span aria-hidden="true">[]</span>
+              </Link>
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
@@ -82,7 +82,7 @@ export function LandingPage() {
                 "Subida de video horizontal",
                 "Lista de jobs y estado en progreso",
                 "Descarga de resultado final",
-                "Mensajes claros en caso de error",
+                "Mensajes claros en caso de error"
               ].map((item) => (
                 <article key={item} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white/85">
                   <div className="inline-flex items-center gap-2">
@@ -141,7 +141,7 @@ function Tag({ label, color }: { label: string; color: "cyan" | "mint" | "violet
   const tones = {
     cyan: "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan",
     mint: "border-neon-mint/45 bg-neon-mint/15 text-neon-mint",
-    violet: "border-neon-violet/45 bg-neon-violet/15 text-neon-violet",
+    violet: "border-neon-violet/45 bg-neon-violet/15 text-neon-violet"
   };
 
   return <span className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${tones[color]}`}>{label}</span>;
