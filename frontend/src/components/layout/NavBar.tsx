@@ -1,7 +1,9 @@
 "use client";
 
 import { LogOut, Menu, UserRound } from 'lucide-react'
+import Link from 'next/link';
 import { useRouter } from 'next/navigation'
+import { HaceloCortoLogo } from '@/src/components/branding/HaceloCortoLogo';
 import { useAuthStore } from '@/src/store/useAuthStore';
 interface TopbarProps {
   onOpenMenu: () => void
@@ -26,8 +28,8 @@ export default function NavBar({ onOpenMenu }: TopbarProps){
     <header className="sticky top-0 z-30 border-b border-white/10 bg-night-900/60 px-4 py-3 backdrop-blur-xl sm:px-6">
         <div className='flex w-full items-center justify-between gap-3'>
             <div className="flex items-center gap-3">
-            <button
-            className=""
+          <button
+            className="rounded-lg border border-white/20 p-1.5 text-white/85 transition hover:bg-white/10 lg:hidden"
             aria-label="Abrir menu"
             onClick={() => {
 
@@ -36,11 +38,14 @@ export default function NavBar({ onOpenMenu }: TopbarProps){
           >
             <Menu size={18} /> 
           </button>
-            <div>
-                <p>Hacelo Corto</p>
-                <h1>Dashboard</h1>
-            </div>
-            
+            <Link href="/" className="inline-flex items-center" aria-label="Ir al home">
+              <HaceloCortoLogo
+                variant="compact"
+                className="h-8 w-auto text-white sm:h-9"
+                title="Hacelo Corto"
+              />
+            </Link>
+             
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
             

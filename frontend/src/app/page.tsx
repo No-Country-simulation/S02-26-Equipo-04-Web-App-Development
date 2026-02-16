@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HaceloCortoLogo } from "@/src/components/branding/HaceloCortoLogo";
 
 export default function HomePage() {
   return (
@@ -11,10 +12,9 @@ export default function HomePage() {
 
       <div className="relative mx-auto w-full max-w-[1220px] space-y-10">
         <header className="animate-fade-up flex items-center justify-between rounded-2xl border border-white/10 bg-night-900/60 px-4 py-3 backdrop-blur-xl">
-          <div>
-            <p className="font-display text-xl text-white">Hacelo Corto</p>
-            <p className="text-xs uppercase tracking-[0.24em] text-neon-cyan/70">video automation studio</p>
-          </div>
+          <Link href="/" className="inline-flex items-center" aria-label="Ir al home">
+            <HaceloCortoLogo variant="compact" className="h-8 w-auto text-white sm:h-9" title="Hacelo Corto" />
+          </Link>
           <div className="flex items-center gap-2">
             <Link
               href="/auth/login"
