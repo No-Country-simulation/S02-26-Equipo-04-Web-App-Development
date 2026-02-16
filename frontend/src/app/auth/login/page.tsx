@@ -1,15 +1,32 @@
 "use client";
-import { useEffect } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, KeyRound, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, KeyRound, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import Image from "next/image";
+import { Button } from "@/src/components/ui/Button";
+
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
   const login = useAuthStore((state) => state.login);
+  const bootstrapSession = useAuthStore((state) => state.bootstrapSession);
+  const clearError = useAuthStore((state) => state.clearError);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isBootstrapped = useAuthStore((state) => state.isBootstrapped);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const error = useAuthStore((state) => state.error);
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isBootstrapped) {
+      void bootstrapSession();
+    }
+  }, [bootstrapSession, isBootstrapped]);
 
   useEffect(() => {
     const redirectPath = getPublicOnlyRedirect(isAuthenticated);
@@ -19,9 +36,13 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, router]);
 
-  const handleDemoLogin = () => {
-    login();
-    router.replace("/app");
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const didLogin = await login(email, password);
+    if (didLogin) {
+      router.replace("/app");
+    }
   };
 
   return (
@@ -61,7 +82,7 @@ export default function LoginPage() {
             </Link>
 
           </div>
-          <div className="mt-7 space-y-4">
+          <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
             <label className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Email</span>
               <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
@@ -69,7 +90,15 @@ export default function LoginPage() {
                 <input
                   type="email"
                   placeholder="usuario@hacelocorto.com"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (error) {
+                      clearError();
+                    }
+                  }}
                   className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                  required
                 />
               </span>
             </label>
@@ -79,31 +108,41 @@ export default function LoginPage() {
               <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
                 <KeyRound className="h-4 w-4 text-neon-violet" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="********"
+                  value={password}
+                  autoComplete="current-password"
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (error) {
+                      clearError();
+                    }
+                  }}
                   className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                  required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((currentValue) => !currentValue)}
+                  className="text-white/55 transition hover:text-neon-cyan"
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </span>
             </label>
-          </div>
+            {error ? <p className="text-sm font-medium text-rose-300">{error}</p> : null}
 
-          <button
-            type="button"
-            className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-cyan/45 bg-neon-cyan/15  px-6 text-sm font-semibold text-neon-cyan  transition hover:bg-neon-cyan/25"
-            onClick={handleDemoLogin}
-          >
-            <ShieldCheck className="h-4 w-4" />
-            Entrar
-          </button>
-            <button
-            type="button"
-            className="mt-6 inline-flex h-12 w-full items-center justify-center bg-white/5 gap-2 rounded-xl border border-white/45   px-6 text-sm font-semibold text-white/80  transition hover:bg-white/25"
-            onClick={handleDemoLogin}
-          >
-            ingresar con Google 
-            <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo"/>
+            <Button type="submit" className="mt-6" disabled={isLoading}>
+              <ShieldCheck className="h-4 w-4" />
+              {isLoading ? "Entrando..." : "Entrar"}
+            </Button>
+          </form>
+          <Button type="button" variant="neutral" className="mt-6" disabled>
+            Google proximamente
+            <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo" />
 
-          </button>
+          </Button>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
             <p>
               <Link href="" className="font-semibold text-neon-cyan underline decoration-neon-cyan/40 underline-offset-4">

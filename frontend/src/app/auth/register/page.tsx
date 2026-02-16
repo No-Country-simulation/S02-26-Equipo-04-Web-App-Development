@@ -1,15 +1,33 @@
 "use client";
 
-import { useEffect } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CircleCheckBig, Mail, Rocket, UserRound } from "lucide-react";
 import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
+import { Button } from "@/src/components/ui/Button";
 
 export default function RegisterPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const register = useAuthStore((state) => state.register);
+  const bootstrapSession = useAuthStore((state) => state.bootstrapSession);
+  const clearError = useAuthStore((state) => state.clearError);
+  const isBootstrapped = useAuthStore((state) => state.isBootstrapped);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const error = useAuthStore((state) => state.error);
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isBootstrapped) {
+      void bootstrapSession();
+    }
+  }, [bootstrapSession, isBootstrapped]);
 
   useEffect(() => {
     const redirectPath = getPublicOnlyRedirect(isAuthenticated);
@@ -18,6 +36,23 @@ export default function RegisterPage() {
       router.replace(redirectPath);
     }
   }, [isAuthenticated, router]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (password !== repeatPassword) {
+      setLocalError("Las contrasenas no coinciden.");
+      return;
+    }
+
+    setLocalError(null);
+    const didRegister = await register(email, password);
+    if (didRegister) {
+      router.replace("/app");
+    }
+  };
+
+  const formError = localError ?? error;
 
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-10 sm:px-8">
@@ -28,7 +63,7 @@ export default function RegisterPage() {
       </div>
 
       <section className="relative mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-        
+
 
         <article className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel backdrop-blur-xl [animation-delay:120ms] sm:p-8">
           <p className="inline-flex items-center gap-2 rounded-full border border-neon-violet/35 bg-neon-violet/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-neon-violet">
@@ -50,7 +85,7 @@ export default function RegisterPage() {
             </Link>
 
             <Link
-              href=""
+              href="/auth/register"
               className="rounded-lg bg-neon-cyan/15 px-3 py-2 text-center text-sm font-semibold text-neon-cyan transition "
             >
               Registrate
@@ -58,7 +93,7 @@ export default function RegisterPage() {
 
           </div>
 
-          <div className="mt-7 space-y-4">
+          <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
             <label className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Correo</span>
               <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
@@ -66,7 +101,16 @@ export default function RegisterPage() {
                 <input
                   type="email"
                   placeholder="usuario@hacelocorto.com"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    setLocalError(null);
+                    if (error) {
+                      clearError();
+                    }
+                  }}
                   className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                  required
                 />
               </span>
             </label>
@@ -78,10 +122,20 @@ export default function RegisterPage() {
                 <input
                   type="password"
                   placeholder="*****"
+                  value={password}
+                  autoComplete="username"
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setLocalError(null);
+                    if (error) {
+                      clearError();
+                    }
+                  }}
                   className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                  required
                 />
               </span>
-              
+
             </label>
             <label className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Repetir contraseña</span>
@@ -90,19 +144,27 @@ export default function RegisterPage() {
                 <input
                   type="password"
                   placeholder="*****"
+                  value={repeatPassword}
+                  autoComplete="username"
+                  onChange={(event) => {
+                    setRepeatPassword(event.target.value);
+                    setLocalError(null);
+                    if (error) {
+                      clearError();
+                    }
+                  }}
                   className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                  required
                 />
               </span>
-              
-            </label>
-          </div>
 
-          <button
-            type="button"
-            className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-violet/45 bg-neon-violet/15 px-6 text-sm font-semibold text-white transition hover:bg-neon-violet/25"
-          >
-            Crear cuenta
-          </button>
+            </label>
+            {formError ? <p className="text-sm font-medium text-rose-300">{formError}</p> : null}
+
+            <Button type="submit" variant="violet" className="mt-6" disabled={isLoading}>
+              {isLoading ? "Creando cuenta..." : "Crear cuenta"}
+            </Button>
+          </form>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
             {/* <p>
