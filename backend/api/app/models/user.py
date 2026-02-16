@@ -16,7 +16,11 @@ class User(Base, UUIDAsPrimaryKeyMixin, TimestampMixin):
     
     # === AUTENTICACIÓN ===
     email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=True)  # Nullable para usuarios OAuth
+    
+    # === OAUTH ===
+    provider = Column(String, default="email", nullable=False)  # "email" o "google"
+    provider_user_id = Column(String, nullable=True)  # ID del usuario en el provider
     
     # === PERMISOS Y ESTADO ===
     role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)

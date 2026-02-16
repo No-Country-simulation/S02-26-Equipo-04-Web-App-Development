@@ -2,8 +2,6 @@
 import secrets
 from typing import Dict, Any
 from sqlalchemy.orm import Session
-from authlib.integrations.starlette_client import OAuth
-from authlib.integrations.httpx_oauth2 import AsyncOAuth2Client
 import httpx
 
 from app.core.config import settings
@@ -181,11 +179,12 @@ class GoogleOAuthService:
         user = self.get_or_create_user(google_user)
         
         # 4. Generar nuestro propio JWT
-        jwt_token = create_access_token(data={"sub": user.email})
+        jwt_token = create_access_token(subject=user.email)
         
         return {
             "access_token": jwt_token,
             "token_type": "bearer",
+            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convertir a segundos
             "user": {
                 "id": str(user.id),
                 "email": user.email,
