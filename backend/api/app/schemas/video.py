@@ -13,3 +13,10 @@ class VideoUploadResponse(BaseSchema):
     user_id: UUID | None
     storage_path: str
     uploaded_at: datetime
+
+
+class VideoURLResponse(BaseSchema):
+    video_id: UUID
+    url: str
+    expires_in_seconds: int
+    filename: str

@@ -8,8 +8,14 @@ from botocore.exceptions import ClientError
 
 from app.core.config import settings
 from app.models.video import Video
-from app.schemas.video import VideoUploadResponse
-from app.utils.exceptions import VideoValidationException, MinIOStorageException, VideoDBException
+from app.schemas.video import VideoUploadResponse, VideoURLResponse
+from app.utils.exceptions import (
+    BadRequestException,
+    MinIOStorageException,
+    NotFoundException,
+    VideoDBException,
+    VideoValidationException,
+)
 
 
 class VideoService:
@@ -262,4 +268,55 @@ class VideoService:
             user_id=user_id,
             storage_path=video.storage_path,
             uploaded_at=datetime.utcnow()
+        )
+    
+    def get_video_url(self, video_id: UUID, expires_in: int = 3600) -> VideoURLResponse:
+        """
+        Genera una URL presignada para descargar el video.
+        
+        Args:
+            video_id: ID del video
+            expires_in: Tiempo de expiración en segundos (default: 1 hora)
+            
+        Returns:
+            VideoURLResponse con la URL presignada
+            
+        Raises:
+            HTTPException: Si el video no existe o no tiene storage_path
+            MinIOStorageException: Si falla la generación de URL
+        """
+        # Buscar el video en la DB
+        video = self.db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            raise NotFoundException(f"Video con ID {video_id} no encontrado")
+        
+        if not video.storage_path:
+            raise BadRequestException("El video no tiene una ruta de almacenamiento válida")
+        
+        # Extraer bucket y object_key del storage_path (formato: s3://bucket/key)
+        try:
+            storage_path = video.storage_path.replace("s3://", "")
+            parts = storage_path.split("/", 1)
+            if len(parts) != 2:
+                raise ValueError("Formato de storage_path inválido")
+            bucket, object_key = parts
+        except Exception as exc:
+            raise BadRequestException(f"Error procesando storage_path: {str(exc)}")
+        
+        # Generar URL presignada
+        s3_client = self._get_s3_client()
+        try:
+            url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket, 'Key': object_key},
+                ExpiresIn=expires_in
+            )
+        except ClientError as exc:
+            raise MinIOStorageException("Error generando URL presignada", str(exc))
+        
+        return VideoURLResponse(
+            video_id=video.id,
+            url=url,
+            expires_in_seconds=expires_in,
+            filename=video.original_filename
         )
