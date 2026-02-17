@@ -1,4 +1,5 @@
 import { Loader } from "@/src/components/ui/Loader";
+import ModalSetings from "../layout/ModalSetings";
 
 type ProjectStatusPanelProps = {
   hasVideo: boolean;
@@ -16,9 +17,9 @@ export function ProjectStatusPanel({ hasVideo, isUploading }: ProjectStatusPanel
           <p className="text-xs uppercase tracking-[0.22em] text-neon-cyan/80">estado del proyecto</p>
           <h3 className="mt-1 font-display text-2xl text-white">{status}</h3>
         </div>
-        <span className="rounded-lg border border-neon-violet/45 bg-neon-violet/15 px-3 py-1 text-xs font-semibold text-white">
+        {/* <span className="rounded-lg border border-neon-violet/45 bg-neon-violet/15 px-3 py-1 text-xs font-semibold text-white">
           Mock
-        </span>
+        </span> */}
       </div>
 
       <div className="mt-4 rounded-xl border border-white/15 bg-white/5 p-3">
@@ -39,7 +40,10 @@ export function ProjectStatusPanel({ hasVideo, isUploading }: ProjectStatusPanel
         <li className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Analisis de escenas</li>
         <li className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Generacion de clips</li>
       </ul>
-
+      <div className="mt-4 ">
+        <ModalSetings/>
+      </div>
+          
       {isUploading ? <Loader className="mt-4" label="Analizando video en segundo plano..." /> : null}
     </section>
   );
