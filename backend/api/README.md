@@ -122,6 +122,29 @@ curl http://localhost:8000/api/v1/auth/me \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
+### Subir Video (Público)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/videos/upload \
+  -F "file=@video.mp4"
+```
+
+**Respuesta**: `video_id`, `storage_path`, `bucket`, `object_key`, etc.
+
+### Subir Video (Autenticado)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/videos/upload/auth \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "file=@video.mp4"
+```
+
+**Flujo de subida**:
+1. Valida archivo (nombre, tipo `video/*`, tamaño > 0)
+2. Sube a MinIO con boto3 (`public/{uuid}_{filename}` o `{user_id}/{uuid}_{filename}`)
+3. Guarda metadata en tabla `video` (PostgreSQL) con status `"uploaded"`
+4. Retorna URL S3 completa y metadatos del video
+
 ## Documentación Interactiva
 
 - Swagger UI: http://localhost:8000/docs

@@ -5,6 +5,7 @@ from app.database.base import Base
 from app.core.config import settings
 from app.models.user import User
 from app.models.profile import Profile  # ← Importar Profile
+from app.models.video import Video  # ← Importar Video
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
