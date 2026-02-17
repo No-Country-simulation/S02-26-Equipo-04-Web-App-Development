@@ -60,3 +60,13 @@ Ejecutado en `frontend/`:
 - [x] `npm run test` OK
 - [x] `npm run build` OK
 - [x] Documentacion actualizada
+
+## Actualizacion 2026-02-16 (logo + navbar)
+
+- Rama de trabajo: `feature/frontend-logo-navbar-home`.
+- Se agrego `frontend/src/components/branding/HaceloCortoLogo.tsx` con 4 variantes (`icon`, `compact`, `wordmark`, `wordmarkMono`) y paleta editable por props para cambiar colores sin tocar el SVG base.
+- Se integro el logo compacto en la barra superior de dashboard (`frontend/src/components/layout/NavBar.tsx`) y en la barra superior de landing (`frontend/src/app/page.tsx`).
+- El logo de dashboard ahora funciona como acceso rapido al home (`/`).
+- Se corrigio la visibilidad del boton hamburguesa para que solo aparezca en mobile/tablet y no en desktop.
+- Se ajusto `frontend/src/components/layout/Sidebar.tsx` para dejar el sidebar fijo solo en desktop (`lg`) y mantener comportamiento de panel desplegable en mobile/tablet.
+- En desktop se muestra la variante `wordmark` (icono + nombre), mientras que en mobile/tablet se mantiene `compact`.

@@ -20,18 +20,18 @@ export function Sidebar({ mobileOpen, closeMobile }: SidebarProps) {
   return (
     <>
       <div
-        className={`fixed inset-0 z-30 bg-[#01030d]/60 backdrop-blur-sm transition md:hidden ${
-        mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`fixed inset-0 z-30 bg-[#01030d]/60 backdrop-blur-sm transition lg:hidden ${
+         mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={closeMobile}
       />
       <aside
-        className={`fixed left-0 top-0 z-40 h-full w-72 border-r border-white/10 bg-night-900/90 p-5 backdrop-blur-xl transition-transform md:sticky md:top-[73px] md:z-20 md:h-[calc(100vh-73px)] md:translate-x-0 ${
-         mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed left-0 top-0 z-40 h-full w-72 border-r border-white/10 bg-night-900/90 p-5 backdrop-blur-xl transition-transform lg:sticky lg:top-[73px] lg:z-20 lg:h-[calc(100vh-73px)] lg:translate-x-0 ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className="flex items-center justify-between md:justify-start">
+        <div className="flex items-center justify-between lg:justify-start">
           <p className="font-display text-lg tracking-wide text-white">HACELO CORTO</p>
           <button
-            className="rounded-lg border border-white/20 p-1 text-white/80 md:hidden"
+            className="rounded-lg border border-white/20 p-1 text-white/80 lg:hidden"
             onClick={closeMobile}
             aria-label="Cerrar menu"
           >
