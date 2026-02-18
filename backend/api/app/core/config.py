@@ -3,7 +3,12 @@ from pydantic import Field, field_validator
 import secrets
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env", 
+        case_sensitive=True, 
+        env_file_encoding="utf-8",
+        extra="ignore"  # Ignore extra fields like GOOGLE_* that may be in .env
+    )
     
     APP_NAME: str = "NoCountry Video API"
     APP_VERSION: str = "1.0.0"
