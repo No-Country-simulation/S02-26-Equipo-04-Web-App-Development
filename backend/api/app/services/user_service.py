@@ -31,9 +31,6 @@ class UserService:
                 raise UserAlreadyExistsException()
             user.email = update_data.email
         
-        if update_data.full_name is not None:
-            user.full_name = update_data.full_name
-        
         if update_data.password:
             user.hashed_password = get_password_hash(update_data.password.get_secret_value())
         
