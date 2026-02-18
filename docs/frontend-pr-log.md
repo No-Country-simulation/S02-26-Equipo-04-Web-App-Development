@@ -70,3 +70,28 @@ Ejecutado en `frontend/`:
 - Se corrigio la visibilidad del boton hamburguesa para que solo aparezca en mobile/tablet y no en desktop.
 - Se ajusto `frontend/src/components/layout/Sidebar.tsx` para dejar el sidebar fijo solo en desktop (`lg`) y mantener comportamiento de panel desplegable en mobile/tablet.
 - En desktop se muestra la variante `wordmark` (icono + nombre), mientras que en mobile/tablet se mantiene `compact`.
+
+## Actualizacion 2026-02-18 (video upload + settings + preview)
+
+- Rama de trabajo: `feature/frontend-video-upload-settings-preview`.
+- Se conecto el upload real de video desde `frontend/src/app/app/page.tsx` usando el nuevo servicio `frontend/src/services/videoApi.ts` y se removio el delay/mock anterior.
+- Se incorporo la accion para solicitar la URL de descarga presignada y mostrarla desde el panel de estado (`frontend/src/components/home/ProjectStatusPanel.tsx`).
+- Se rehizo el modal de ajustes de video para ubicarlo dentro de `home`, alineado al estilo visual existente, en `frontend/src/components/home/VideoSettingsModal.tsx`.
+- Se agrego persistencia de settings en `frontend/src/store/useVideoSettingsStore.ts` (zustand + persist).
+- Se elimino el modal anterior fuera de lugar: `frontend/src/components/layout/ModalSetings.tsx`.
+- Se agrego mini preview del video subido en el panel de estado; cuando el upload finaliza, reemplaza visualmente el bloque de progreso.
+
+### Commits realizados (rama actual)
+
+- `feat(frontend): connect upload flow with video endpoints`
+- `feat(frontend): add and persist home video settings modal`
+- `feat(frontend): show mini preview after video upload`
+- `docs(frontend): log video upload and settings work`
+
+### Validaciones locales (rama actual)
+
+Ejecutado en `frontend/`:
+
+- `npm run lint` -> OK
+- `npm run test` -> OK (9 tests)
+- `npm run build` -> OK
