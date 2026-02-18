@@ -4,14 +4,15 @@ from fastapi import APIRouter, Depends, status, Path
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_active_user
 from app.database.session import get_db
+
+from app.services.queue_service import QueueService
 from app.models.user import User
 from app.services.job_service import JobService
+from app.services.dependencies import get_job_service
 from app.schemas.job import JobReframeResponse, JobStatusResponse
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
-def get_job_service(db: Session = Depends(get_db)) -> JobService:
-    return JobService(db)
 
 @router.post(
     "/reframe/{video_id}",
@@ -32,7 +33,7 @@ async def reframe_video(
     service: Annotated[JobService, Depends(get_job_service)]
 ) -> JobReframeResponse:
     """Crea un nuevo Job de REFRAME para el video subido (requiere autenticación)"""
-    return service.mock_reframe_video(
+    return service.reframe_video(
         video_id=video_id,
         user_id=current_user.id
     )
@@ -54,4 +55,4 @@ async def get_job_status(
     service: Annotated[JobService, Depends(get_job_service)]
 ) -> JobStatusResponse:
     """Devuelve el estado del Job (requiere autenticación)"""
-    return service.mock_get_job_status(job_id, current_user.id)
+    return service.get_job_status(job_id, current_user.id)

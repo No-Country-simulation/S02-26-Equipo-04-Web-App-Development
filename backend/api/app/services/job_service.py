@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.job import Job, JobStatus, JobType
 from app.models.video import Video
 from app.schemas.job import JobReframeResponse, JobStatusResponse
+from app.services.queue_service import QueueService
 from app.utils.exceptions import (
     NotFoundException,
 )
@@ -13,36 +14,68 @@ from app.utils.exceptions import (
 class JobService:
     """Servicio de Jobs - Persiste un Job, luego envia mensaje a Redis"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, queue: QueueService):
         self.db = db
+        self.queue = queue
     
-    def mock_reframe_video(self, video_id: UUID, user_id: UUID) -> JobReframeResponse:
-        # MOCK temporal
-        return JobReframeResponse(
-            job_id=UUID("00000000-0000-0000-0000-000000000001"),
-            job_type=JobType.REFRAME,
-            status=JobStatus.PENDING,
-            filename="mock_video.mp4",
-            created_at=datetime(2024, 1, 1)
+
+    def get_job_status(self, job_id: UUID, user_id: UUID) -> JobStatusResponse:
+        job = (
+        self.db.query(Job)
+        .filter(
+            Job.id == job_id,
+            Job.user_id == user_id
+        )
+        .first()
         )
 
-    def mock_get_job_status(self, job_id: UUID, user_id: UUID) -> JobStatusResponse:
-        # MOCK temporal
+        if not job:
+            raise NotFoundException("Job Not found")
+
         return JobStatusResponse(
-            job_id=job_id,
-            status=JobStatus.PENDING,
-            output_path=None
+            job_id=job.id,
+            status=job.status,
+            output_path=job.output_path
         )
     
-    def reframe_video(self, video_id: UUID, user_id: UUID) -> Job:
-        video = self.db.query(Video).filter(
-            Video.id == video_id,
-            Video.user_id == user_id
-        ).first()
+    
+    def reframe_video(self, video_id: UUID, user_id: UUID) -> JobReframeResponse:
+        video = (
+            self.db.query(Video)
+            .filter(
+                Video.id == video_id,
+                Video.user_id == user_id
+            )
+            .first()
+        )
 
         if not video:
-            raise NotFoundException(status_code=404, detail="Video no encontrado")
+            raise NotFoundException(
+                status_code=404,
+                detail="Video no encontrado"
+            )
 
+
+        # validar que no exista ya un job PENDING/RUNNING para ese video_id
+        existing_job = (
+            self.db.query(Job)
+            .filter(
+                Job.video_id == video_id,
+                Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING])
+            )
+            .first()
+        )
+
+        if existing_job:
+            return JobReframeResponse(
+                job_id=existing_job.id,
+                job_type=existing_job.job_type,
+                status=existing_job.status,
+                filename=video.original_filename,
+                created_at=existing_job.created_at
+            )
+
+        # crear Job en DB
         job = Job(
             user_id=user_id,
             video_id=video_id,
@@ -51,9 +84,27 @@ class JobService:
         )
 
         self.db.add(job)
-        self.db.commit()
-        self.db.refresh(job)
+        self.db.commit()        # persistir primero
+        self.db.refresh(job)    # refresh para obtener ID generado
 
-        # TODO: confirmar commit en db y luego enviar a Redis
+        # enviar a Redis (después del commit)
+        try:
+            self.queue.publish_reframe_job(
+                job_id=str(job.id),
+                video_id=str(video_id),
+                user_id=str(user_id),
+            )
+        except Exception as e:
+            # Si falla Redis, dejamos el job en FAILED
+            job.status = JobStatus.FAILED
+            job.error_message = "Error enviando job a la cola"
+            self.db.commit()
+            raise e
 
-        return job
+        return JobReframeResponse(
+            job_id=job.id,
+            job_type=job.job_type,
+            status=job.status,
+            filename=video.original_filename,
+            created_at=job.created_at
+        )
