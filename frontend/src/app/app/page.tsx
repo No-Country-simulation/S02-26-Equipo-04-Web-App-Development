@@ -4,6 +4,8 @@ import { GeneratedClipsSection, type Clip } from "@/src/components/home/Generate
 import { ProjectStatusPanel } from "@/src/components/home/ProjectStatusPanel";
 import { UploadDropzone } from "@/src/components/home/UploadDropzone";
 import { Panel } from "@/src/components/ui/Panel";
+import { VideoApiError, type VideoUploadResponse, type VideoUrlResponse, videoApi } from "@/src/services/videoApi";
+import { useAuthStore } from "@/src/store/useAuthStore";
 import { useMemo, useState } from "react";
 
 const mockClips: Clip[] = [
@@ -12,20 +14,76 @@ const mockClips: Clip[] = [
   { id: "clip-3", title: "CTA final", duration: "00:18", preset: "Fast Cut", status: "render" }
 ];
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+function normalizeVideoError(error: unknown, fallbackMessage: string) {
+  if (error instanceof VideoApiError) {
+    if (error.status === 400) {
+      return "El archivo de video es invalido o no cumple los requisitos.";
+    }
+
+    if (error.status === 401) {
+      return "Tu sesion expiro. Vuelve a iniciar sesion para continuar.";
+    }
+
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    const normalizedMessage = error.message.toLowerCase();
+    if (normalizedMessage.includes("failed to fetch") || normalizedMessage.includes("networkerror")) {
+      return "No pudimos conectar con el servidor. Intenta de nuevo en unos segundos.";
+    }
+
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
 
 export default function AppHomePage() {
+  const token = useAuthStore((state) => state.token);
   const [isUploading, setIsUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedVideo, setUploadedVideo] = useState<VideoUploadResponse | null>(null);
+  const [downloadData, setDownloadData] = useState<VideoUrlResponse | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isResolvingDownloadUrl, setIsResolvingDownloadUrl] = useState(false);
 
-  const hasVideo = Boolean(selectedFile);
+  const hasVideo = Boolean(uploadedVideo);
   const visibleClips = useMemo(() => (hasVideo && !isUploading ? mockClips : []), [hasVideo, isUploading]);
 
   const handleUpload = async (file: File) => {
-    setSelectedFile(file);
     setIsUploading(true);
-    await wait(1400);
-    setIsUploading(false);
+    setUploadedVideo(null);
+    setUploadError(null);
+    setDownloadData(null);
+    setDownloadError(null);
+
+    try {
+      const uploaded = await videoApi.upload(file, token);
+      setUploadedVideo(uploaded);
+    } catch (error) {
+      setUploadError(normalizeVideoError(error, "No pudimos subir el video."));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleResolveDownloadUrl = async () => {
+    if (!uploadedVideo) {
+      return;
+    }
+
+    setIsResolvingDownloadUrl(true);
+    setDownloadError(null);
+
+    try {
+      const urlPayload = await videoApi.getVideoUrl(uploadedVideo.video_id);
+      setDownloadData(urlPayload);
+    } catch (error) {
+      setDownloadError(normalizeVideoError(error, "No pudimos obtener la URL de descarga."));
+    } finally {
+      setIsResolvingDownloadUrl(false);
+    }
   };
 
   return (
@@ -35,12 +93,21 @@ export default function AppHomePage() {
           <UploadDropzone
             onUpload={handleUpload}
             isUploading={isUploading}
-            fileName={selectedFile?.name}
+            fileName={uploadedVideo?.filename}
           />
         </Panel>
 
         <Panel>
-          <ProjectStatusPanel hasVideo={hasVideo} isUploading={isUploading} />
+          <ProjectStatusPanel
+            hasVideo={hasVideo}
+            isUploading={isUploading}
+            uploadError={uploadError}
+            videoId={uploadedVideo?.video_id ?? null}
+            downloadUrl={downloadData?.url ?? null}
+            isResolvingDownloadUrl={isResolvingDownloadUrl}
+            downloadError={downloadError}
+            onResolveDownloadUrl={handleResolveDownloadUrl}
+          />
         </Panel>
       </div>
 
