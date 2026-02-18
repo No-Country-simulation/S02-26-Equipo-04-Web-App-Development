@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str = Field(default="miniopass")
     MINIO_BUCKET_VIDEOS: str = Field(default="videos")
     MINIO_SECURE: bool = Field(default=False)
+    # Endpoint público para URLs presignadas (accesible desde navegador)
+    MINIO_PUBLIC_ENDPOINT: str | None = Field(default=None)
+    MINIO_PUBLIC_SECURE: bool | None = Field(default=None)
     
     SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     ALGORITHM: str = Field(default="HS256")

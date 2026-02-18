@@ -37,10 +37,12 @@ class VideoService:
     def __init__(self, db: Session):
         self.db = db
     
-    def _get_s3_client(self):
+    def _get_s3_client(self, endpoint: str | None = None, secure: bool | None = None):
         """Obtiene cliente S3 configurado para MinIO"""
-        scheme = "https" if settings.MINIO_SECURE else "http"
-        endpoint_url = f"{scheme}://{settings.MINIO_ENDPOINT}"
+        selected_endpoint = endpoint or settings.MINIO_ENDPOINT
+        selected_secure = settings.MINIO_SECURE if secure is None else secure
+        scheme = "https" if selected_secure else "http"
+        endpoint_url = f"{scheme}://{selected_endpoint}"
         return boto3.client(
             "s3",
             endpoint_url=endpoint_url,
@@ -303,8 +305,10 @@ class VideoService:
         except Exception as exc:
             raise BadRequestException(f"Error procesando storage_path: {str(exc)}")
         
-        # Generar URL presignada
-        s3_client = self._get_s3_client()
+        # Generar URL presignada usando endpoint público
+        public_endpoint = settings.MINIO_PUBLIC_ENDPOINT or settings.MINIO_ENDPOINT
+        public_secure = settings.MINIO_SECURE if settings.MINIO_PUBLIC_SECURE is None else settings.MINIO_PUBLIC_SECURE
+        s3_client = self._get_s3_client(endpoint=public_endpoint, secure=public_secure)
         try:
             url = s3_client.generate_presigned_url(
                 'get_object',
