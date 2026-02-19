@@ -47,6 +47,18 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY debe tener al menos 32 caracteres en producción")
         return v
     
+    # === GOOGLE OAUTH ===
+    GOOGLE_CLIENT_ID: str = Field(...)
+    GOOGLE_CLIENT_SECRET: str = Field(...)
+    GOOGLE_REDIRECT_URI: str = Field(default="http://localhost:3000/auth/callback")
+    
+    @field_validator("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET")
+    @classmethod
+    def validate_google_credentials(cls, v, info):
+        if info.data.get("ENVIRONMENT") == "production" and not v:
+            raise ValueError(f"{info.field_name} is required in production")
+        return v
+    
     ALLOWED_ORIGINS: list[str] = Field(default=["http://localhost:3000", "http://localhost:5173"])
     
     @field_validator("ALLOWED_ORIGINS", mode="before")

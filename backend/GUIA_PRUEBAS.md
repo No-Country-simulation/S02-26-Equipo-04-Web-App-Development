@@ -381,17 +381,189 @@ docker-compose restart fastapi
 
 ---
 
+## 🔐 Pruebas de Google OAuth 2.0
+
+### 📋 Requisitos previos
+- Tener las credenciales de Google OAuth configuradas en `.env`
+- El archivo `.env` debe tener:
+  ```bash
+  GOOGLE_CLIENT_ID=tu-client-id.apps.googleusercontent.com
+  GOOGLE_CLIENT_SECRET=tu-client-secret
+  GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback
+  ```
+  
+**⚠️ IMPORTANTE:** Las credenciales reales están en el archivo `.env` (que NO se sube a GitHub). Si necesitas las credenciales, pídelas al equipo por Discord.
+
+### 📍 **Paso 1: Generar URL de autorización de Google**
+
+**GET** `http://localhost:8000/api/v1/auth/google/login`
+
+**Headers:** Ninguno requerido
+
+**Respuesta esperada:**
+```json
+{
+  "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
+  "state": "X5Ib5JJ0MtsMAsxzUOeVq-tDHhtQUVV75mpHrIdTL-c"
+}
+```
+
+**⚠️ IMPORTANTE:** Guarda el valor de `state` para el siguiente paso.
+
+---
+
+### 📍 **Paso 2: Autenticarse con Google (manual)**
+
+1. **Copia la URL** completa de `authorization_url` del paso anterior
+2. **Pégala en tu navegador** y presiona Enter
+3. **Selecciona tu cuenta de Google** y autoriza la aplicación
+4. **Google te redirigirá** a una URL como:
+   ```
+   http://localhost:3000/auth/callback?state=X5Ib5JJ0...&code=4/0AfrIepD...&scope=email+profile...
+   ```
+5. **Copia el valor del parámetro `code`** de la URL (después de `code=` y antes de `&scope`)
+
+**Ejemplo:**
+```
+code=4/0AfrIepDwG5Ab2OCYRUj2Amksvdqg2xP67ifOA8KyKb9wY0cYAO_tmxJTLr1xzV9IoOLEDw
+```
+
+---
+
+### 📍 **Paso 3: Completar el flujo OAuth (callback)**
+
+**POST** `http://localhost:8000/api/v1/auth/google/callback`
+
+**Headers:**
+```
+Content-Type: application/json
+```
+
+**Body (raw JSON):**
+```json
+{
+  "code": "4/0AfrIepDwG5Ab2OCYRUj2Amksvdqg2xP67ifOA8KyKb9wY0cYAO_tmxJTLr1xzV9IoOLEDw",
+  "state": "X5Ib5JJ0MtsMAsxzUOeVq-tDHhtQUVV75mpHrIdTL-c"
+}
+```
+
+**Respuesta esperada (200 OK):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 604800,
+  "user": {
+    "id": "d238830f-a5dd-4691-85fd-dd6d1a1b567f",
+    "email": "tuusuario@gmail.com",
+    "role": "USER",
+    "is_active": true,
+    "is_verified": true
+  }
+}
+```
+
+**⚠️ NOTA:** El código de Google (`code`) **expira en 10 minutos** y es de **un solo uso**. Si falla, debes repetir desde el Paso 1.
+
+---
+
+### 📍 **Verificar usuario en la base de datos**
+
+```bash
+# Conectarse a la base de datos
+docker exec -it postgres psql -U postgres -d fastapi_db
+
+# Ver usuarios creados con Google OAuth
+SELECT id, email, provider, provider_user_id, is_verified FROM users WHERE provider='google';
+
+# Salir de psql
+\q
+```
+
+**Deberías ver:**
+```
+                  id                  |         email         | provider | provider_user_id | is_verified
+--------------------------------------+-----------------------+----------+------------------+-------------
+ d238830f-a5dd-4691-85fd-dd6d1a1b567f | tuusuario@gmail.com   | google   | 1234567890       | t
+```
+
+---
+
+### 🧪 **Prueba avanzada: PowerShell (automatizada)**
+
+Si usas Windows con PowerShell, puedes probar todo el flujo así:
+
+```powershell
+# 1. Generar URL de autorización
+$response = Invoke-WebRequest -Uri http://localhost:8000/api/v1/auth/google/login -Method GET -UseBasicParsing | ConvertFrom-Json
+Write-Host "URL: $($response.authorization_url)"
+Write-Host "State: $($response.state)"
+
+# 2. Abre la URL en el navegador, autentica con Google, y copia el 'code' de la URL de callback
+
+# 3. Enviar el código al callback
+$code = "TU_CODIGO_AQUI"
+$state = $response.state
+$body = @{ code = $code; state = $state } | ConvertTo-Json
+Invoke-WebRequest -Uri http://localhost:8000/api/v1/auth/google/callback -Method POST -Body $body -ContentType "application/json" -UseBasicParsing
+```
+
+---
+
+### ✅ **Validaciones del flujo OAuth**
+
+Después de completar el flujo, verifica:
+
+- [ ] El endpoint `/auth/google/login` genera una URL válida
+- [ ] Google redirige correctamente después de autenticar
+- [ ] El endpoint `/auth/google/callback` devuelve un JWT válido
+- [ ] El usuario se crea en la tabla `users` con `provider='google'`
+- [ ] El perfil del usuario se crea automáticamente en la tabla `profiles`
+- [ ] El campo `hashed_password` del usuario OAuth es `NULL`
+- [ ] El campo `is_verified` es `true` (porque Google ya verificó el email)
+- [ ] El `access_token` funciona para acceder a endpoints protegidos
+
+---
+
+### 🔧 **Troubleshooting OAuth**
+
+**Error: "Error en el servidor remoto: (400) Solicitud incorrecta"**
+- El código de Google expiró (dura 10 minutos)
+- Solución: Genera una nueva URL desde el Paso 1
+
+**Error: "Error en autenticación con Google: ..."**
+- Verifica que las credenciales en `.env` sean correctas
+- Verifica que `docker-compose restart fastapi` se ejecutó después de cambiar `.env`
+
+**El usuario no se crea en la base de datos**
+- Verifica que la migración de Alembic esté aplicada: `docker exec -it fastapi alembic upgrade head`
+- Chequea los logs: `docker logs fastapi --tail 50`
+
+---
+
 ## ✅ Checklist de verificación
 
+### Configuración inicial:
 - [ ] Docker Desktop está corriendo
 - [ ] `docker-compose up -d` ejecutado sin errores
 - [ ] Migración de Alembic aplicada (`alembic upgrade head`)
 - [ ] http://localhost:8000/docs responde
+
+### Autenticación tradicional (email/password):
 - [ ] Registro de usuario funciona
 - [ ] Login funciona y devuelve token
 - [ ] `/auth/me` funciona con el token
 - [ ] Los datos se guardan en la base de datos (verificado con `psql`)
 - [ ] Tablas `users` y `profiles` existen y tienen la relación correcta
+
+### Autenticación con Google OAuth:
+- [ ] Credenciales de Google configuradas en `.env`
+- [ ] `/auth/google/login` genera URL de autorización
+- [ ] Google redirige correctamente después de autenticar
+- [ ] `/auth/google/callback` devuelve JWT válido
+- [ ] Usuario OAuth se crea con `provider='google'`
+- [ ] Perfil se crea automáticamente para usuario OAuth
+- [ ] JWT de usuario OAuth funciona en endpoints protegidos
 
 ---
 
