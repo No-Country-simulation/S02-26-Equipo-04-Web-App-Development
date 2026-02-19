@@ -1,5 +1,6 @@
 """Servicio de autenticación con Google OAuth 2.0"""
 import secrets
+import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 import httpx
@@ -10,6 +11,8 @@ from app.models.user import User
 from app.models.profile import Profile
 from app.models.enums import UserRole
 from app.schemas.oauth import GoogleAuthURL, GoogleUserInfo
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleOAuthService:
@@ -69,17 +72,32 @@ class GoogleOAuthService:
         Returns:
             Dict con access_token, refresh_token, etc.
         """
+        # Log para debugging (sin exponer client_secret completo)
+        logger.debug(f"🔐 Intercambiando código por token...")
+        logger.debug(f"📍 Redirect URI: {settings.GOOGLE_REDIRECT_URI}")
+        logger.debug(f"🔑 Client ID: {settings.GOOGLE_CLIENT_ID[:20]}...")
+        logger.debug(f"📝 Code length: {len(code)} chars")
+        
         async with httpx.AsyncClient() as client:
+            token_data = {
+                "code": code,
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            }
+            
             response = await client.post(
                 self.GOOGLE_TOKEN_URL,
-                data={
-                    "code": code,
-                    "client_id": settings.GOOGLE_CLIENT_ID,
-                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                    "redirect_uri": settings.GOOGLE_REDIRECT_URI,
-                    "grant_type": "authorization_code",
-                }
+                data=token_data
             )
+            
+            # Si hay error, loguear respuesta de Google
+            if response.status_code != 200:
+                error_detail = response.text
+                logger.error(f"❌ Google OAuth error: {response.status_code}")
+                logger.error(f"📄 Response: {error_detail}")
+            
             response.raise_for_status()
             return response.json()
     
