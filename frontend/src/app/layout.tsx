@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Hacelo Corto",
-  description: "Landing publica del equipo frontend"
+  title: "Frontend workspace",
+  description: "Base frontend migrada a Next.js"
 };
 
 type RootLayoutProps = {

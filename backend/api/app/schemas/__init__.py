@@ -7,7 +7,6 @@ from app.schemas.user import UserCreate, UserUpdate, UserPublic, UserInDB
 from app.schemas.profile import ProfileCreate, ProfileUpdate, ProfilePublic, ProfileInDB
 from app.schemas.token import Token, TokenPayload
 from app.schemas.response import APIException, ErrorResponse, ErrorDetail
-from app.schemas.oauth import GoogleAuthURL, GoogleUserInfo, GoogleCallbackRequest
 
 __all__ = [
     "UserCreate",
@@ -23,7 +22,4 @@ __all__ = [
     "APIException",
     "ErrorResponse",
     "ErrorDetail",
-    "GoogleAuthURL",
-    "GoogleUserInfo",
-    "GoogleCallbackRequest",
 ]
