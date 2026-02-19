@@ -20,7 +20,9 @@ services:
       - ./api:/app
 
   worker:
-    build: ./worker
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
     container_name: worker
     environment:
       - REDIS_HOST=redis
@@ -31,7 +33,9 @@ services:
       - minio
       - db
     volumes:
-      - ./worker:/app
+      - ./api/app:/app/app
+      - ./worker:/app/worker
+      - ./tmp:/app/tmp
 
   redis:
     image: redis:7

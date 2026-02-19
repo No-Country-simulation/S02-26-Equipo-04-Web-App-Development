@@ -59,3 +59,10 @@ class VideoDBException(AppException):
         if original_error:
             message = f"{message}: {original_error}"
         super().__init__(message, status_code=500)
+
+# ============ JOB EXCEPTIONS ============
+
+class JobParameterException(BadRequestException):
+    """Excepción para parámetros de recorte de video inválidos (start_sec/end_sec)"""
+    def __init__(self, message: str = "Invalid job parameters: start_sec/end_sec"):
+        super().__init__(message)
