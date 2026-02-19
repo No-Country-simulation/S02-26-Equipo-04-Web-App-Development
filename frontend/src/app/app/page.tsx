@@ -132,7 +132,7 @@ const showPreview = Boolean(videoPreviewUrl && hasVideo && !isUploading);
           />
         </Panel>
       </div>
-      {showPreview &&(<div className="flex gap-5 mt-5">
+      {showPreview &&(<div className="flex flex-col lg:flex-row gap-5 mt-5">
         <Panel >
           <VideoPreview videoPreviewUrl={videoPreviewUrl}
           onTrimChange={(start, end) => {

@@ -20,7 +20,7 @@ export function VideoSettings(){
       };
     return (<>
     
-                <form onSubmit={handleSubmit} className="mt-5 space-y-4 w-90">
+                <form onSubmit={handleSubmit} className="mt-5 space-y-4 min-w-70">
                   <div className="space-y-2">
                     {settingItems.map((item) => (
                       <label
