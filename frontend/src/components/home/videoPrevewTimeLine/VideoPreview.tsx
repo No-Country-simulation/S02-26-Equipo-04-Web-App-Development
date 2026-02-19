@@ -37,7 +37,7 @@ export function VideoPreview({
         <span className="text-white/80">Preview</span>
       </div>
 
-      <VideoPlayer start={start} end={end} videoRef={videoRef} src={videoPreviewUrl} />
+      <VideoPlayer start={start} end={end} duration={duration} videoRef={videoRef} src={videoPreviewUrl} />
 
       {duration > 0 && (
         <Timeline
