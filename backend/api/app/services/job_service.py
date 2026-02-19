@@ -75,17 +75,18 @@ class JobService:
             .first()
         )
 
-        if existing_job.status == JobStatus.RUNNING:
-            logger.info(f"Existing job {existing_job.id} is already {existing_job.status}")
-            return JobReframeResponse(
-                job_id=existing_job.id,
-                job_type=existing_job.job_type,
-                status=existing_job.status,
-                filename=video.original_filename,
-                start_sec=start_sec,
-                end_sec=end_sec,
-                created_at=existing_job.created_at
-            )
+        if existing_job:
+            if existing_job.status == JobStatus.RUNNING:
+                logger.info(f"Existing job {existing_job.id} is already {existing_job.status}")
+                return JobReframeResponse(
+                    job_id=existing_job.id,
+                    job_type=existing_job.job_type,
+                    status=existing_job.status,
+                    filename=video.original_filename,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    created_at=existing_job.created_at
+                )
 
         if existing_job:
             logger.info(f"Existing job {existing_job.id} found for video {video_id} with status {existing_job.status}, reusing it")
