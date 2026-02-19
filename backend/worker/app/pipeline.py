@@ -1,4 +1,6 @@
+from fileinput import filename
 import os
+import uuid
 import cv2
 import math
 import ffmpeg
@@ -6,6 +8,7 @@ import librosa
 import subprocess
 import numpy as np
 from pathlib import Path
+import logging
 
 """
 ============================
@@ -40,7 +43,7 @@ previsualizar en el front y ofrecer micro ajustes y sus resultados ??
 DEBUG = True
 
 # output routes and dirs
-OUTPUT_DIR = Path("output")
+OUTPUT_DIR = Path("tmp")
 NORMALIZED_VIDEO = OUTPUT_DIR / "normalized"
 PROCESSED_VIDEO = OUTPUT_DIR / "processed"
 RESULT_VIDEO = OUTPUT_DIR / "result"
@@ -82,6 +85,10 @@ face_cascade = cv2.CascadeClassifier(
 )
 if face_cascade.empty():
     raise RuntimeError("Failed to load face cascade classifier")
+
+# logger
+logger = logging.getLogger("pipeline")
+logger.propagate = True
 #========================================================================   
 
 
@@ -196,7 +203,7 @@ class CameraDirector:
 
         if detected_x is None:
             # No subject detected → hold position
-            print(f"\n🔔 NO SUBJECT DETECTED, CURRENT POSITION: {self.current_x}\n")
+            logger.info(f"🔔 NO SUBJECT DETECTED, CURRENT POSITION: {self.current_x}")
             return self.current_x
         
         #Eso hace que:
@@ -325,6 +332,7 @@ def init_stream_decoder(video_path):
         ffmpeg
         .input(video_path)
         .output('pipe:', format='rawvideo', pix_fmt='bgr24')
+        .global_args('-loglevel', 'error')
         .run_async(pipe_stdout=True)
     )
 
@@ -341,11 +349,12 @@ def init_stream_encoder(output_path, actual_w, actual_h, fps):
             movflags='+faststart'
         )
         .overwrite_output()
+        .global_args('-loglevel', 'error')  # <--- errors only
         .run_async(pipe_stdin=True)
     )
 
 
-def normalize_video_segment(video_path, start_sec, end_sec,
+def normalize_video_segment(video_path, filename,start_sec, end_sec,
                             target_fps=TARGET_FPS,
                             target_max_width=TARGET_MAX_W):
     """
@@ -383,7 +392,7 @@ def normalize_video_segment(video_path, start_sec, end_sec,
     str
         Path to normalized (or copied) video segment.
     """
-    print("\n🎬 VIDEO NORMALIZATION...", flush=True)
+    logger.info("🎬 VIDEO NORMALIZATION...")
 
     probe = ffmpeg.probe(video_path)
     vstream = next(s for s in probe["streams"] if s["codec_type"] == "video")
@@ -396,22 +405,23 @@ def normalize_video_segment(video_path, start_sec, end_sec,
     num, den = map(int, fps_str.split("/"))
     fps = num / den if den else 0
 
-    print(f"📂 {video_path}")
-    print(f"🎞  Codec: {codec}")
-    print(f"📐 Resolución: {width}x{height}")
-    print(f"🎨 Pixel format: {pix_fmt}")
-    print(f"⏱  FPS: {fps:.2f}\n", flush=True)
+    logger.info(f"📂 {video_path[:40]}...")
+    logger.info(f"🎞  Codec: {codec}")
+    logger.info(f"📐 Resolución: {width}x{height}")
+    logger.info(f"🎨 Pixel format: {pix_fmt}")
+    logger.info(f"⏱  FPS: {fps:.2f}")
 
     needs_codec = codec not in ("h264", "libx264")
     needs_fps = abs(fps - target_fps) > 2
     needs_scale = width > target_max_width
     needs_pixfmt = pix_fmt != "yuv420p"
 
-    output_path = str(NORMALIZED_VIDEO / Path(video_path).name)
+    output_name = f"normalized_{filename}"
+    output_path = str(NORMALIZED_VIDEO / output_name)
     
     if not any([needs_codec, needs_fps, needs_scale, needs_pixfmt]):
 
-        print("\n⚙️  Video is already normalized. Only cutting segment.\n", flush=True)
+        logger.info("⚙️  Video is already normalized. Only cutting segment.")
 
         (
             ffmpeg
@@ -426,15 +436,16 @@ def normalize_video_segment(video_path, start_sec, end_sec,
                 avoid_negative_ts="make_zero"
             )
             .overwrite_output()
+            .global_args('-loglevel', 'error')  # <--- errors only
             .run()
         )
         return output_path
 
-    print("\n⚙️  Normalization needed:\n", flush=True)
-    print(f"   Codec ok? {not needs_codec}")
-    print(f"   FPS ok? {not needs_fps}")
-    print(f"   Resolution ok? {not needs_scale}")
-    print(f"   Pixel format ok? {not needs_pixfmt}\n", flush=True)
+    logger.info("⚙️  Normalization needed:")
+    logger.info(f"   Codec ok? {not needs_codec}")
+    logger.info(f"   FPS ok? {not needs_fps}")
+    logger.info(f"   Resolution ok? {not needs_scale}")
+    logger.info(f"   Pixel format ok? {not needs_pixfmt}")
 
     stream = ffmpeg.input(video_path, ss=start_sec, to=end_sec)
 
@@ -454,18 +465,19 @@ def normalize_video_segment(video_path, start_sec, end_sec,
             movflags="+faststart"
         )
         .overwrite_output()
+        .global_args('-loglevel', 'error')  # <--- errors only
     )
 
-    print("🚀 Runnig FFmpeg...\n", flush=True)
+    logger.info("🚀 Runnig FFmpeg...")
     ffmpeg.run(stream)
 
-    print(f"✅ VIDEO NORMALIZED: {output_path}\n", flush=True)
+    logger.info(f"✅ VIDEO NORMALIZED: {output_path}")
 
     return output_path
 
 
 def merge_audio_track(processed_video_path,
-                      normalized_video_path):
+                      normalized_video_path, filename):
     """
     Merges the original audio track into a processed video file.
 
@@ -493,7 +505,8 @@ def merge_audio_track(processed_video_path,
     - Audio is encoded to AAC for compatibility.
     - The output duration matches the shortest stream.
     """
-    output_path = str(RESULT_VIDEO / Path(processed_video_path).name)
+    output_name = f"result_{filename}"
+    output_path = str(RESULT_VIDEO / output_name)
 
     video_in = ffmpeg.input(processed_video_path)
     audio_in = ffmpeg.input(normalized_video_path)
@@ -509,9 +522,10 @@ def merge_audio_track(processed_video_path,
             shortest=None
         )
         .overwrite_output()
+        .global_args('-loglevel', 'error')  # <--- errors only
         .run()
     )
-    print("\n🔊 Audio added\n")
+    logger.info("🔊 Audio added")
     return output_path
 
 
@@ -539,7 +553,7 @@ def reframe_vertical(frame, camera_x, final_w, final_h):
     h, w = frame.shape[:2]
 
     if h != final_h:
-        print(f"\n🚨 WARNING: HEIGHT MISMACHT\n CURRENT H: {h}, EXCPECTED: {final_h}\n")
+        logger.warning(f"🚨 WARNING: HEIGHT MISMACHT, CURRENT H: {h}, EXCPECTED: {final_h}")
 
     x1 = max(0, min(w - final_w, camera_x - final_w // 2))
     crop = frame[0:final_h, x1:x1 + final_w]
@@ -767,6 +781,7 @@ def analyze_speech_activity(video_segment_path):
     # 🎧 Extraer audio RAW en memoria
     cmd = [
         "ffmpeg",
+        "-loglevel", "error",
         "-i", video_segment_path,
         "-ac", "1",          # mono
         "-ar", str(AUDIO_SAMPLE_RATE),      # sample rate
@@ -794,18 +809,18 @@ def analyze_speech_activity(video_segment_path):
 
 
 
-def stream_processing(video_path):
+def stream_processing(video_path, filename):
     """
     Main video processing pipeline.
     Reads video frames via FFmpeg pipe, tracks active speaker,
     directs virtual camera, reframes to vertical, and encodes output.
     Audio is NOT processed here.
     """
-    print("\n🎬 PROCESSING STREAM...\n", flush=True)
+    logger.info("🎬 PROCESSING STREAM...")
 
     # =============== SETUP ===============
-
-    output_path = str(PROCESSED_VIDEO / Path(video_path).name)
+    output_name = f"processed_{filename}"
+    output_path = str(PROCESSED_VIDEO / output_name)
 
     w, h, fps = get_video_metadata(video_path)
     # tamaño 9:16 que entra dentro del video original
@@ -930,13 +945,13 @@ def stream_processing(video_path):
 
     close_streams(decoder, encoder)
 
-    print(f"\n✅ VIDEO PROCESSED: {output_path}\n", flush=True)
+    logger.info(f"✅ VIDEO PROCESSED: {output_path}")
     return output_path
 
 
 
 
-def generate_video(video_path):
+def generate_video(video_path, filename):
     """
     Executes the full visual processing pipeline on a normalized segment
     and merges the original audio track at the end.
@@ -953,21 +968,24 @@ def generate_video(video_path):
     """
 
     # 1. Reframe / crop / camera logic
-    no_audio_out = stream_processing(video_path)
+    no_audio_out = stream_processing(video_path, filename)
 
     # 2. Merge original audio track
-    result_video = merge_audio_track(no_audio_out, video_path)
-    print(f"✅ RESULT VIDEO: {result_video}\n", flush=True)
+    result_video_path = merge_audio_track(no_audio_out, video_path, filename)
+    logger.info(f"✅ RESULT VIDEO: {result_video_path}")
 
-    return result_video
+    return result_video_path
 
 
 
 
 # ================= PIPELINE MAIN =================
-def process(video_path, start, end):
-    # check video_path
-        # TODO...
-
-    normalized_video_path = normalize_video_segment(video_path, start, end)
-    generate_video(normalized_video_path)
+def process(video_path, filename, start, end):
+    """
+    Returns local path of generated video
+        /tmp/result_{filename}
+    """
+    normalized_video_path = normalize_video_segment(video_path, filename, start, end)
+    result_video_path = generate_video(normalized_video_path, filename)
+    logger.info(f"🎉 GENERATED VIDEO PATH: {result_video_path}")
+    return result_video_path
