@@ -6,7 +6,7 @@ import { UploadDropzone } from "@/src/components/home/UploadDropzone";
 import { VideoPreview } from "@/src/components/home/videoPrevewTimeLine/VideoPreview";
 import { VideoSettings } from "@/src/components/home/VideoSettings";
 import { Panel } from "@/src/components/ui/Panel";
-import { VideoApiError, type VideoUploadResponse, type VideoUrlResponse, videoApi } from "@/src/services/videoApi";
+import { VideoApiError, type VideoUploadResponse, videoApi } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useEffect, useMemo, useState } from "react";
 
@@ -46,10 +46,7 @@ export default function AppHomePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedVideo, setUploadedVideo] = useState<VideoUploadResponse | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
-  const [downloadData, setDownloadData] = useState<VideoUrlResponse | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [isResolvingDownloadUrl, setIsResolvingDownloadUrl] = useState(false);
 
   const hasVideo = Boolean(uploadedVideo);
   const visibleClips = useMemo(() => (hasVideo && !isUploading ? mockClips : []), [hasVideo, isUploading]);
@@ -68,8 +65,6 @@ export default function AppHomePage() {
     setIsUploading(true);
     setUploadedVideo(null);
     setUploadError(null);
-    setDownloadData(null);
-    setDownloadError(null);
 
     try {
       const uploaded = await videoApi.upload(file, token);
@@ -89,24 +84,7 @@ export default function AppHomePage() {
     }
   };
 
-  const handleResolveDownloadUrl = async () => {
-    if (!uploadedVideo) {
-      return;
-    }
-
-    setIsResolvingDownloadUrl(true);
-    setDownloadError(null);
-
-    try {
-      const urlPayload = await videoApi.getVideoUrl(uploadedVideo.video_id);
-      setDownloadData(urlPayload);
-    } catch (error) {
-      setDownloadError(normalizeVideoError(error, "No pudimos obtener la URL de descarga."));
-    } finally {
-      setIsResolvingDownloadUrl(false);
-    }
-  };
-const showPreview = Boolean(videoPreviewUrl && hasVideo && !isUploading);
+  const showPreview = Boolean(videoPreviewUrl && hasVideo && !isUploading);
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid gap-5 xl:grid-cols-[1.55fr_0.95fr]">
@@ -125,10 +103,6 @@ const showPreview = Boolean(videoPreviewUrl && hasVideo && !isUploading);
             uploadError={uploadError}
             videoId={uploadedVideo?.video_id ?? null}
             videoPreviewUrl={videoPreviewUrl}
-            downloadUrl={downloadData?.url ?? null}
-            isResolvingDownloadUrl={isResolvingDownloadUrl}
-            downloadError={downloadError}
-            onResolveDownloadUrl={handleResolveDownloadUrl}
           />
         </Panel>
       </div>

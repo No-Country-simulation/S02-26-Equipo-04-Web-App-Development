@@ -2,27 +2,27 @@
 
 ## Objetivo de la rama
 
-Implementar la pantalla de biblioteca de clips en dashboard con el estilo visual actual del proyecto y dejar navegacion funcional desde el sidebar.
+Retirar de la vista de estado del proyecto las acciones de descarga (obtener URL y descargar video) para reutilizarlas despues en otra pantalla, manteniendo la UI actual limpia y enfocada.
 
-Rama de trabajo: `feat/clips-library-ui`.
+Rama de trabajo: `feat/frontend-extract-download-actions`.
 
 ## Cambios realizados
 
-- Se creo `frontend/src/app/app/library/page.tsx` con una biblioteca de clips mock (sin endpoints) alineada al estilo neon/night del dashboard.
-- Se agrego hero visual con gradientes y glow, buscador, CTA de filtros y accion destacada para futura seleccion IA.
-- Se implemento una grilla responsive de cards con estados (`listo`, `revision`, `render`), duracion, ratio, preset y acciones de UI (`Descargar`, `Ver detalles`).
-- Se incorporaron animaciones usando clases ya definidas en el proyecto (`animate-fade-up`, `animate-drift`).
-- Se actualizo `frontend/src/components/layout/Sidebar.tsx` para usar `Link` de Next.js y resolver estado activo por ruta (incluyendo subrutas).
+- Se extrajeron los botones de `Obtener URL de descarga` y `Descargar video subido` desde `frontend/src/components/home/ProjectStatusPanel.tsx` para que ya no se muestren en la seccion de estado del proyecto.
+- Se creo el componente reutilizable `frontend/src/components/home/DownloadVideoActions.tsx` con la logica de resolucion de URL y accion de descarga para uso futuro en otra vista.
+- Se simplifico `frontend/src/app/app/page.tsx` removiendo estado y props de descarga que ya no corresponden a esta pantalla (`downloadData`, `downloadError`, `isResolvingDownloadUrl`, `handleResolveDownloadUrl`).
+- Se mantuvo el flujo de upload y preview sin cambios visuales fuera del panel de estado.
 
 ## Commits realizados
 
-- `feat(frontend): add clips library page with animated cards`
-- `docs(frontend): update PR log for clips library`
+- `feat(frontend): move download actions out of project status panel`
+- `docs(frontend): update PR log for download actions extraction`
 
 ## Archivos clave
 
-- `frontend/src/app/app/library/page.tsx`
-- `frontend/src/components/layout/Sidebar.tsx`
+- `frontend/src/app/app/page.tsx`
+- `frontend/src/components/home/ProjectStatusPanel.tsx`
+- `frontend/src/components/home/DownloadVideoActions.tsx`
 - `docs/frontend-pr-log.md`
 
 ## Validaciones locales
