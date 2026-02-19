@@ -1,5 +1,4 @@
 import { Loader } from "@/src/components/ui/Loader";
-import { Button } from "@/src/components/ui/Button";
 // import { VideoSettingsModal } from "@/src/components/home/VideoSettingsModal";
 
 type ProjectStatusPanelProps = {
@@ -8,10 +7,6 @@ type ProjectStatusPanelProps = {
   uploadError: string | null;
   videoId: string | null;
   videoPreviewUrl: string | null;
-  downloadUrl: string | null;
-  isResolvingDownloadUrl: boolean;
-  downloadError: string | null;
-  onResolveDownloadUrl: () => Promise<void>;
 };
 
 export function ProjectStatusPanel({
@@ -19,11 +14,7 @@ export function ProjectStatusPanel({
   isUploading,
   uploadError,
   videoId,
-  videoPreviewUrl,
-  downloadUrl,
-  isResolvingDownloadUrl,
-  downloadError,
-  onResolveDownloadUrl
+  videoPreviewUrl
 }: ProjectStatusPanelProps) {
   const status = uploadError ? "Error de carga" : isUploading ? "Procesando" : hasVideo ? "Video cargado" : "Sin video";
   const progress = isUploading ? 45 : hasVideo ? 100 : 0;
@@ -77,36 +68,9 @@ export function ProjectStatusPanel({
         <li className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Analisis de escenas</li>
         <li className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Generacion de clips</li>
       </ul>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {/* <VideoSettingsModal /> */}
-        <Button
-          variant="neutral"
-          className="h-10 w-auto px-4"
-          onClick={() => {
-            void onResolveDownloadUrl();
-          }}
-          disabled={!videoId || isResolvingDownloadUrl || isUploading}
-        >
-          {isResolvingDownloadUrl ? "Generando URL..." : "Obtener URL de descarga"}
-        </Button>
-      </div>
-
       {videoId ? <p className="mt-3 text-xs text-white/60">ID de video: {videoId}</p> : null}
       {uploadError ? (
         <p className="mt-3 rounded-xl border border-rose-400/35 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">{uploadError}</p>
-      ) : null}
-      {downloadError ? (
-        <p className="mt-3 rounded-xl border border-rose-400/35 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">{downloadError}</p>
-      ) : null}
-      {downloadUrl ? (
-        <a
-          href={downloadUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-flex rounded-lg border border-neon-mint/40 bg-neon-mint/15 px-3 py-2 text-sm font-semibold text-neon-mint transition hover:bg-neon-mint/25"
-        >
-          Descargar video subido
-        </a>
       ) : null}
 
       {isUploading ? <Loader className="mt-4" label="Analizando video en segundo plano..." /> : null}
