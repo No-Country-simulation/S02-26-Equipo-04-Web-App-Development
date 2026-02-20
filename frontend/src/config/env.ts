@@ -1,5 +1,5 @@
-const fallbackApiBaseUrl = "http://localhost:8000";
-
+const fallbackApiBaseUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}`;
+console.log(process.env.NEXT_PUBLIC_API_BASE_URL);
 function normalizeBaseUrl(value: string | undefined) {
   if (!value) {
     return fallbackApiBaseUrl;

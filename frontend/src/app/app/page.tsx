@@ -6,16 +6,19 @@ import { UploadDropzone } from "@/src/components/home/UploadDropzone";
 import { VideoPreview } from "@/src/components/home/videoPrevewTimeLine/VideoPreview";
 import { VideoSettings } from "@/src/components/home/VideoSettings";
 import { Panel } from "@/src/components/ui/Panel";
-import { VideoApiError, type VideoUploadResponse, videoApi } from "@/src/services/videoApi";
+import { Duracion, VideoApiError, VideoReframeResponse, type VideoUploadResponse, videoApi } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useEffect, useMemo, useState } from "react";
 
 const mockClips: Clip[] = [
-  { id: "clip-1", title: "Hook inicial", duration: "00:31", preset: "Impact", status: "listo" },
-  { id: "clip-2", title: "Momento clave", duration: "00:24", preset: "Story", status: "revision" },
-  { id: "clip-3", title: "CTA final", duration: "00:18", preset: "Fast Cut", status: "render" }
+  { id: "clip-1", title: "Hook inicial", duration: "00:31", preset: "Impact", status: "LISTO" },
+  { id: "clip-2", title: "Momento clave", duration: "00:24", preset: "Story", status: "RUNNING" },
+  { id: "clip-3", title: "CTA final", duration: "00:18", preset: "Fast Cut", status: "PENDING" }
 ];
-
+// const duracion: Duracion = { 
+//   start_sec: ,
+//   end_sec: 
+// }
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof VideoApiError) {
     if (error.status === 400) {
@@ -41,13 +44,17 @@ function normalizeVideoError(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
+
 export default function AppHomePage() {
   const token = useAuthStore((state) => state.token);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedVideo, setUploadedVideo] = useState<VideoUploadResponse | null>(null);
+  // const [videoProcesador, setVideoProcesado]  = useState<VideoReframeResponse | null>(null);
+  const [job, setJob] = useState<string | null>(null)
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-
+  const [duracion, setDuracion] = useState<Duracion | null> (null)
+  console.log(duracion)
   const hasVideo = Boolean(uploadedVideo);
   const visibleClips = useMemo(() => (hasVideo && !isUploading ? mockClips : []), [hasVideo, isUploading]);
 
@@ -84,6 +91,32 @@ export default function AppHomePage() {
     }
   };
 
+  // generar Video 
+const jobVideo = async (idJob:string)=> {
+  while(true){
+    const response = await videoApi.getStatusVideo(idJob, token);
+    
+    setJob(response.status)
+
+    if (response.status === "COMPLETED") return;
+     if (response.status === "FAILED") throw new Error("Job failed");
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+
+}
+  const handleProcessVideo = async()=>{
+
+    try {
+      const response =await videoApi.processVideo(uploadedVideo?.video_id , duracion?.start_sec , duracion?.end_sec, token)
+      // setVideoProcesado(response);
+      console.log(response);
+    jobVideo(response.job_id)
+      
+    } catch (error) {
+      setUploadError(normalizeVideoError(error, "No pudimos generar el Video"));
+    }
+  }
+
   const showPreview = Boolean(videoPreviewUrl && hasVideo && !isUploading);
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -110,18 +143,19 @@ export default function AppHomePage() {
         <Panel >
           <VideoPreview videoPreviewUrl={videoPreviewUrl}
           onTrimChange={(start, end) => {
-        console.log("Enviar al backend:", { start, end });
+            setDuracion({start_sec:Math.round(start), end_sec: Math.round(end)})
+        // console.log("Enviar al backend:", { start, end });
       }}
           />
         </Panel>
         <Panel>
-          <VideoSettings />
+          <VideoSettings onProcessVideo={handleProcessVideo}/>
         </Panel>
 
       </div>)}
       
       <Panel className="mt-5">
-        <GeneratedClipsSection clips={visibleClips} showLoading={isUploading} />
+        <GeneratedClipsSection job={job} clips={visibleClips} showLoading={isUploading} />
       </Panel>
     </section>
   );

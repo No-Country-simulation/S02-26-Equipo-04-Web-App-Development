@@ -6,26 +6,34 @@ type Clip = {
   title: string;
   duration: string;
   preset: string;
-  status: "listo" | "revision" | "render";
+  status: "PENDING" | "RUNNING" | "FAILED" | "LISTO";
 };
 
 type GeneratedClipsSectionProps = {
   clips: Clip[];
   showLoading: boolean;
+  job:ClipStatus | null;
 };
-
+type ClipStatus = Clip["status"]; 
 const statusStyles: Record<Clip["status"], string> = {
-  listo: "border-neon-mint/45 bg-neon-mint/15 text-neon-mint",
-  revision: "border-neon-magenta/45 bg-neon-magenta/15 text-neon-magenta",
-  render: "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan"
+  LISTO: "border-neon-mint/45 bg-neon-mint/15 text-neon-mint",
+  FAILED: "border-neon-magenta/45 bg-neon-magenta/15 text-neon-magenta",
+  RUNNING: "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan",
+  PENDING: "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan"
 };
 
-export function GeneratedClipsSection({ clips, showLoading }: GeneratedClipsSectionProps) {
+export function GeneratedClipsSection({ job, clips, showLoading }: GeneratedClipsSectionProps) {
+  console.log(job);
   return (
     <section>
       <p className="text-xs uppercase tracking-[0.22em] text-white/65">clips generados</p>
       <h3 className="mt-1 font-display text-2xl text-white sm:text-3xl">Lista de resultados</h3>
-
+              <span
+                  className={
+                    `rounded-lg border px-2 py-1 text-xs font-semibold uppercase   ${job !=null ? statusStyles[job]: ""}`}
+                >
+                  {job}
+                </span>
       {showLoading ? (
         <div className="mt-5 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))]">
           {[1, 2, 3].map((id) => (
