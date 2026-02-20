@@ -127,14 +127,14 @@ class VideoService:
     def _create_video_record(
         self,
         original_filename: str,
-        user_id: UUID | None
+        user_id: UUID
     ) -> Video:
         """
         Crea un registro de video en la base de datos.
         
         Args:
             original_filename: Nombre original del archivo
-            user_id: ID del usuario (None para uploads públicos)
+            user_id: ID del usuario autenticado
             
         Returns:
             Video creado
@@ -233,66 +233,6 @@ class VideoService:
         except Exception as e:
             print(f"Error guardando metadata: {e}")
             self.db.rollback()
-    
-    def upload_video_public(self, file: UploadFile) -> VideoUploadResponse:
-        """
-        Sube un video públicamente (sin autenticación) - Solo para desarrollo.
-        
-        Args:
-            file: Archivo subido
-            
-        Returns:
-            VideoUploadResponse con información del video subido
-            
-        Raises:
-            VideoValidationException: Si el archivo no es válido
-            MinIOStorageException: Si falla la subida a MinIO
-            VideoDBException: Si falla guardar en base de datos
-        """
-        size_bytes = self._validate_file(file)
-        
-        bucket = settings.MINIO_BUCKET_VIDEOS
-        object_key = f"public/{uuid4()}_{file.filename}"
-        
-        s3_client = self._get_s3_client()
-        try:
-            self._ensure_bucket_exists(s3_client, bucket)
-            file.file.seek(0)
-            extra_args = {"ContentType": file.content_type} if file.content_type else None
-            if extra_args:
-                s3_client.upload_fileobj(file.file, bucket, object_key, ExtraArgs=extra_args)
-            else:
-                s3_client.upload_fileobj(file.file, bucket, object_key)
-        except ClientError as exc:
-            raise MinIOStorageException("Error subiendo archivo a MinIO", str(exc))
-        except Exception as exc:
-            raise MinIOStorageException("Error inesperado durante subida", str(exc))
-        
-        # Crear registro en DB
-        video = self._create_video_record(file.filename, None)
-        
-        # Actualizar storage_path
-        try:
-            video.storage_path = f"s3://{bucket}/{object_key}"
-            self.db.commit()
-        except Exception as exc:
-            raise VideoDBException("Error actualizando storage_path", str(exc))
-        
-        # Extraer y guardar metadata
-        metadata = self._extract_metadata(video.storage_path)
-        self._save_metadata_to_video(video, metadata)
-        
-        return VideoUploadResponse(
-            video_id=video.id,
-            bucket=bucket,
-            object_key=object_key,
-            filename=file.filename,
-            content_type=file.content_type,
-            size_bytes=size_bytes,
-            user_id=None,
-            storage_path=video.storage_path,
-            uploaded_at=datetime.utcnow()
-        )
     
     def upload_video_authenticated(
         self,
