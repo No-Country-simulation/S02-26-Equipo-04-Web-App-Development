@@ -7,12 +7,15 @@ import { ArrowLeft, CircleCheckBig, Mail, Rocket, UserRound } from "lucide-react
 import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { Button } from "@/src/components/ui/Button";
+import Image from "next/image";
+import { AuthApiError, authApi } from "@/src/services/authApi";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const register = useAuthStore((state) => state.register);
@@ -49,6 +52,22 @@ export default function RegisterPage() {
     const didRegister = await register(email, password);
     if (didRegister) {
       router.replace("/app");
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLocalError(null);
+    clearError();
+    setIsGoogleLoading(true);
+
+    try {
+      const { authorization_url, state } = await authApi.getGoogleAuthUrl();
+      window.sessionStorage.setItem("google_oauth_state", state);
+      window.location.href = authorization_url;
+    } catch (requestError) {
+      const message = requestError instanceof AuthApiError ? requestError.message : "No pudimos iniciar sesion con Google.";
+      setLocalError(message);
+      setIsGoogleLoading(false);
     }
   };
 
@@ -163,6 +182,11 @@ export default function RegisterPage() {
 
             <Button type="submit" variant="violet" className="mt-6" disabled={isLoading}>
               {isLoading ? "Creando cuenta..." : "Crear cuenta"}
+            </Button>
+
+            <Button type="button" variant="neutral" className="mt-3" onClick={handleGoogleLogin} disabled={isLoading || isGoogleLoading}>
+              {isGoogleLoading ? "Redirigiendo a Google..." : "Continuar con Google"}
+              <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo" />
             </Button>
           </form>
 

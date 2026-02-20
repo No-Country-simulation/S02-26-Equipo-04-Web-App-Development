@@ -10,6 +10,7 @@ type AuthState = {
   error: string | null;
   register: (email: string, password: string) => Promise<boolean>;
   login: (email: string, password: string) => Promise<boolean>;
+  completeGoogleAuth: (code: string, state: string) => Promise<boolean>;
   logout: () => Promise<void>;
   bootstrapSession: () => Promise<void>;
   clearError: () => void;
@@ -112,6 +113,39 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     try {
       const tokens = await authApi.login({ email, password });
+      const user = await authApi.me(tokens.access_token);
+
+      writeStoredToken(tokens.access_token);
+
+      set({
+        user,
+        token: tokens.access_token,
+        isAuthenticated: true,
+        isLoading: false,
+        isBootstrapped: true,
+        error: null
+      });
+
+      return true;
+    } catch (error) {
+      clearStoredToken();
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+        isBootstrapped: true,
+        error: normalizeAuthError(error)
+      });
+
+      return false;
+    }
+  },
+  completeGoogleAuth: async (code, state) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const tokens = await authApi.googleCallback({ code, state });
       const user = await authApi.me(tokens.access_token);
 
       writeStoredToken(tokens.access_token);

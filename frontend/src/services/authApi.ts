@@ -22,6 +22,16 @@ type RegisterPayload = {
   password: string;
 };
 
+type GoogleCallbackPayload = {
+  code: string;
+  state: string;
+};
+
+export type GoogleAuthUrlPayload = {
+  authorization_url: string;
+  state: string;
+};
+
 const apiBaseUrl = env.apiBaseUrl.replace(/\/$/, "");
 
 export class AuthApiError extends Error {
@@ -143,5 +153,25 @@ export const authApi = {
     });
 
     return parseResponse<void>(response);
+  },
+
+  async getGoogleAuthUrl() {
+    const response = await fetch(`${apiBaseUrl}/api/v1/auth/google/login`, {
+      method: "GET"
+    });
+
+    return parseResponse<GoogleAuthUrlPayload>(response);
+  },
+
+  async googleCallback(payload: GoogleCallbackPayload) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/auth/google/callback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    return parseResponse<AuthTokens>(response);
   }
 };
