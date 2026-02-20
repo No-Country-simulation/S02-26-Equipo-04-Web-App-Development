@@ -7,11 +7,14 @@ import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import Image from "next/image";
 import { Button } from "@/src/components/ui/Button";
+import { AuthApiError, authApi } from "@/src/services/authApi";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const login = useAuthStore((state) => state.login);
   const bootstrapSession = useAuthStore((state) => state.bootstrapSession);
@@ -38,12 +41,31 @@ export default function LoginPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setLocalError(null);
 
     const didLogin = await login(email, password);
     if (didLogin) {
       router.replace("/app");
     }
   };
+
+  const handleGoogleLogin = async () => {
+    setLocalError(null);
+    clearError();
+    setIsGoogleLoading(true);
+
+    try {
+      const { authorization_url, state } = await authApi.getGoogleAuthUrl();
+      window.sessionStorage.setItem("google_oauth_state", state);
+      window.location.href = authorization_url;
+    } catch (requestError) {
+      const message = requestError instanceof AuthApiError ? requestError.message : "No pudimos iniciar sesion con Google.";
+      setLocalError(message);
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const formError = localError ?? error;
 
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-10 sm:px-8">
@@ -131,15 +153,15 @@ export default function LoginPage() {
                 </button>
               </span>
             </label>
-            {error ? <p className="text-sm font-medium text-rose-300">{error}</p> : null}
+             {formError ? <p className="text-sm font-medium text-rose-300">{formError}</p> : null}
 
             <Button type="submit" className="mt-6" disabled={isLoading}>
               <ShieldCheck className="h-4 w-4" />
               {isLoading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
-          <Button type="button" variant="neutral" className="mt-6" disabled>
-            Google proximamente
+          <Button type="button" variant="neutral" className="mt-6" onClick={handleGoogleLogin} disabled={isLoading || isGoogleLoading}>
+            {isGoogleLoading ? "Redirigiendo a Google..." : "Continuar con Google"}
             <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo" />
 
           </Button>
