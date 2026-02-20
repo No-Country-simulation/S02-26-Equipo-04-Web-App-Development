@@ -4,7 +4,9 @@ import { getProtectedRedirect } from '@/src/router/redirects'
 import { useAuthStore } from '@/src/store/useAuthStore'
 import { Clock3, Copy, Hash, Share2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { Duracion, VideoApiError,ReponseReframeGetJob, VideoReframeResponse, type VideoUploadResponse, videoApi } from "@/src/services/videoApi";
+import { use } from "react";
 
 // const statusStyles = {
 //   listo: 'border-neon-mint/40 bg-neon-mint/10 text-neon-mint',
@@ -12,8 +14,12 @@ import { useEffect } from 'react'
 //   render: 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan',
 // }
 
-export default function ShortDetailPage() {
+export default function ShortDetailPage({params}:{params: Promise<{ idJob: string }>}) {
+  const { idJob } = use(params);
+
     const router = useRouter();
+    const token = useAuthStore((state) => state.token);
+       const [videoProcesado, setVideoProcesado]  = useState<ReponseReframeGetJob | null>(null);
     
     const bootstrapSession = useAuthStore((state) => state.bootstrapSession);
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -32,14 +38,33 @@ export default function ShortDetailPage() {
         if (!isBootstrapped || !isAuthenticated) {
             return null;
         }
-    
+    const jobVideo = async (idJob:string)=> {
 
-//   const { shortId = '' } = useParams()
-//   const short = useShortById(shortId)
-//   const pushToast = useToastStore((state) => state.pushToast)
 
-//   if (!short) return <Navigate to="/app/panel" replace />
 
+  console.log("jobVideo")
+  while(true){
+    const response = await videoApi.getStatusVideo(idJob, token);
+    console.log(response)
+    // setJob(response.status)
+    console.log(response.status);
+    if (response.status === "DONE") {
+      setVideoProcesado(response)
+      return
+    };
+     if (response.status === "FAILED"){
+      console.log("ERROR");   
+      throw new Error("Job failed")
+    };
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+
+  
+}
+
+
+  console.log(idJob)
+  jobVideo(idJob)
   return (
     <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
       <section className="rounded-2xl border border-white/10 bg-night-800/55 p-5 shadow-panel">
@@ -47,6 +72,7 @@ export default function ShortDetailPage() {
         {/* <h2 className="mt-1 font-display text-xl text-white">{short.title}</h2> */}
         <div className="mt-4 grid place-items-center rounded-xl border border-white/15 bg-night-900/55 p-4">
           <div className="relative aspect-[9/16] w-full max-w-[18rem] rounded-xl border border-neon-cyan/35 bg-night-900/85">
+            
             <div className="absolute inset-0 rounded-xl bg-[radial-gradient(circle_at_28%_22%,rgba(53,208,255,0.22),transparent_45%),radial-gradient(circle_at_72%_82%,rgba(255,79,216,0.2),transparent_45%)]" />
             <div className="absolute bottom-3 left-3 rounded-md border border-white/20 bg-night-950/85 px-2 py-1 text-[11px] text-white/75">
               Preview 9:16

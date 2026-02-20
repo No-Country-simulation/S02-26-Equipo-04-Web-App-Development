@@ -11,14 +11,32 @@ export type VideoUploadResponse = {
   storage_path: string;
   uploaded_at: string;
 };
+export type ReponseReframeGetJob = {
+  
+  job_id:string,
+  status:string,
+  output_path: string
 
+}
+export type VideoReframeResponse = {
+  job_id: string,
+  job_type: string,
+  status: string,
+  filename: string,
+  start_sec: number,
+  end_sec: number,
+  created_at:string
+}
 export type VideoUrlResponse = {
   video_id: string;
   url: string;
   expires_in_seconds: number;
   filename: string;
 };
-
+export type Duracion ={
+  start_sec: number,
+  end_sec: number
+}
 const apiBaseUrl = env.apiBaseUrl.replace(/\/$/, "");
 
 export class VideoApiError extends Error {
@@ -110,5 +128,37 @@ export const videoApi = {
     });
 
     return parseResponse<VideoUrlResponse>(response);
+  },
+
+  async processVideo(videoId?: string | null, start_sec?: number | null, end_sec?: number | null,token?: string | null){
+       const hasToken = Boolean(token && token.trim().length > 0);
+
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}`,{
+      
+      method:"POST",
+      headers:{
+        "Content-Type": "application/json",
+        ...(hasToken ? { Authorization: `Bearer ${token}` } : {})
+      },
+        body:JSON.stringify({
+          start_sec:start_sec,
+          end_sec:end_sec
+        })
+    })
+    return parseResponse<VideoReframeResponse>(response)
+  },
+
+  async getStatusVideo(job_id?: string | null, token?: string | null){
+    const hasToken = Boolean(token && token.trim().length > 0);
+
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/status/${job_id}`,{
+        headers:  hasToken
+        ? { Authorization: `Bearer ${token}` }
+        : undefined
+
+      }
+    )
+    return parseResponse<ReponseReframeGetJob>(response);
   }
+
 };

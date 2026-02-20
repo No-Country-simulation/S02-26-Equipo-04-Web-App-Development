@@ -6,7 +6,7 @@ import { UploadDropzone } from "@/src/components/home/UploadDropzone";
 import { VideoPreview } from "@/src/components/home/videoPrevewTimeLine/VideoPreview";
 import { VideoSettings } from "@/src/components/home/VideoSettings";
 import { Panel } from "@/src/components/ui/Panel";
-import { VideoApiError, type VideoUploadResponse, videoApi } from "@/src/services/videoApi";
+import { Duracion, VideoApiError,ReponseReframeGetJob, VideoReframeResponse, type VideoUploadResponse, videoApi } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useEffect, useMemo, useState } from "react";
 
@@ -15,7 +15,10 @@ const mockClips: Clip[] = [
   { id: "clip-2", title: "Momento clave", duration: "00:24", preset: "Story", status: "revision" },
   { id: "clip-3", title: "CTA final", duration: "00:18", preset: "Fast Cut", status: "render" }
 ];
-
+// const duracion: Duracion = { 
+//   start_sec: ,
+//   end_sec: 
+// }
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof VideoApiError) {
     if (error.status === 400) {
@@ -41,13 +44,17 @@ function normalizeVideoError(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
+// ReponseReframeGetJob
 export default function AppHomePage() {
   const token = useAuthStore((state) => state.token);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedVideo, setUploadedVideo] = useState<VideoUploadResponse | null>(null);
+   const [videoProcesado, setVideoProcesado]  = useState<ReponseReframeGetJob | null>(null);
+  const [job, setJob] = useState<string | null>(null)
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-
+  const [duracion, setDuracion] = useState<Duracion | null> (null)
+  // console.log(duracion)
   const hasVideo = Boolean(uploadedVideo);
   const visibleClips = useMemo(() => (hasVideo && !isUploading ? mockClips : []), [hasVideo, isUploading]);
 
@@ -83,6 +90,41 @@ export default function AppHomePage() {
       setIsUploading(false);
     }
   };
+console.log(job)
+  // generar Video 
+const jobVideo = async (idJob:string)=> {
+  console.log("jobVideo")
+  while(true){
+    const response = await videoApi.getStatusVideo(idJob, token);
+    console.log(response)
+    setJob(response.status)
+    console.log(response.status);
+    if (response.status === "DONE") {
+      setVideoProcesado(response)
+      return
+    };
+     if (response.status === "FAILED"){
+      console.log("ERROR");   
+      throw new Error("Job failed")
+    };
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+
+}
+  const handleProcessVideo = async()=>{
+
+    try {
+      const response =await videoApi.processVideo(uploadedVideo?.video_id , duracion?.start_sec , duracion?.end_sec, token)
+      // setVideoProcesado(response);
+      console.log("aca vendria la respueta del proceso");
+      console.log(response.job_id);
+
+    jobVideo(response.job_id);
+      
+    } catch (error) {
+      setUploadError(normalizeVideoError(error, "No pudimos generar el Video"));
+    }
+  }
 
   const showPreview = Boolean(videoPreviewUrl && hasVideo && !isUploading);
   return (
@@ -110,18 +152,19 @@ export default function AppHomePage() {
         <Panel >
           <VideoPreview videoPreviewUrl={videoPreviewUrl}
           onTrimChange={(start, end) => {
-        console.log("Enviar al backend:", { start, end });
+            setDuracion({start_sec:Math.round(start), end_sec: Math.round(end)})
+        // console.log("Enviar al backend:", { start, end });
       }}
           />
         </Panel>
         <Panel>
-          <VideoSettings />
+          <VideoSettings onProcessVideo={handleProcessVideo}/>
         </Panel>
 
       </div>)}
       
       <Panel className="mt-5">
-        <GeneratedClipsSection clips={visibleClips} showLoading={isUploading} />
+        <GeneratedClipsSection video={videoProcesado}  clips={visibleClips} showLoading={isUploading} />
       </Panel>
     </section>
   );

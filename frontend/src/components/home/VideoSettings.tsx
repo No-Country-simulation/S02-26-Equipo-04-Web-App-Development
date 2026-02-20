@@ -1,4 +1,4 @@
-import { useVideoSettingsStore, type VideoSettings } from "@/src/store/useVideoSettingsStore";
+  import { useVideoSettingsStore, type VideoSettings } from "@/src/store/useVideoSettingsStore";
 import { Button } from "../ui/Button";
 import { FormEvent, useState } from "react";
 const settingItems: Array<{ key: keyof VideoSettings; label: string }> = [
@@ -7,8 +7,11 @@ const settingItems: Array<{ key: keyof VideoSettings; label: string }> = [
   { key: "faceTracking", label: "Seguimiento facial" },
   { key: "colorFilter", label: "Filtro de color" }
 ];
+type GeneratedClipsSectionProps = {
 
-export function VideoSettings(){
+  onProcessVideo: () => Promise<void>;
+};
+export function VideoSettings({onProcessVideo}:GeneratedClipsSectionProps){
       const settings = useVideoSettingsStore((state) => state.settings);
       const saveSettings = useVideoSettingsStore((state) => state.saveSettings);
       const resetSettings = useVideoSettingsStore((state) => state.resetSettings);
@@ -40,37 +43,6 @@ export function VideoSettings(){
                       </label>
                     ))}
                   </div>
-    
-                  {/* <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <label className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                      <span className="text-xs uppercase tracking-[0.18em] text-white/60">Inicio (seg)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={draft.videoStart}
-                        onChange={(event) => {
-                          const value = Number(event.target.value);
-                          setDraft((prev) => ({ ...prev, videoStart: Number.isFinite(value) ? value : 0 }));
-                        }}
-                        className="mt-2 w-full rounded-lg border border-white/15 bg-night-900/90 px-2 py-1.5 text-sm text-white outline-none transition focus:border-neon-cyan"
-                      />
-                    </label>
-    
-                    <label className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                      <span className="text-xs uppercase tracking-[0.18em] text-white/60">Fin (seg)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={draft.videoEnd}
-                        onChange={(event) => {
-                          const value = Number(event.target.value);
-                          setDraft((prev) => ({ ...prev, videoEnd: Number.isFinite(value) ? value : 0 }));
-                        }}
-                        className="mt-2 w-full rounded-lg border border-white/15 bg-night-900/90 px-2 py-1.5 text-sm text-white outline-none transition focus:border-neon-cyan"
-                      />
-                    </label>
-                  </div>
-     */}
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                     <Button
                       type="button"
@@ -83,8 +55,8 @@ export function VideoSettings(){
                     >
                       Restaurar
                     </Button>
-                    <Button type="submit" className="h-10 w-auto px-4">
-                      Guardar ajustes
+                    <Button onClick={onProcessVideo} type="submit" className="h-10 w-auto px-4">
+                      Generar video
                     </Button>
                   </div>
                 </form>
