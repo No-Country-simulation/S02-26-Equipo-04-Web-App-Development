@@ -3,7 +3,7 @@
 import { Panel } from "@/src/components/ui/Panel";
 import { videoApi, type UserClipItem, type UserVideoItem } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
-import { Clock3, Download, Search, Tag } from "lucide-react";
+import { Check, Clock3, Download, PencilLine, Search, Tag, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const PAGE_SIZE = 12;
@@ -39,6 +39,10 @@ export default function LibraryPage() {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
+  const [draftFilename, setDraftFilename] = useState("");
+  const [isSavingVideo, setIsSavingVideo] = useState(false);
+  const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -93,6 +97,73 @@ export default function LibraryPage() {
   }, [token, page, query, view]);
 
   const totalPages = Math.max(1, Math.ceil((view === "clips" ? totalClips : totalVideos) / PAGE_SIZE));
+
+  const handleStartRename = (video: UserVideoItem) => {
+    setEditingVideoId(video.video_id);
+    setDraftFilename(video.filename);
+  };
+
+  const handleCancelRename = () => {
+    setEditingVideoId(null);
+    setDraftFilename("");
+  };
+
+  const handleSaveRename = async (videoId: string) => {
+    if (!token || isSavingVideo) {
+      return;
+    }
+
+    const cleanedFilename = draftFilename.trim();
+    if (!cleanedFilename) {
+      setError("El nombre del video no puede estar vacio.");
+      return;
+    }
+
+    setIsSavingVideo(true);
+    setError(null);
+
+    try {
+      const updated = await videoApi.updateMyVideo(videoId, token, { filename: cleanedFilename });
+      setVideos((prev) => prev.map((item) => (item.video_id === videoId ? updated : item)));
+      handleCancelRename();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "No pudimos actualizar el nombre del video.");
+    } finally {
+      setIsSavingVideo(false);
+    }
+  };
+
+  const handleDeleteVideo = async (video: UserVideoItem) => {
+    if (!token || deletingVideoId) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Vas a eliminar ${video.filename}. Esta accion no se puede deshacer.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingVideoId(video.video_id);
+    setError(null);
+
+    try {
+      await videoApi.deleteMyVideo(video.video_id, token);
+      let shouldStepBackPage = false;
+      setVideos((prev) => {
+        shouldStepBackPage = prev.length === 1;
+        return prev.filter((item) => item.video_id !== video.video_id);
+      });
+      setTotalVideos((prev) => Math.max(0, prev - 1));
+
+      if (shouldStepBackPage && page > 1) {
+        setPage((prev) => Math.max(1, prev - 1));
+      }
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "No pudimos eliminar el video.");
+    } finally {
+      setDeletingVideoId(null);
+    }
+  };
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -258,7 +329,37 @@ export default function LibraryPage() {
               </div>
 
               <h2 className="font-display text-lg text-white">Video {video.video_id.slice(0, 8)}</h2>
-              <p className="mt-2 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/70">{video.filename}</p>
+              {editingVideoId === video.video_id ? (
+                <div className="mt-2 space-y-2">
+                  <input
+                    value={draftFilename}
+                    onChange={(event) => setDraftFilename(event.target.value)}
+                    className="w-full rounded-lg border border-white/20 bg-night-900/70 px-3 py-2 text-xs text-white outline-none transition focus:border-neon-cyan/50"
+                    maxLength={255}
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/45 bg-emerald-300/10 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-200 transition hover:bg-emerald-300/20 disabled:opacity-40"
+                      disabled={isSavingVideo}
+                      onClick={() => void handleSaveRename(video.video_id)}
+                    >
+                      <Check size={12} /> Guardar
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70 transition hover:border-white/40 hover:text-white"
+                      disabled={isSavingVideo}
+                      onClick={handleCancelRename}
+                    >
+                      <X size={12} /> Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/70">{video.filename}</p>
+              )}
               <p className="mt-2 inline-flex rounded-full border border-neon-cyan/35 bg-neon-cyan/10 px-2 py-1 text-xs text-neon-cyan">
                 Estado: {video.status ?? "uploaded"}
               </p>
@@ -280,6 +381,26 @@ export default function LibraryPage() {
                   </span>
                 )}
               </div>
+
+              {editingVideoId !== video.video_id ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan"
+                    onClick={() => handleStartRename(video)}
+                  >
+                    <PencilLine size={12} /> Renombrar
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-300/45 bg-rose-300/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-200 transition hover:bg-rose-300/20 disabled:opacity-40"
+                    disabled={deletingVideoId === video.video_id}
+                    onClick={() => void handleDeleteVideo(video)}
+                  >
+                    <Trash2 size={12} /> {deletingVideoId === video.video_id ? "Eliminando..." : "Eliminar"}
+                  </button>
+                </div>
+              ) : null}
             </article>
           ))}
         </div>

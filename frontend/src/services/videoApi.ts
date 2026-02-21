@@ -85,6 +85,16 @@ export type UserVideoItem = {
   preview_url: string | null;
 };
 
+export type UserVideoDetail = {
+  video_id: string;
+  filename: string;
+  status: string | null;
+  uploaded_at: string;
+  updated_at: string;
+  storage_path: string | null;
+  preview_url: string | null;
+};
+
 export type UserVideosResponse = {
   total: number;
   limit: number;
@@ -271,5 +281,40 @@ export const videoApi = {
     });
 
     return parseResponse<UserVideosResponse>(response);
+  },
+
+  async getMyVideoById(videoId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/videos/${videoId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<UserVideoDetail>(response);
+  },
+
+  async updateMyVideo(videoId: string, token: string, payload: { filename: string }) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/videos/${videoId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    return parseResponse<UserVideoItem>(response);
+  },
+
+  async deleteMyVideo(videoId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/videos/${videoId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<null>(response);
   }
 };
