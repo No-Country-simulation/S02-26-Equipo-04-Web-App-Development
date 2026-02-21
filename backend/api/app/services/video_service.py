@@ -12,6 +12,8 @@ from botocore.exceptions import ClientError
 from app.core.config import settings
 from app.models.video import Video
 from app.schemas.video import (
+    UpdateVideoRequest,
+    UserVideoDetailResponse,
     VideoUploadResponse,
     VideoURLResponse,
     UserVideoItem,
@@ -21,6 +23,7 @@ from app.utils.exceptions import (
     BadRequestException,
     MinIOStorageException,
     NotFoundException,
+    ForbiddenException,
     VideoDBException,
     VideoValidationException,
 )
@@ -131,13 +134,15 @@ class VideoService:
 
         return size_bytes
 
-    def _create_video_record(self, original_filename: str, user_id: UUID) -> Video:
+    def _create_video_record(
+        self, original_filename: str, user_id: UUID | None
+    ) -> Video:
         """
         Crea un registro de video en la base de datos.
 
         Args:
             original_filename: Nombre original del archivo
-            user_id: ID del usuario autenticado
+            user_id: ID del usuario (None para uploads públicos)
 
         Returns:
             Video creado
@@ -161,34 +166,14 @@ class VideoService:
             raise VideoDBException("Error creando registro de video", str(exc))
 
     def _extract_metadata(self, storage_path: str) -> dict:
-        """
-        Extrae metadata del video en MinIO usando ffprobe.
-
-        Args:
-            storage_path: Ruta del video en formato s3://bucket/key
-
-        Returns:
-            Dict con la metadata extraída (vacío si falla)
-        """
         try:
-            # Extraer bucket y object_key del storage_path
-            storage_path_clean = storage_path.replace("s3://", "")
-            parts = storage_path_clean.split("/", 1)
-            if len(parts) != 2:
-                print(f"Formato de storage_path inválido: {storage_path}")
-                return {}
-
-            bucket, object_key = parts
-
-            # Generar URL presignada para que ffprobe pueda acceder
+            bucket, object_key = self._extract_bucket_and_key(storage_path)
             s3_client = self._get_s3_client()
             presigned_url = s3_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": bucket, "Key": object_key},
                 ExpiresIn=3600,
             )
-
-            # Usar ffprobe con la URL presignada
             cmd = [
                 "ffprobe",
                 "-v",
@@ -201,24 +186,12 @@ class VideoService:
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode != 0:
-                print(f"ffprobe error: {result.stderr}")
                 return {}
             return json.loads(result.stdout) if result.stdout else {}
-        except Exception as e:
-            print(f"Error extrayendo metadata: {e}")
-            import traceback
-
-            traceback.print_exc()
+        except Exception:
             return {}
 
     def _save_metadata_to_video(self, video: Video, metadata: dict) -> None:
-        """
-        Actualiza el registro del video con metadata extraída.
-
-        Args:
-            video: Objeto Video a actualizar
-            metadata: Dict con metadata extraída por ffprobe
-        """
         try:
             if metadata.get("format"):
                 video.duration_seconds = int(
@@ -226,7 +199,7 @@ class VideoService:
                 )
 
             for stream in metadata.get("streams", []):
-                if stream["codec_type"] == "video":
+                if stream.get("codec_type") == "video":
                     fps_str = stream.get("r_frame_rate", "0")
                     if fps_str and "/" in str(fps_str):
                         fps_value = float(fps_str.split("/")[0])
@@ -235,14 +208,160 @@ class VideoService:
                     video.height = stream.get("height")
                     video.codec = stream.get("codec_name")
                     video.bitrate = stream.get("bit_rate")
-                elif stream["codec_type"] == "audio":
+                elif stream.get("codec_type") == "audio":
                     video.has_audio = True
                     video.audio_codec = stream.get("codec_name")
 
             self.db.commit()
-        except Exception as e:
-            print(f"Error guardando metadata: {e}")
+        except Exception:
             self.db.rollback()
+
+    def _extract_bucket_and_key(self, storage_path: str) -> tuple[str, str]:
+        cleaned_path = storage_path.replace("s3://", "")
+        parts = cleaned_path.split("/", 1)
+        if len(parts) != 2:
+            raise BadRequestException("Formato de storage_path inválido")
+        return (parts[0], parts[1])
+
+    def _build_preview_url(self, video: Video, expires_in: int = 3600) -> str | None:
+        if not video.storage_path:
+            return None
+        try:
+            return self.get_video_url(video.id, expires_in=expires_in).url
+        except Exception:
+            return None
+
+    def _get_user_video(self, video_id: UUID, user_id: UUID) -> Video:
+        video = self.db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            raise NotFoundException(f"Video con ID {video_id} no encontrado")
+        if video.user_id != user_id:
+            raise ForbiddenException("No tienes permisos para acceder a este video")
+        return video
+
+    def _to_user_video_item(self, video: Video) -> UserVideoItem:
+        return UserVideoItem(
+            video_id=video.id,
+            filename=video.original_filename,
+            status=video.status,
+            uploaded_at=video.created_at,
+            preview_url=self._build_preview_url(video),
+        )
+
+    def get_user_video(self, video_id: UUID, user_id: UUID) -> UserVideoDetailResponse:
+        video = self._get_user_video(video_id, user_id)
+        return UserVideoDetailResponse(
+            video_id=video.id,
+            filename=video.original_filename,
+            status=video.status,
+            uploaded_at=video.created_at,
+            updated_at=video.updated_at,
+            storage_path=video.storage_path,
+            preview_url=self._build_preview_url(video),
+        )
+
+    def update_user_video(
+        self, video_id: UUID, user_id: UUID, payload: UpdateVideoRequest
+    ) -> UserVideoItem:
+        video = self._get_user_video(video_id, user_id)
+        cleaned_filename = payload.filename.strip()
+        if not cleaned_filename:
+            raise BadRequestException("El nombre de archivo no puede estar vacío")
+
+        try:
+            video.original_filename = cleaned_filename
+            self.db.commit()
+            self.db.refresh(video)
+        except Exception as exc:
+            self.db.rollback()
+            raise VideoDBException("Error actualizando metadata del video", str(exc))
+
+        return self._to_user_video_item(video)
+
+    def delete_user_video(self, video_id: UUID, user_id: UUID) -> None:
+        video = self._get_user_video(video_id, user_id)
+
+        if video.storage_path:
+            bucket, object_key = self._extract_bucket_and_key(video.storage_path)
+            s3_client = self._get_s3_client()
+            try:
+                s3_client.delete_object(Bucket=bucket, Key=object_key)
+            except ClientError as exc:
+                error_code = exc.response.get("Error", {}).get("Code")
+                if error_code not in {"NoSuchKey", "404"}:
+                    raise MinIOStorageException(
+                        "Error eliminando archivo de MinIO", str(exc)
+                    )
+
+        try:
+            self.db.delete(video)
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise VideoDBException("Error eliminando video", str(exc))
+
+    def upload_video_public(self, file: UploadFile) -> VideoUploadResponse:
+        """
+        Sube un video públicamente (sin autenticación) - Solo para desarrollo.
+
+        Args:
+            file: Archivo subido
+
+        Returns:
+            VideoUploadResponse con información del video subido
+
+        Raises:
+            VideoValidationException: Si el archivo no es válido
+            MinIOStorageException: Si falla la subida a MinIO
+            VideoDBException: Si falla guardar en base de datos
+        """
+        size_bytes = self._validate_file(file)
+
+        bucket = settings.MINIO_BUCKET_VIDEOS
+        object_key = f"public/{uuid4()}_{file.filename}"
+
+        s3_client = self._get_s3_client()
+        try:
+            self._ensure_bucket_exists(s3_client, bucket)
+            file.file.seek(0)
+            extra_args = (
+                {"ContentType": file.content_type} if file.content_type else None
+            )
+            if extra_args:
+                s3_client.upload_fileobj(
+                    file.file, bucket, object_key, ExtraArgs=extra_args
+                )
+            else:
+                s3_client.upload_fileobj(file.file, bucket, object_key)
+        except ClientError as exc:
+            raise MinIOStorageException("Error subiendo archivo a MinIO", str(exc))
+        except Exception as exc:
+            raise MinIOStorageException("Error inesperado durante subida", str(exc))
+
+        # Crear registro en DB
+        video = self._create_video_record(file.filename, None)
+
+        # Actualizar storage_path
+        try:
+            video.storage_path = f"s3://{bucket}/{object_key}"
+            self.db.commit()
+        except Exception as exc:
+            raise VideoDBException("Error actualizando storage_path", str(exc))
+
+        metadata = self._extract_metadata(video.storage_path)
+        self._save_metadata_to_video(video, metadata)
+
+        return VideoUploadResponse(
+            video_id=video.id,
+            bucket=bucket,
+            object_key=object_key,
+            filename=file.filename,
+            content_type=file.content_type,
+            size_bytes=size_bytes,
+            user_id=None,
+            storage_path=video.storage_path,
+            uploaded_at=datetime.utcnow(),
+        )
 
     def upload_video_authenticated(
         self, file: UploadFile, user_id: UUID
@@ -295,7 +414,6 @@ class VideoService:
         except Exception as exc:
             raise VideoDBException("Error actualizando storage_path", str(exc))
 
-        # Extraer y guardar metadata
         metadata = self._extract_metadata(video.storage_path)
         self._save_metadata_to_video(video, metadata)
 
@@ -338,11 +456,7 @@ class VideoService:
 
         # Extraer bucket y object_key del storage_path (formato: s3://bucket/key)
         try:
-            storage_path = video.storage_path.replace("s3://", "")
-            parts = storage_path.split("/", 1)
-            if len(parts) != 2:
-                raise ValueError("Formato de storage_path inválido")
-            bucket, object_key = parts
+            bucket, object_key = self._extract_bucket_and_key(video.storage_path)
         except Exception as exc:
             raise BadRequestException(f"Error procesando storage_path: {str(exc)}")
 
@@ -397,26 +511,8 @@ class VideoService:
 
         videos: list[UserVideoItem] = []
         for video in rows:
-            preview_url = None
-            if video.storage_path:
-                try:
-                    preview_url = self.get_video_url(video.id, expires_in=3600).url
-                except Exception:
-                    preview_url = None
-
-            videos.append(
-                UserVideoItem(
-                    video_id=video.id,
-                    filename=video.original_filename,
-                    status=video.status,
-                    uploaded_at=video.created_at,
-                    preview_url=preview_url,
-                )
-            )
+            videos.append(self._to_user_video_item(video))
 
         return UserVideosResponse(
-            total=total,
-            limit=limit,
-            offset=offset,
-            videos=videos,
+            total=total, limit=limit, offset=offset, videos=videos
         )

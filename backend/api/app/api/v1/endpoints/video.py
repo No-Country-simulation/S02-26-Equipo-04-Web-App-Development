@@ -1,13 +1,20 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile, Query, status
+from fastapi import APIRouter, Depends, File, UploadFile, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_active_user
 from app.database.session import get_db
 from app.models.user import User
-from app.schemas.video import VideoUploadResponse, VideoURLResponse, UserVideosResponse
+from app.schemas.video import (
+    UpdateVideoRequest,
+    UserVideoDetailResponse,
+    UserVideoItem,
+    UserVideosResponse,
+    VideoUploadResponse,
+    VideoURLResponse,
+)
 from app.services.video_service import VideoService
 
 router = APIRouter(prefix="/videos", tags=["Videos"])
@@ -84,3 +91,52 @@ async def get_my_videos(
     return service.list_user_videos(
         current_user.id, limit=limit, offset=offset, query=q
     )
+
+
+@router.get(
+    "/{video_id}",
+    response_model=UserVideoDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Obtener un video propio",
+    description="Devuelve metadata y preview del video autenticado",
+)
+async def get_my_video_by_id(
+    video_id: UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> UserVideoDetailResponse:
+    service = VideoService(db)
+    return service.get_user_video(video_id, current_user.id)
+
+
+@router.patch(
+    "/{video_id}",
+    response_model=UserVideoItem,
+    status_code=status.HTTP_200_OK,
+    summary="Actualizar metadata de video",
+    description="Permite renombrar un video propio",
+)
+async def update_my_video(
+    video_id: UUID,
+    body: UpdateVideoRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> UserVideoItem:
+    service = VideoService(db)
+    return service.update_user_video(video_id, current_user.id, body)
+
+
+@router.delete(
+    "/{video_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar video propio",
+    description="Elimina video y metadata asociada del usuario autenticado",
+)
+async def delete_my_video(
+    video_id: UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    service = VideoService(db)
+    service.delete_user_video(video_id, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
