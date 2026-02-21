@@ -13,6 +13,7 @@ type Clip = {
 type GeneratedClipsSectionProps = {
   clips: Clip[];
   showLoading: boolean;
+  isRefreshingStatuses?: boolean;
 };
 
 const statusStyles: Record<Clip["status"], string> = {
@@ -21,7 +22,7 @@ const statusStyles: Record<Clip["status"], string> = {
   render: "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan"
 };
 
-export function GeneratedClipsSection({ clips, showLoading }: GeneratedClipsSectionProps) {
+export function GeneratedClipsSection({ clips, showLoading, isRefreshingStatuses = false }: GeneratedClipsSectionProps) {
   return (
     <section>
       <p className="text-xs uppercase tracking-[0.22em] text-white/65">clips generados</p>
@@ -58,7 +59,11 @@ export function GeneratedClipsSection({ clips, showLoading }: GeneratedClipsSect
                   />
                 </div>
               ) : (
-                <div className="aspect-[9/16] rounded-xl border border-neon-cyan/30 bg-[radial-gradient(circle_at_30%_20%,rgba(53,208,255,0.24),transparent_45%),radial-gradient(circle_at_70%_80%,rgba(255,79,216,0.2),transparent_45%)]" />
+                <div className="aspect-[9/16] rounded-xl border border-neon-cyan/30 bg-[radial-gradient(circle_at_30%_20%,rgba(53,208,255,0.24),transparent_45%),radial-gradient(circle_at_70%_80%,rgba(255,79,216,0.2),transparent_45%)] p-3">
+                  <div className="flex h-full items-center justify-center rounded-lg border border-white/15 bg-black/25 text-center text-xs text-white/75">
+                    {clip.status === "listo" ? "Preparando preview..." : "Procesando clip..."}
+                  </div>
+                </div>
               )}
               <div className="mt-3 flex items-center justify-between gap-2">
                 <p className="font-display text-lg text-white">{clip.title}</p>
@@ -73,6 +78,7 @@ export function GeneratedClipsSection({ clips, showLoading }: GeneratedClipsSect
               </div>
               <p className="mt-1 text-sm text-white/75">{clip.duration}</p>
               <p className="mt-2 rounded-lg border border-white/15 px-2 py-1 text-xs text-white/80">Preset: {clip.preset}</p>
+              {isRefreshingStatuses ? <p className="mt-2 text-xs text-white/60">Actualizando estado de jobs...</p> : null}
               <div className="mt-3">
                 <Link
                   href="/app/timeline"

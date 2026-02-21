@@ -86,6 +86,7 @@ export default function AppHomePage() {
   const token = useAuthStore((state) => state.token);
   const [isUploading, setIsUploading] = useState(false);
   const [isCreatingJobs, setIsCreatingJobs] = useState(false);
+  const [isPollingStatuses, setIsPollingStatuses] = useState(false);
   const [uploadedVideo, setUploadedVideo] = useState<VideoUploadResponse | null>(null);
   const [autoJobCount, setAutoJobCount] = useState(0);
   const [createdJobs, setCreatedJobs] = useState<AutoReframeJobItem[]>([]);
@@ -140,6 +141,7 @@ export default function AppHomePage() {
 
   useEffect(() => {
     if (!token || createdJobs.length === 0) {
+      setIsPollingStatuses(false);
       return;
     }
 
@@ -178,6 +180,8 @@ export default function AppHomePage() {
         if (!shouldContinuePolling) {
           window.clearInterval(intervalId);
         }
+
+        setIsPollingStatuses(shouldContinuePolling);
       } catch {
         if (!cancelled) {
           setJobError((prev) => prev ?? "No pudimos actualizar el estado de algunos clips generados.");
@@ -185,6 +189,7 @@ export default function AppHomePage() {
       }
     };
 
+    setIsPollingStatuses(true);
     const intervalId = window.setInterval(() => {
       void syncStatuses();
     }, 6000);
@@ -193,6 +198,7 @@ export default function AppHomePage() {
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      setIsPollingStatuses(false);
     };
   }, [createdJobs, token]);
 
@@ -268,7 +274,11 @@ export default function AppHomePage() {
         </Panel>
       </div>
       <Panel className="mt-5">
-        <GeneratedClipsSection clips={visibleClips} showLoading={isUploading || isCreatingJobs} />
+        <GeneratedClipsSection
+          clips={visibleClips}
+          showLoading={isUploading || (isCreatingJobs && createdJobs.length === 0)}
+          isRefreshingStatuses={isPollingStatuses}
+        />
       </Panel>
     </section>
   );
