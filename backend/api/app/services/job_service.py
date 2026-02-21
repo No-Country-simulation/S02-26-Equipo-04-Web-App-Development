@@ -1,6 +1,7 @@
 from uuid import UUID
 import re
 import subprocess
+from urllib.parse import unquote, urlparse
 from sqlalchemy.orm import Session
 from app.models.job import Job, JobStatus, JobType
 from app.models.video import Video
@@ -30,6 +31,37 @@ class JobService:
         self.db = db
         self.queue = queue
 
+    def _extract_storage_path(self, output_path: str | None) -> str | None:
+        if not output_path:
+            return None
+
+        if output_path.startswith("s3://"):
+            return output_path
+
+        parsed = urlparse(output_path)
+        normalized_path = parsed.path.lstrip("/")
+
+        if not normalized_path:
+            return None
+
+        return f"s3://{unquote(normalized_path)}"
+
+    def _resolve_output_url(self, output_path: str | None) -> str | None:
+        if not output_path:
+            return None
+
+        storage_path = self._extract_storage_path(output_path)
+        if not storage_path:
+            return output_path
+
+        try:
+            return VideoWorkerService().get_video_public_url(
+                storage_path, expires_in=3600
+            )
+        except Exception as exc:
+            logger.warning(f"No se pudo regenerar URL de salida para clip: {exc}")
+            return output_path
+
     def get_job_status(self, job_id: UUID, user_id: UUID) -> JobStatusResponse:
         job = (
             self.db.query(Job).filter(Job.id == job_id, Job.user_id == user_id).first()
@@ -39,7 +71,9 @@ class JobService:
             raise NotFoundException("Job Not found")
 
         return JobStatusResponse(
-            job_id=job.id, status=job.status, output_path=job.output_path
+            job_id=job.id,
+            status=job.status,
+            output_path=self._resolve_output_url(job.output_path),
         )
 
     def _get_user_video(self, video_id: UUID, user_id: UUID) -> Video:
@@ -381,7 +415,7 @@ class JobService:
                 job_id=job.id,
                 video_id=job.video_id,
                 status=job.status,
-                output_path=job.output_path,
+                output_path=self._resolve_output_url(job.output_path),
                 source_filename=video.original_filename,
                 created_at=job.created_at,
             )
