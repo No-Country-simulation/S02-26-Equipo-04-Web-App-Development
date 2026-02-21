@@ -40,7 +40,7 @@ export default function NavBar(
           >
             <Menu size={18} /> 
           </button>
-            <Link href="/" className="inline-flex items-center" aria-label="Ir al home">
+            <Link href="/app" className="inline-flex items-center" aria-label="Ir al home">
               <HaceloCortoLogo
                 variant="compact"
                 className="h-8 w-auto text-white lg:hidden sm:h-9"
