@@ -3,6 +3,8 @@ from uuid import UUID, uuid4
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 import boto3
+import subprocess
+import json
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
@@ -125,14 +127,14 @@ class VideoService:
     def _create_video_record(
         self,
         original_filename: str,
-        user_id: UUID | None
+        user_id: UUID
     ) -> Video:
         """
         Crea un registro de video en la base de datos.
         
         Args:
             original_filename: Nombre original del archivo
-            user_id: ID del usuario (None para uploads públicos)
+            user_id: ID del usuario autenticado
             
         Returns:
             Video creado
@@ -155,61 +157,82 @@ class VideoService:
             self.db.rollback()
             raise VideoDBException("Error creando registro de video", str(exc))
     
-    def upload_video_public(self, file: UploadFile) -> VideoUploadResponse:
+    def _extract_metadata(self, storage_path: str) -> dict:
         """
-        Sube un video públicamente (sin autenticación) - Solo para desarrollo.
+        Extrae metadata del video en MinIO usando ffprobe.
         
         Args:
-            file: Archivo subido
+            storage_path: Ruta del video en formato s3://bucket/key
             
         Returns:
-            VideoUploadResponse con información del video subido
-            
-        Raises:
-            VideoValidationException: Si el archivo no es válido
-            MinIOStorageException: Si falla la subida a MinIO
-            VideoDBException: Si falla guardar en base de datos
+            Dict con la metadata extraída (vacío si falla)
         """
-        size_bytes = self._validate_file(file)
-        
-        bucket = settings.MINIO_BUCKET_VIDEOS
-        object_key = f"public/{uuid4()}_{file.filename}"
-        
-        s3_client = self._get_s3_client()
         try:
-            self._ensure_bucket_exists(s3_client, bucket)
-            file.file.seek(0)
-            extra_args = {"ContentType": file.content_type} if file.content_type else None
-            if extra_args:
-                s3_client.upload_fileobj(file.file, bucket, object_key, ExtraArgs=extra_args)
-            else:
-                s3_client.upload_fileobj(file.file, bucket, object_key)
-        except ClientError as exc:
-            raise MinIOStorageException("Error subiendo archivo a MinIO", str(exc))
-        except Exception as exc:
-            raise MinIOStorageException("Error inesperado durante subida", str(exc))
+            # Extraer bucket y object_key del storage_path
+            storage_path_clean = storage_path.replace("s3://", "")
+            parts = storage_path_clean.split("/", 1)
+            if len(parts) != 2:
+                print(f"Formato de storage_path inválido: {storage_path}")
+                return {}
+            
+            bucket, object_key = parts
+            
+            # Generar URL presignada para que ffprobe pueda acceder
+            s3_client = self._get_s3_client()
+            presigned_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket, 'Key': object_key},
+                ExpiresIn=3600
+            )
+            
+            # Usar ffprobe con la URL presignada
+            cmd = [
+                "ffprobe", "-v", "quiet",
+                "-print_format", "json",
+                "-show_format", "-show_streams",
+                presigned_url
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode != 0:
+                print(f"ffprobe error: {result.stderr}")
+                return {}
+            return json.loads(result.stdout) if result.stdout else {}
+        except Exception as e:
+            print(f"Error extrayendo metadata: {e}")
+            import traceback
+            traceback.print_exc()
+            return {}
+    
+    def _save_metadata_to_video(self, video: Video, metadata: dict) -> None:
+        """
+        Actualiza el registro del video con metadata extraída.
         
-        # Crear registro en DB
-        video = self._create_video_record(file.filename, None)
-        
-        # Actualizar storage_path
+        Args:
+            video: Objeto Video a actualizar
+            metadata: Dict con metadata extraída por ffprobe
+        """
         try:
-            video.storage_path = f"s3://{bucket}/{object_key}"
+            if metadata.get("format"):
+                video.duration_seconds = int(float(metadata["format"].get("duration", 0)))
+            
+            for stream in metadata.get("streams", []):
+                if stream["codec_type"] == "video":
+                    fps_str = stream.get("r_frame_rate", "0")
+                    if fps_str and "/" in str(fps_str):
+                        fps_value = float(fps_str.split("/")[0])
+                        video.fps = int(fps_value)
+                    video.width = stream.get("width")
+                    video.height = stream.get("height")
+                    video.codec = stream.get("codec_name")
+                    video.bitrate = stream.get("bit_rate")
+                elif stream["codec_type"] == "audio":
+                    video.has_audio = True
+                    video.audio_codec = stream.get("codec_name")
+            
             self.db.commit()
-        except Exception as exc:
-            raise VideoDBException("Error actualizando storage_path", str(exc))
-        
-        return VideoUploadResponse(
-            video_id=video.id,
-            bucket=bucket,
-            object_key=object_key,
-            filename=file.filename,
-            content_type=file.content_type,
-            size_bytes=size_bytes,
-            user_id=None,
-            storage_path=video.storage_path,
-            uploaded_at=datetime.utcnow()
-        )
+        except Exception as e:
+            print(f"Error guardando metadata: {e}")
+            self.db.rollback()
     
     def upload_video_authenticated(
         self,
@@ -259,6 +282,10 @@ class VideoService:
             self.db.commit()
         except Exception as exc:
             raise VideoDBException("Error actualizando storage_path", str(exc))
+        
+        # Extraer y guardar metadata
+        metadata = self._extract_metadata(video.storage_path)
+        self._save_metadata_to_video(video, metadata)
         
         return VideoUploadResponse(
             video_id=video.id,

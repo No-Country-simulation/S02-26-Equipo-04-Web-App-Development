@@ -17,36 +17,15 @@ router = APIRouter(prefix="/videos", tags=["Videos"])
     "/upload",
     response_model=VideoUploadResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Subir video",
-    description="Sube un video a MinIO y guarda la metadata",
+    summary="Subir video (autenticado)",
+    description="Sube un video (requiere token) y guarda la metadata",
     responses={
-        201: {"description": "Video subido"},
+        201: {"description": "Video subido exitosamente"},
         400: {"description": "Archivo inválido"},
         401: {"description": "No autenticado"}
     }
 )
 async def upload_video(
-    file: Annotated[UploadFile, File(...)],
-    db: Annotated[Session, Depends(get_db)]
-) -> VideoUploadResponse:
-    """Sube un video públicamente (sin autenticación) - Solo para desarrollo"""
-    service = VideoService(db)
-    return service.upload_video_public(file)
-
-
-@router.post(
-    "/upload/auth",
-    response_model=VideoUploadResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Subir video (autenticado)",
-    description="Sube un video (requiere token) y guarda la metadata",
-    responses={
-        201: {"description": "Video subido y job encolado"},
-        400: {"description": "Archivo inválido"},
-        401: {"description": "No autenticado"}
-    }
-)
-async def upload_video_authenticated(
     file: Annotated[UploadFile, File(...)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[Session, Depends(get_db)]
