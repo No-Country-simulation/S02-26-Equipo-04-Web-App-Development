@@ -2,6 +2,7 @@ from uuid import UUID
 import re
 import subprocess
 from urllib.parse import unquote, urlparse
+from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 from app.models.job import Job, JobStatus, JobType
 from app.models.video import Video
@@ -393,7 +394,7 @@ class JobService:
         )
 
     def list_user_clips(
-        self, user_id: UUID, limit: int = 20, offset: int = 0
+        self, user_id: UUID, limit: int = 20, offset: int = 0, query: str | None = None
     ) -> UserClipsResponse:
         base_query = (
             self.db.query(Job, Video)
@@ -404,6 +405,14 @@ class JobService:
                 Job.output_path.isnot(None),
             )
         )
+
+        cleaned_query = (query or "").strip()
+        if cleaned_query:
+            like_term = f"%{cleaned_query}%"
+            base_query = base_query.filter(
+                (Video.original_filename.ilike(like_term))
+                | (cast(Job.id, String).ilike(like_term))
+            )
 
         total = base_query.count()
         rows = (

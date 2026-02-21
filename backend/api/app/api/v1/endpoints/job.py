@@ -107,5 +107,8 @@ async def get_my_clips(
     service: Annotated[JobService, Depends(get_job_service)],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    q: Annotated[
+        str | None, Query(description="Busqueda por nombre de archivo o id de job")
+    ] = None,
 ) -> UserClipsResponse:
-    return service.list_user_clips(current_user.id, limit=limit, offset=offset)
+    return service.list_user_clips(current_user.id, limit=limit, offset=offset, query=q)

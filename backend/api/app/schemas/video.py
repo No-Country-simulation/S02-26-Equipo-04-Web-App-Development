@@ -20,3 +20,18 @@ class VideoURLResponse(BaseSchema):
     url: str
     expires_in_seconds: int
     filename: str
+
+
+class UserVideoItem(BaseSchema):
+    video_id: UUID
+    filename: str
+    status: str | None = None
+    uploaded_at: datetime
+    preview_url: str | None = None
+
+
+class UserVideosResponse(BaseSchema):
+    total: int
+    limit: int
+    offset: int
+    videos: list[UserVideoItem]
