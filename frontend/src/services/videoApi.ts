@@ -85,7 +85,7 @@ export const videoApi = {
     formData.append("file", file);
 
     const hasToken = Boolean(token && token.trim().length > 0);
-    const endpoint = hasToken ? "/api/v1/videos/upload/auth" : "/api/v1/videos/upload";
+    const endpoint = "/api/v1/videos/upload";
 
     const response = await fetch(`${apiBaseUrl}${endpoint}`, {
       method: "POST",
