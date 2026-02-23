@@ -71,3 +71,50 @@ Si quedan hardcodeadas en compose, pisan `.env` y Google responde `invalid_clien
 
 - Nunca commitear `client_secret` real en el repo.
 - Si un secreto se filtra en chats/capturas, rotarlo en Google Cloud inmediatamente.
+
+## Objetivo de la rama
+
+Integrar sobre `develop` actualizado los cambios de backend que habilitan flujo completo de timeline/biblioteca: jobs automaticos y manuales, busqueda/listados paginados, y CRUD autenticado de videos/clips.
+
+Rama de trabajo: `feature/integracion-timeline-library-flow`.
+
+## Cambios implementados
+
+- Se estabilizo el worker (`backend/worker/app/pipeline.py`, `backend/worker/app/worker.py`) y el flujo de procesamiento para mejorar consistencia de salida.
+- Se incorporo en jobs el flujo de autoclips y listado de clips del usuario en `backend/api/app/api/v1/endpoints/job.py` y `backend/api/app/services/job_service.py`.
+- Se agrego soporte de filtros opcionales para reframe manual en `backend/api/app/schemas/job.py`, endpoint y servicio de jobs.
+- Se mejoro `GET /api/v1/jobs/status/{job_id}` y `GET /api/v1/jobs/my-clips` para regenerar URLs presignadas al responder estados/listados.
+- Se incorporaron endpoints de videos autenticados: `GET /api/v1/videos/my-videos`, `GET /api/v1/videos/{video_id}`, `PATCH /api/v1/videos/{video_id}`, `DELETE /api/v1/videos/{video_id}` con ownership checks y serializacion unificada.
+- Se agregaron endpoints de clips por `job_id`: `GET /api/v1/jobs/{job_id}` y `DELETE /api/v1/jobs/{job_id}`, incluyendo borrado de objeto en storage cuando corresponde.
+
+## Commits realizados
+
+- `fix(worker): stabilize processing flow and media output`
+- `feat(jobs): add smart auto-clips and user clips listing`
+- `feat(api): add search to my-clips and new my-videos endpoint`
+- `feat(api): accept optional reframe filters in manual jobs`
+- `feat(api): add authenticated video CRUD endpoints`
+- `feat(api): add clip detail and delete endpoints for library actions`
+
+## Archivos clave
+
+- `backend/api/app/api/v1/endpoints/job.py`
+- `backend/api/app/api/v1/endpoints/video.py`
+- `backend/api/app/services/job_service.py`
+- `backend/api/app/services/video_service.py`
+- `backend/api/app/services/video_worker_service.py`
+- `backend/worker/app/pipeline.py`
+- `backend/worker/app/worker.py`
+- `docs/backend-pr-log.md`
+
+## Validaciones locales
+
+Intentado en `backend/api/`:
+
+- `pytest -q` -> No ejecutado (comando `pytest` no disponible en entorno local actual)
+
+## Checklist antes de PR a develop
+
+- [x] Rama creada desde `develop` actualizado
+- [x] Integracion de cambios backend/frontend de `feature/frontend-backend-timeline-library-flow`
+- [x] Documentacion actualizada
