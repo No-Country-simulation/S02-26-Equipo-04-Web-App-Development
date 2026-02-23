@@ -2,6 +2,7 @@ from sqlalchemy import Boolean, Column, Integer, String, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from app.database.base import Base
 from app.models.base import UUIDAsPrimaryKeyMixin, TimestampMixin
+from sqlalchemy.orm import relationship
 
 
 class Video(Base, UUIDAsPrimaryKeyMixin, TimestampMixin):
@@ -19,3 +20,5 @@ class Video(Base, UUIDAsPrimaryKeyMixin, TimestampMixin):
     has_audio = Column(Boolean, nullable=True)
     audio_codec = Column(String(50), nullable=True)
     status = Column(String(50), nullable=True)
+    
+    audios = relationship("Audio", back_populates="video", cascade="all, delete-orphan")
