@@ -76,9 +76,7 @@ class AudioValidationException(BadRequestException):
         super().__init__(message)
 
 
-class AudioDBException(AppException):
-    """Excepción para errores de base de datos relacionados con audios"""
-    def __init__(self, message: str = "Database error", original_error: str | None = None):
-        if original_error:
-            message = f"{message}: {original_error}"
-        super().__init__(message, status_code=500)
+class AudioNotFoundException(NotFoundException):
+    """Excepción cuando el audio no existe"""
+    def __init__(self):
+        super().__init__("Audio not found")

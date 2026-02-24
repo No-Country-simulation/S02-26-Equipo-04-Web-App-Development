@@ -13,10 +13,11 @@ from app.models.audio import Audio
 from app.models.video import Video
 from app.schemas.audio import AudioUploadResponse
 from app.utils.exceptions import (
-    AudioDBException,
     AudioValidationException,
+    AudioNotFoundException,
     MinIOStorageException,
     NotFoundException,
+    AppException,
 )
 
 
@@ -145,7 +146,7 @@ class AudioService:
             Audio creado
             
         Raises:
-            AudioDBException: Si falla la creación del registro
+            AppException: Si falla la creación del registro
         """
         try:
             audio = Audio(
@@ -161,7 +162,7 @@ class AudioService:
             return audio
         except Exception as exc:
             self.db.rollback()
-            raise AudioDBException("Error creando registro de audio", str(exc))
+            raise AppException(f"Error creando registro de audio: {str(exc)}", status_code=500)
     
     def _extract_audio_metadata(self, storage_path: str) -> dict:
         """
@@ -254,7 +255,7 @@ class AudioService:
             NotFoundException: Si el video no existe
             AudioValidationException: Si el archivo no es válido
             MinIOStorageException: Si falla la subida a MinIO
-            AudioDBException: Si falla guardar en base de datos
+            AppException: Si falla guardar en base de datos
         """
         # Verificar que el video existe
         video = self.db.query(Video).filter(Video.id == video_id).first()
@@ -291,7 +292,7 @@ class AudioService:
             audio.storage_path = f"s3://{bucket}/{object_key}"
             self.db.commit()
         except Exception as exc:
-            raise AudioDBException("Error actualizando storage_path del audio", str(exc))
+            raise AppException(f"Error actualizando storage_path del audio: {str(exc)}", status_code=500)
         
         # Extraer y guardar metadata
         metadata = self._extract_audio_metadata(audio.storage_path)
