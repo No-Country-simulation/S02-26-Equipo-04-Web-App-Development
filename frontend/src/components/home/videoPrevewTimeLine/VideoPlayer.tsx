@@ -66,8 +66,11 @@ export function VideoPlayer({
         video.currentTime = start;
       }
 
-      video.play();
-      setIsPlaying(true);
+      void video.play().then(() => {
+        setIsPlaying(true);
+      }).catch(() => {
+        setIsPlaying(false);
+      });
     } else {
       video.pause();
       setIsPlaying(false);

@@ -4,11 +4,14 @@ from uuid import UUID, uuid4
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from app.core.config import settings
-from app.utils.exceptions import BadRequestException, MinIOStorageException, VideoDBException
+from app.utils.exceptions import (
+    BadRequestException,
+    MinIOStorageException,
+    VideoDBException,
+)
 
 
 class VideoWorkerService:
-
     def __init__(self):
         self.client = boto3.client(
             "s3",
@@ -16,7 +19,7 @@ class VideoWorkerService:
             aws_access_key_id=settings.MINIO_ACCESS_KEY,
             aws_secret_access_key=settings.MINIO_SECRET_KEY,
             region_name="us-east-1",
-            config=Config(signature_version="s3v4", s3={"addressing_style": "path"})
+            config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
         )
 
     def _get_s3_client(self, endpoint: str | None = None, secure: bool | None = None):
@@ -31,14 +34,13 @@ class VideoWorkerService:
             aws_access_key_id=settings.MINIO_ACCESS_KEY,
             aws_secret_access_key=settings.MINIO_SECRET_KEY,
             region_name="us-east-1",
-            config=Config(signature_version="s3v4", s3={"addressing_style": "path"})
+            config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
         )
-
 
     def _ensure_bucket_exists(self, s3_client, bucket: str) -> None:
         """
         Crea el bucket si no existe.
-        
+
         Raises:
             MinIOStorageException: Si no se puede verificar/crear el bucket
         """
@@ -49,19 +51,14 @@ class VideoWorkerService:
                 s3_client.create_bucket(Bucket=bucket)
             except ClientError as create_exc:
                 raise MinIOStorageException(
-                    f"Error creando bucket '{bucket}'",
-                    str(create_exc)
+                    f"Error creando bucket '{bucket}'", str(create_exc)
                 )
-
 
     def get_video_url(self, storage_path: str, expires_in: int = 3600) -> str:
         bucket, key = storage_path.replace("s3://", "").split("/", 1)
         return self.client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": key},
-            ExpiresIn=expires_in
+            "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=expires_in
         )
-    
 
     def get_video_public_url(self, storage_path: str, expires_in: int = 3600) -> str:
         try:
@@ -72,18 +69,24 @@ class VideoWorkerService:
             bucket, object_key = parts
         except Exception as exc:
             raise BadRequestException(f"Error procesando storage_path: {str(exc)}")
-        
+
         # Generar URL presignada usando endpoint público
         public_endpoint = settings.MINIO_PUBLIC_ENDPOINT or settings.MINIO_ENDPOINT
-        public_secure = settings.MINIO_SECURE if settings.MINIO_PUBLIC_SECURE is None else settings.MINIO_PUBLIC_SECURE
-        print(f"Generando URL pública con endpoint {public_endpoint} (secure={public_secure})")
+        public_secure = (
+            settings.MINIO_SECURE
+            if settings.MINIO_PUBLIC_SECURE is None
+            else settings.MINIO_PUBLIC_SECURE
+        )
+        print(
+            f"Generando URL pública con endpoint {public_endpoint} (secure={public_secure})"
+        )
         print(f"MINIO_PUBLIC_ENDPOINT: {settings.MINIO_PUBLIC_ENDPOINT}")
         s3_client = self._get_s3_client(endpoint=public_endpoint, secure=public_secure)
         try:
             url = s3_client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': bucket, 'Key': object_key},
-                ExpiresIn=expires_in
+                "get_object",
+                Params={"Bucket": bucket, "Key": object_key},
+                ExpiresIn=expires_in,
             )
         except ClientError as exc:
             raise MinIOStorageException("Error generando URL presignada", str(exc))
@@ -111,7 +114,9 @@ class VideoWorkerService:
 
         try:
             with open(local_path, "rb") as f:
-                s3_client.upload_fileobj(f, bucket, object_key, ExtraArgs={"ContentType": "video/mp4"})
+                s3_client.upload_fileobj(
+                    f, bucket, object_key, ExtraArgs={"ContentType": "video/mp4"}
+                )
         except ClientError as exc:
             raise MinIOStorageException("Error subiendo archivo a MinIO", str(exc))
         except Exception as exc:
@@ -119,3 +124,20 @@ class VideoWorkerService:
 
         storage_path = f"s3://{bucket}/{object_key}"
         return storage_path
+
+    def delete_video_from_storage(self, storage_path: str) -> None:
+        try:
+            cleaned_path = storage_path.replace("s3://", "")
+            bucket, object_key = cleaned_path.split("/", 1)
+        except ValueError as exc:
+            raise BadRequestException(f"Error procesando storage_path: {str(exc)}")
+
+        s3_client = self._get_s3_client()
+        try:
+            s3_client.delete_object(Bucket=bucket, Key=object_key)
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code")
+            if error_code not in {"NoSuchKey", "404"}:
+                raise MinIOStorageException(
+                    "Error eliminando archivo de MinIO", str(exc)
+                )

@@ -40,7 +40,12 @@ previsualizar en el front y ofrecer micro ajustes y sus resultados ??
 ========================================================================
 """
 
-DEBUG = True
+DEBUG = os.getenv("WORKER_PIPELINE_DEBUG", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 # output routes and dirs
 OUTPUT_DIR = Path("tmp")
@@ -58,8 +63,8 @@ RESULT_VIDEO.mkdir(exist_ok=True)
 EDGE_MARGIN_RATIO = 0.10
 SUBJECT_LOST_TIMEOUT_SEC = 2.0
 MIN_FACE_RATIO = 0.003  # 0.3% shows / escenario
-#MIN_FACE_RATIO = 0.0015 # si la cámara está lejos:
-#MIN_FACE_RATIO = 0.01 # si está cerca
+# MIN_FACE_RATIO = 0.0015 # si la cámara está lejos:
+# MIN_FACE_RATIO = 0.01 # si está cerca
 
 
 # camera direction parameters
@@ -89,7 +94,11 @@ if face_cascade.empty():
 # logger
 logger = logging.getLogger("pipeline")
 logger.propagate = True
-#========================================================================   
+# ========================================================================
+
+
+def _mp4_filename(filename: str) -> str:
+    return f"{Path(filename).stem}.mp4"
 
 
 class CameraDirector:
@@ -132,6 +141,7 @@ class CameraDirector:
 
     It ONLY decides *where the camera should point*.
     """
+
     def __init__(self, frame_width, final_w, fps):
         self.w = frame_width
         self.crop_w = final_w
@@ -205,19 +215,18 @@ class CameraDirector:
             # No subject detected → hold position
             logger.info(f"🔔 NO SUBJECT DETECTED, CURRENT POSITION: {self.current_x}")
             return self.current_x
-        
-        #Eso hace que:
+
+        # Eso hace que:
         # espere estabilidad del activo
         # ignore cambios efímeros
         # evite cortes nerviosos
         if self.detected_persistence < self.MIN_DETECTED_PERSISTENCE:
             return self.current_x
-        
-        # ================= HARD CUT ================= 
+
+        # ================= HARD CUT =================
         if is_voice and abs(detected_x - self.current_x) > self.HARD_CUT_THRESHOLD:
             self.current_x = max(
-                self.crop_w // 2,
-                min(self.w - self.crop_w // 2, detected_x)
+                self.crop_w // 2, min(self.w - self.crop_w // 2, detected_x)
             )
             self.mode = "HOLD"
             self.hold_frames = 0
@@ -225,12 +234,12 @@ class CameraDirector:
             return self.current_x
 
         # ================= SAFE ZONE CHECK =================
-        left  = self.current_x - self.crop_w // 2
+        left = self.current_x - self.crop_w // 2
         right = self.current_x + self.crop_w // 2
 
         margin = int(self.crop_w * 0.25)
 
-        safe_left  = left + margin
+        safe_left = left + margin
         safe_right = right - margin
 
         if detected_x < safe_left or detected_x > safe_right:
@@ -251,12 +260,11 @@ class CameraDirector:
 
         # ================= HOLD =================
         if self.mode == "HOLD":
-
             self.hold_frames += 1
 
             if (
-                self.possible_counter > self.CONSENSUS and
-                self.hold_frames > self.HOLD_MIN
+                self.possible_counter > self.CONSENSUS
+                and self.hold_frames > self.HOLD_MIN
             ):
                 self.mode = "TRANSITION"
                 self.target_x = self.possible_target
@@ -265,22 +273,17 @@ class CameraDirector:
 
         # ================= TRANSITION =================
         elif self.mode == "TRANSITION":
-
             self.frames_in_state += 1
 
-            progress = min(
-                1.0,
-                self.frames_in_state / self.TRANSITION_MAX
-            )
+            progress = min(1.0, self.frames_in_state / self.TRANSITION_MAX)
 
             self.current_x = int(
-                self.current_x +
-                (self.target_x - self.current_x) * progress
+                self.current_x + (self.target_x - self.current_x) * progress
             )
 
             if (
-                self.frames_in_state > self.TRANSITION_MIN and
-                abs(self.current_x - self.target_x) < 5
+                self.frames_in_state > self.TRANSITION_MIN
+                and abs(self.current_x - self.target_x) < 5
             ):
                 self.mode = "HOLD"
                 self.current_x = self.target_x
@@ -288,7 +291,9 @@ class CameraDirector:
                 self.frames_in_state = 0
 
         return self.current_x
-#========================================================================
+
+
+# ========================================================================
 
 
 def get_video_metadata(video_path):
@@ -329,34 +334,38 @@ def get_video_metadata(video_path):
 def init_stream_decoder(video_path):
     """Opens FFmpeg process that streams raw BGR frames."""
     return (
-        ffmpeg
-        .input(video_path)
-        .output('pipe:', format='rawvideo', pix_fmt='bgr24')
-        .global_args('-loglevel', 'error')
+        ffmpeg.input(video_path)
+        .output("pipe:", format="rawvideo", pix_fmt="bgr24")
+        .global_args("-loglevel", "error")
         .run_async(pipe_stdout=True)
     )
+
 
 def init_stream_encoder(output_path, actual_w, actual_h, fps):
     """Opens FFmpeg encoder process receiving raw frames via stdin."""
     return (
-        ffmpeg
-        .input('pipe:', format='rawvideo', pix_fmt='bgr24',
-               s=f"{actual_w}x{actual_h}", framerate=fps)
-        .output(
-            output_path,
-            vcodec='libx264',
-            pix_fmt='yuv420p',
-            movflags='+faststart'
+        ffmpeg.input(
+            "pipe:",
+            format="rawvideo",
+            pix_fmt="bgr24",
+            s=f"{actual_w}x{actual_h}",
+            framerate=fps,
         )
+        .output(output_path, vcodec="libx264", pix_fmt="yuv420p", movflags="+faststart")
         .overwrite_output()
-        .global_args('-loglevel', 'error')  # <--- errors only
+        .global_args("-loglevel", "error")  # <--- errors only
         .run_async(pipe_stdin=True)
     )
 
 
-def normalize_video_segment(video_path, filename,start_sec, end_sec,
-                            target_fps=TARGET_FPS,
-                            target_max_width=TARGET_MAX_W):
+def normalize_video_segment(
+    video_path,
+    filename,
+    start_sec,
+    end_sec,
+    target_fps=TARGET_FPS,
+    target_max_width=TARGET_MAX_W,
+):
     """
     Cuts and conditionally normalizes a video segment for stable downstream processing.
 
@@ -416,27 +425,29 @@ def normalize_video_segment(video_path, filename,start_sec, end_sec,
     needs_scale = width > target_max_width
     needs_pixfmt = pix_fmt != "yuv420p"
 
-    output_name = f"normalized_{filename}"
+    output_name = f"normalized_{_mp4_filename(filename)}"
     output_path = str(NORMALIZED_VIDEO / output_name)
-    
-    if not any([needs_codec, needs_fps, needs_scale, needs_pixfmt]):
 
-        logger.info("⚙️  Video is already normalized. Only cutting segment.")
+    if not any([needs_codec, needs_fps, needs_scale, needs_pixfmt]):
+        logger.info(
+            "⚙️  Video is already normalized. Re-encoding trimmed segment for stability."
+        )
 
         (
-            ffmpeg
-            .input(video_path)
+            ffmpeg.input(video_path, ss=start_sec, to=end_sec)
             .output(
                 output_path,
-                ss=start_sec,
-                to=end_sec,
-                vcodec="copy",
-                acodec="copy",
-                map="0",
-                avoid_negative_ts="make_zero"
+                vcodec="libx264",
+                pix_fmt="yuv420p",
+                r=target_fps,
+                acodec="aac",
+                audio_bitrate="128k",
+                preset="fast",
+                crf=23,
+                movflags="+faststart",
             )
             .overwrite_output()
-            .global_args('-loglevel', 'error')  # <--- errors only
+            .global_args("-loglevel", "error")  # <--- errors only
             .run()
         )
         return output_path
@@ -447,13 +458,16 @@ def normalize_video_segment(video_path, filename,start_sec, end_sec,
     logger.info(f"   Resolution ok? {not needs_scale}")
     logger.info(f"   Pixel format ok? {not needs_pixfmt}")
 
-    stream = ffmpeg.input(video_path, ss=start_sec, to=end_sec)
+    input_stream = ffmpeg.input(video_path, ss=start_sec, to=end_sec)
+    video_stream = input_stream.video
 
     if needs_scale:
-        stream = stream.filter("scale", target_max_width, -2)
+        video_stream = video_stream.filter("scale", target_max_width, -2)
 
     stream = (
-        stream.output(
+        ffmpeg.output(
+            video_stream,
+            input_stream.audio,
             output_path,
             vcodec="libx264",
             pix_fmt="yuv420p",
@@ -462,10 +476,10 @@ def normalize_video_segment(video_path, filename,start_sec, end_sec,
             audio_bitrate="128k",
             preset="fast",
             crf=23,
-            movflags="+faststart"
+            movflags="+faststart",
         )
         .overwrite_output()
-        .global_args('-loglevel', 'error')  # <--- errors only
+        .global_args("-loglevel", "error")  # <--- errors only
     )
 
     logger.info("🚀 Runnig FFmpeg...")
@@ -476,8 +490,7 @@ def normalize_video_segment(video_path, filename,start_sec, end_sec,
     return output_path
 
 
-def merge_audio_track(processed_video_path,
-                      normalized_video_path, filename):
+def merge_audio_track(processed_video_path, normalized_video_path, filename):
     """
     Merges the original audio track into a processed video file.
 
@@ -505,27 +518,38 @@ def merge_audio_track(processed_video_path,
     - Audio is encoded to AAC for compatibility.
     - The output duration matches the shortest stream.
     """
-    output_name = f"result_{filename}"
+    output_name = f"result_{_mp4_filename(filename)}"
     output_path = str(RESULT_VIDEO / output_name)
 
     video_in = ffmpeg.input(processed_video_path)
-    audio_in = ffmpeg.input(normalized_video_path)
 
-    (
-        ffmpeg
-        .output(
-            video_in.video,   # video del archivo procesado
-            audio_in.audio,   # audio del original
-            output_path,
-            vcodec="copy",
-            acodec="aac",
-            shortest=None
+    try:
+        audio_in = ffmpeg.input(normalized_video_path)
+        (
+            ffmpeg.output(
+                video_in.video,
+                audio_in.audio,
+                output_path,
+                vcodec="copy",
+                acodec="aac",
+                shortest=None,
+            )
+            .overwrite_output()
+            .global_args("-loglevel", "error")
+            .run()
         )
-        .overwrite_output()
-        .global_args('-loglevel', 'error')  # <--- errors only
-        .run()
-    )
-    logger.info("🔊 Audio added")
+        logger.info("🔊 Audio added")
+    except ffmpeg.Error:
+        logger.warning(
+            "⚠️ Input segment has no audio stream; exporting video-only result"
+        )
+        (
+            ffmpeg.output(video_in.video, output_path, vcodec="copy")
+            .overwrite_output()
+            .global_args("-loglevel", "error")
+            .run()
+        )
+
     return output_path
 
 
@@ -543,9 +567,24 @@ def resize_with_letterbox(frame, final_w, final_h):
     x_offset = (final_w - new_w) // 2
     y_offset = (final_h - new_h) // 2
 
-    canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
+    canvas[y_offset : y_offset + new_h, x_offset : x_offset + new_w] = resized
 
     return canvas
+
+
+def resize_with_cover(frame, final_w, final_h):
+    """Resize preserving aspect ratio and filling target area by center-cropping."""
+    h, w = frame.shape[:2]
+
+    scale = max(final_w / w, final_h / h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+
+    resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    x1 = max(0, (new_w - final_w) // 2)
+    y1 = max(0, (new_h - final_h) // 2)
+    return resized[y1 : y1 + final_h, x1 : x1 + final_w]
 
 
 def reframe_vertical(frame, camera_x, final_w, final_h):
@@ -553,12 +592,68 @@ def reframe_vertical(frame, camera_x, final_w, final_h):
     h, w = frame.shape[:2]
 
     if h != final_h:
-        logger.warning(f"🚨 WARNING: HEIGHT MISMACHT, CURRENT H: {h}, EXCPECTED: {final_h}")
+        logger.warning(
+            f"🚨 WARNING: HEIGHT MISMACHT, CURRENT H: {h}, EXCPECTED: {final_h}"
+        )
 
     x1 = max(0, min(w - final_w, camera_x - final_w // 2))
-    crop = frame[0:final_h, x1:x1 + final_w]
+    crop = frame[0:final_h, x1 : x1 + final_w]
 
     return crop  # 👈 tamaño fijo
+
+
+def compose_speaker_split(
+    frame, camera_x, final_w, final_h, content_profile="interview"
+):
+    """
+    Genera layout vertical en dos paneles:
+      - Arriba: seguimiento facial (crop vertical guiado por camera_x)
+      - Abajo: video completo horizontal con letterbox
+    """
+    is_sports = content_profile == "sports"
+    top_ratio = 0.64 if not is_sports else 0.52
+    top_h = int(final_h * top_ratio)
+    bottom_h = max(1, final_h - top_h)
+
+    h, w = frame.shape[:2]
+    target_aspect = final_w / top_h
+
+    crop_h = h
+    crop_w = int(crop_h * target_aspect)
+
+    if crop_w > w:
+        crop_w = w
+        crop_h = int(crop_w / target_aspect)
+
+    crop_w = max(2, crop_w - (crop_w % 2))
+    crop_h = max(2, crop_h - (crop_h % 2))
+
+    frame_center_x = w // 2
+    tracked_x = int(camera_x if camera_x is not None else frame_center_x)
+    if is_sports:
+        # En deportes reducimos paneo agresivo y privilegiamos contexto de jugada.
+        center_x = int((tracked_x * 0.35) + (frame_center_x * 0.65))
+    else:
+        center_x = tracked_x
+    half_w = crop_w // 2
+    center_x = max(half_w, min(w - half_w, center_x))
+
+    x1 = max(0, center_x - half_w)
+    x2 = min(w, x1 + crop_w)
+    y1 = max(0, (h - crop_h) // 2)
+    y2 = y1 + crop_h
+
+    top_focus = frame[y1:y2, x1:x2]
+    top_panel = cv2.resize(top_focus, (final_w, top_h), interpolation=cv2.INTER_AREA)
+    bottom_panel = (
+        resize_with_cover(frame, final_w, bottom_h)
+        if is_sports
+        else resize_with_letterbox(frame, final_w, bottom_h)
+    )
+
+    stacked = np.vstack((top_panel, bottom_panel))
+    cv2.line(stacked, (0, top_h), (final_w, top_h), (0, 0, 0), 2)
+    return stacked
 
 
 def close_streams(decoder, encoder):
@@ -567,8 +662,9 @@ def close_streams(decoder, encoder):
     encoder.stdin.close()
     decoder.wait()
     encoder.wait()
-#========================================================================
 
+
+# ========================================================================
 
 
 def detect_face_centers(frame, gray, prev_gray):
@@ -580,13 +676,13 @@ def detect_face_centers(frame, gray, prev_gray):
 
     Returns
     -------
-    dict of 
+    dict of
         center: (x, y)
         bbox: x, y, w, h
         area: w * h
-        motion: 
+        motion:
     """
-    #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     detections = face_cascade.detectMultiScale(gray, 1.1, 5)
 
@@ -597,8 +693,7 @@ def detect_face_centers(frame, gray, prev_gray):
 
     faces = []
 
-    for (x, y, w, h) in detections:
-
+    for x, y, w, h in detections:
         area = w * h
         center_x = x + w // 2
         center_y = y + h // 2
@@ -606,14 +701,13 @@ def detect_face_centers(frame, gray, prev_gray):
 
         mouth_y1 = int(y + h * 0.6)
         mouth_y2 = int(y + h * 0.85)
-        mouth_now = gray[mouth_y1:mouth_y2, x:x+w]
-        mouth_prev = prev_gray[mouth_y1:mouth_y2, x:x+w]
+        mouth_now = gray[mouth_y1:mouth_y2, x : x + w]
+        mouth_prev = prev_gray[mouth_y1:mouth_y2, x : x + w]
         if mouth_now.shape == mouth_prev.shape:
             motion_score = np.mean(cv2.absdiff(mouth_now, mouth_prev))
         else:
             motion_score = 0
 
-        
         ## ❌ filters by min size realted to frame w/h
         if area < frame_area * MIN_FACE_RATIO:
             continue
@@ -624,22 +718,21 @@ def detect_face_centers(frame, gray, prev_gray):
         if aspect_ratio < 0.6 or aspect_ratio > 1.4:
             continue
 
-        faces.append({
-            "center": (center_x, center_y),
-            "bbox": (x, y, w, h),
-            "area": area,
-            "motion": motion_score
-        })
-
+        faces.append(
+            {
+                "center": (center_x, center_y),
+                "bbox": (x, y, w, h),
+                "area": area,
+                "motion": motion_score,
+            }
+        )
 
     return faces
 
 
-
-
-def update_active_speaker(faces, active_center, candidate_center,
-                          candidate_frames, active_lock_frames,
-                          fps, w):
+def update_active_speaker(
+    faces, active_center, candidate_center, candidate_frames, active_lock_frames, fps, w
+):
     """
     Determines which detected face should be considered the current main subject.
 
@@ -697,10 +790,10 @@ def update_active_speaker(faces, active_center, candidate_center,
 
     Behavior Summary
     ----------------
-    • Keeps the current subject if still spatially close  
-    • Starts evaluating a new subject only if far enough  
-    • Requires ~0.5 seconds of persistence before switching  
-    • Abandons subject after ~1 second of absence  
+    • Keeps the current subject if still spatially close
+    • Starts evaluating a new subject only if far enough
+    • Requires ~0.5 seconds of persistence before switching
+    • Abandons subject after ~1 second of absence
     • Prevents rapid “ping-pong” switching between faces
     """
 
@@ -709,7 +802,7 @@ def update_active_speaker(faces, active_center, candidate_center,
         active_lock_frames -= 1
 
         # Lost subject for too long → no active subject
-        if active_lock_frames < -fps * SUBJECT_LOST_TIMEOUT_SEC :
+        if active_lock_frames < -fps * SUBJECT_LOST_TIMEOUT_SEC:
             return None, None, 0, active_lock_frames
 
         return active_center, candidate_center, candidate_frames, active_lock_frames
@@ -719,23 +812,21 @@ def update_active_speaker(faces, active_center, candidate_center,
         nearest = min(
             faces,
             key=lambda f: math.hypot(
-                f["center"][0]-active_center[0],
-                f["center"][1]-active_center[1]
-            )
+                f["center"][0] - active_center[0], f["center"][1] - active_center[1]
+            ),
         )
         dist = math.hypot(
-            nearest["center"][0]-active_center[0],
-            nearest["center"][1]-active_center[1]
+            nearest["center"][0] - active_center[0],
+            nearest["center"][1] - active_center[1],
         )
     else:
-        
         # elegir la cara más grande(?)
         # nearest = max(faces, key=lambda f: f["area"])
-        
+
         # el más cerca del centrado
-        #frame_center_x = w // 2
-        #nearest = min(faces, key=lambda f: abs(f["center"][0] - frame_center_x))
-        
+        # frame_center_x = w // 2
+        # nearest = min(faces, key=lambda f: abs(f["center"][0] - frame_center_x))
+
         # elegir donde hay mayor 'movimiento'
         nearest = max(faces, key=lambda f: f["motion"])
         dist = 0
@@ -750,10 +841,13 @@ def update_active_speaker(faces, active_center, candidate_center,
     if candidate_center is None:
         return active_center, nearest["center"], 1, active_lock_frames
 
-    if math.hypot(
-        nearest["center"][0]-candidate_center[0],
-        nearest["center"][1]-candidate_center[1]
-    ) < 50:
+    if (
+        math.hypot(
+            nearest["center"][0] - candidate_center[0],
+            nearest["center"][1] - candidate_center[1],
+        )
+        < 50
+    ):
         candidate_frames += 1
     else:
         return active_center, None, 0, active_lock_frames
@@ -761,11 +855,9 @@ def update_active_speaker(faces, active_center, candidate_center,
     # Switch only if persistent
     if candidate_frames > fps * 0.5:
         return nearest["center"], None, 0, active_lock_frames
-        #return candidate_center, None, 0, active_lock_frames
+        # return candidate_center, None, 0, active_lock_frames
 
     return active_center, candidate_center, candidate_frames, active_lock_frames
-
-
 
 
 def analyze_speech_activity(video_segment_path):
@@ -781,19 +873,24 @@ def analyze_speech_activity(video_segment_path):
     # 🎧 Extraer audio RAW en memoria
     cmd = [
         "ffmpeg",
-        "-loglevel", "error",
-        "-i", video_segment_path,
-        "-ac", "1",          # mono
-        "-ar", str(AUDIO_SAMPLE_RATE),      # sample rate
-        "-f", "f32le",       # float32 PCM
-        "-"
+        "-loglevel",
+        "error",
+        "-i",
+        video_segment_path,
+        "-ac",
+        "1",  # mono
+        "-ar",
+        str(AUDIO_SAMPLE_RATE),  # sample rate
+        "-f",
+        "f32le",  # float32 PCM
+        "-",
     ]
 
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     audio_bytes = process.stdout.read()
     audio = np.frombuffer(audio_bytes, np.float32)
 
-    sr = AUDIO_SAMPLE_RATE 
+    sr = AUDIO_SAMPLE_RATE
     hop = int(sr / TARGET_FPS)
 
     # 📈 Energía RMS por frame de video
@@ -807,9 +904,9 @@ def analyze_speech_activity(video_segment_path):
     return speech_mask
 
 
-
-
-def stream_processing(video_path, filename):
+def stream_processing(
+    video_path, filename, output_style="vertical", content_profile="interview"
+):
     """
     Main video processing pipeline.
     Reads video frames via FFmpeg pipe, tracks active speaker,
@@ -819,18 +916,20 @@ def stream_processing(video_path, filename):
     logger.info("🎬 PROCESSING STREAM...")
 
     # =============== SETUP ===============
-    output_name = f"processed_{filename}"
+    output_name = f"processed_{_mp4_filename(filename)}"
     output_path = str(PROCESSED_VIDEO / output_name)
 
     w, h, fps = get_video_metadata(video_path)
     # tamaño 9:16 que entra dentro del video original
     crop_w = int(h * OUTPUT_ASPECT)
     crop_w = min(crop_w, w)
+    if crop_w % 2 != 0:
+        crop_w -= 1
 
     FINAL_W = crop_w
     FINAL_H = h
 
-    director = CameraDirector(w, FINAL_H, fps)
+    director = CameraDirector(w, FINAL_W, fps)
 
     decoder = init_stream_decoder(video_path)
     if DEBUG:
@@ -866,12 +965,18 @@ def stream_processing(video_path, filename):
         faces = detect_face_centers(frame, gray, prev_gray)
 
         # decide QUIÉN
-        active_center, candidate_center, candidate_frames, active_lock_frames = update_active_speaker(
-            faces, active_center, candidate_center,
-            candidate_frames, active_lock_frames,
-            fps, w
+        active_center, candidate_center, candidate_frames, active_lock_frames = (
+            update_active_speaker(
+                faces,
+                active_center,
+                candidate_center,
+                candidate_frames,
+                active_lock_frames,
+                fps,
+                w,
+            )
         )
-        
+
         detected_x = active_center[0] if active_center else None
 
         is_voice = frame_idx < len(voice_mask) and voice_mask[frame_idx]
@@ -891,13 +996,15 @@ def stream_processing(video_path, filename):
             # ===== FACES =====
             for f in faces:
                 x, y, w_box, h_box = f["bbox"]
-                cv2.rectangle(frame, (x, y), (x + w_box, y + h_box), (255,0,0), 2) # red
+                cv2.rectangle(
+                    frame, (x, y), (x + w_box, y + h_box), (255, 0, 0), 2
+                )  # red
 
             if active_center:
-                cv2.circle(frame, active_center, 20, (0,255,0), 2) # green
+                cv2.circle(frame, active_center, 20, (0, 255, 0), 2)  # green
 
             if candidate_center:
-                cv2.circle(frame, candidate_center, 20, (0,0,255), 2) # blue
+                cv2.circle(frame, candidate_center, 20, (0, 0, 255), 2)  # blue
             # ===== Foco del director =====
             if camera_x is not None:
                 h, w = frame.shape[:2]
@@ -905,23 +1012,23 @@ def stream_processing(video_path, filename):
                 cy = h // 2  # centro vertical del frame
                 size = 20  # tamaño de la cruz
 
-                cv2.line(frame, (cx - size, cy), (cx + size, cy), (0,255,255), 2)
-                cv2.line(frame, (cx, cy - size), (cx, cy + size), (0,255,255), 2)
-                
+                cv2.line(frame, (cx - size, cy), (cx + size, cy), (0, 255, 255), 2)
+                cv2.line(frame, (cx, cy - size), (cx, cy + size), (0, 255, 255), 2)
+
                 half_w = FINAL_W // 2
                 x1 = int(max(0, camera_x - half_w))
                 x2 = int(min(width, camera_x + half_w))
                 y1 = 0
                 y2 = FINAL_H
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,255), 2)  # amarillo
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)  # amarillo
 
             # ===== Texto centrado arriba =====
             if director.mode:
                 text = f"MODE: {director.mode}"
 
                 font = cv2.FONT_HERSHEY_SIMPLEX
-                font_scale = 0.6   # más chico
-                thickness = 1      # más fino
+                font_scale = 0.6  # más chico
+                thickness = 1  # más fino
 
                 text_size, _ = cv2.getTextSize(text, font, font_scale, thickness)
                 text_width = text_size[0]
@@ -929,12 +1036,20 @@ def stream_processing(video_path, filename):
                 x = (width - text_width) // 2
                 y = 30  # margen superior
 
-                cv2.putText(frame, text, (x, y),
-                            font, font_scale,
-                            (255,255,255), thickness)
+                cv2.putText(
+                    frame, text, (x, y), font, font_scale, (255, 255, 255), thickness
+                )
 
         if DEBUG:
             out_frame = frame.copy()
+        elif output_style == "speaker_split":
+            out_frame = compose_speaker_split(
+                frame,
+                camera_x,
+                FINAL_W,
+                FINAL_H,
+                content_profile=content_profile,
+            )
         else:
             out_frame = reframe_vertical(frame, camera_x, FINAL_W, FINAL_H)
 
@@ -949,9 +1064,9 @@ def stream_processing(video_path, filename):
     return output_path
 
 
-
-
-def generate_video(video_path, filename):
+def generate_video(
+    video_path, filename, output_style="vertical", content_profile="interview"
+):
     """
     Executes the full visual processing pipeline on a normalized segment
     and merges the original audio track at the end.
@@ -968,7 +1083,12 @@ def generate_video(video_path, filename):
     """
 
     # 1. Reframe / crop / camera logic
-    no_audio_out = stream_processing(video_path, filename)
+    no_audio_out = stream_processing(
+        video_path,
+        filename,
+        output_style=output_style,
+        content_profile=content_profile,
+    )
 
     # 2. Merge original audio track
     result_video_path = merge_audio_track(no_audio_out, video_path, filename)
@@ -977,15 +1097,25 @@ def generate_video(video_path, filename):
     return result_video_path
 
 
-
-
 # ================= PIPELINE MAIN =================
-def process(video_path, filename, start, end):
+def process(
+    video_path,
+    filename,
+    start,
+    end,
+    output_style="vertical",
+    content_profile="interview",
+):
     """
     Returns local path of generated video
         /tmp/result_{filename}
     """
     normalized_video_path = normalize_video_segment(video_path, filename, start, end)
-    result_video_path = generate_video(normalized_video_path, filename)
+    result_video_path = generate_video(
+        normalized_video_path,
+        filename,
+        output_style=output_style,
+        content_profile=content_profile,
+    )
     logger.info(f"🎉 GENERATED VIDEO PATH: {result_video_path}")
     return result_video_path

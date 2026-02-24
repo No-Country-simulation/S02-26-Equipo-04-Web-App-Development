@@ -19,6 +19,95 @@ export type VideoUrlResponse = {
   filename: string;
 };
 
+export type AutoReframeJobItem = {
+  job_id: string;
+  job_type: string;
+  status: string;
+  start_sec: number;
+  end_sec: number;
+  created_at: string;
+};
+
+export type AutoReframeResponse = {
+  video_id: string;
+  total_jobs: number;
+  clip_duration_sec: number;
+  used_video_duration_sec: number | null;
+  jobs: AutoReframeJobItem[];
+};
+
+export type ReframeJobRequest = {
+  start_sec: number;
+  end_sec: number;
+  crop_to_vertical?: boolean;
+  subtitles?: boolean;
+  face_tracking?: boolean;
+  color_filter?: boolean;
+  output_style?: "vertical" | "speaker_split";
+  content_profile?: "auto" | "interview" | "sports" | "music";
+};
+
+export type ReframeJobResponse = {
+  job_id: string;
+  job_type: string;
+  status: string;
+  filename: string;
+  start_sec: number;
+  end_sec: number;
+  created_at: string;
+};
+
+export type JobStatusResponse = {
+  job_id: string;
+  status: string;
+  output_path: string | null;
+};
+
+export type UserClipItem = {
+  job_id: string;
+  video_id: string;
+  status: string;
+  output_path: string | null;
+  source_filename: string;
+  created_at: string;
+};
+
+export type UserClipsResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  clips: UserClipItem[];
+};
+
+export type UserClipDetailResponse = {
+  clip: UserClipItem;
+};
+
+export type UserVideoItem = {
+  video_id: string;
+  filename: string;
+  status: string | null;
+  uploaded_at: string;
+  preview_url: string | null;
+};
+
+export type UserVideoDetail = {
+  video_id: string;
+  filename: string;
+  status: string | null;
+  uploaded_at: string;
+  updated_at: string;
+  storage_path: string | null;
+  preview_url: string | null;
+};
+
+export type UserVideosResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  videos: UserVideoItem[];
+};
+
 const apiBaseUrl = env.apiBaseUrl.replace(/\/$/, "");
 
 export class VideoApiError extends Error {
@@ -110,5 +199,162 @@ export const videoApi = {
     });
 
     return parseResponse<VideoUrlResponse>(response);
+  },
+
+  async createAutoReframeJobs(
+    videoId: string,
+    token: string,
+    options?: {
+      clipsCount?: number;
+      clipDurationSec?: number;
+      outputStyle?: "vertical" | "speaker_split";
+      contentProfile?: "auto" | "interview" | "sports" | "music";
+    }
+  ) {
+    const body: Record<string, unknown> = {
+      output_style: options?.outputStyle ?? "vertical",
+      content_profile: options?.contentProfile ?? "auto"
+    };
+
+    if (typeof options?.clipsCount === "number") {
+      body.clips_count = options.clipsCount;
+    }
+    if (typeof options?.clipDurationSec === "number") {
+      body.clip_duration_sec = options.clipDurationSec;
+    }
+
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}/auto`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    return parseResponse<AutoReframeResponse>(response);
+  },
+
+  async createReframeJob(videoId: string, token: string, payload: ReframeJobRequest) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    return parseResponse<ReframeJobResponse>(response);
+  },
+
+  async getJobStatus(jobId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/status/${jobId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<JobStatusResponse>(response);
+  },
+
+  async getMyClips(token: string, options?: { limit?: number; offset?: number; query?: string }) {
+    const params = new URLSearchParams({
+      limit: String(options?.limit ?? 50),
+      offset: String(options?.offset ?? 0)
+    });
+
+    const query = options?.query?.trim();
+    if (query) {
+      params.set("q", query);
+    }
+
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/my-clips?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<UserClipsResponse>(response);
+  },
+
+  async deleteMyClip(jobId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/${jobId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<null>(response);
+  },
+
+  async getMyClipById(jobId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/${jobId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<UserClipDetailResponse>(response);
+  },
+
+  async getMyVideos(token: string, options?: { limit?: number; offset?: number; query?: string }) {
+    const params = new URLSearchParams({
+      limit: String(options?.limit ?? 20),
+      offset: String(options?.offset ?? 0)
+    });
+
+    const query = options?.query?.trim();
+    if (query) {
+      params.set("q", query);
+    }
+
+    const response = await fetch(`${apiBaseUrl}/api/v1/videos/my-videos?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<UserVideosResponse>(response);
+  },
+
+  async getMyVideoById(videoId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/videos/${videoId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<UserVideoDetail>(response);
+  },
+
+  async updateMyVideo(videoId: string, token: string, payload: { filename: string }) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/videos/${videoId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    return parseResponse<UserVideoItem>(response);
+  },
+
+  async deleteMyVideo(videoId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/videos/${videoId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<null>(response);
   }
 };

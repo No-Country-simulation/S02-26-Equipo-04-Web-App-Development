@@ -33,6 +33,7 @@ worker.py
 
 """
 
+
 def check_ffmpeg():
     """
     Verifica que FFmpeg esté instalado en el contenedor
@@ -43,12 +44,11 @@ def check_ffmpeg():
             ["ffmpeg", "-version"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
         return result.stdout.split("\n")[0]
     except Exception as e:
         return f"FFmpeg error: {e}"
-
 
 
 def check_opencv():
@@ -60,7 +60,6 @@ def check_opencv():
         return f"OpenCV version {cv2.__version__}"
     except Exception as e:
         return f"OpenCV error: {e}"
-
 
 
 def check_redis():
@@ -75,29 +74,47 @@ def check_redis():
         return f"Redis error: {e}"
 
 
-
 def check_dependencies():
     """
     Ejecuta todos los chequeos de entorno al iniciar el worker.
     Sirve para validar que el contenedor está correctamente armado.
     """
     status = {
-    "redis": check_redis(),
-    "opencv": check_opencv(),
-    "ffmpeg": check_ffmpeg()
+        "redis": check_redis(),
+        "opencv": check_opencv(),
+        "ffmpeg": check_ffmpeg(),
     }
-    
+
     logger.info("🔎 Environment check:")
     for k, v in status.items():
         logger.info(f"{k}: {v}")
 
 
-
 logger = setup_logging()
 QUEUE_NAME = "reframe_queue"
+
+
+def update_job_state(db, job_id, **fields):
+    try:
+        updated_rows = (
+            db.query(Job)
+            .filter(Job.id == job_id)
+            .update(fields, synchronize_session=False)
+        )
+        db.commit()
+        if updated_rows == 0:
+            logger.warning(f"⚠️ Job {job_id} no longer exists while updating state")
+            return False
+        return True
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"❌ Could not persist state for job {job_id}: {exc}")
+        return False
+
+
 def worker_loop():
     logger.info("🎧 Worker listening for jobs...\n")
-        
+
     while True:
         payload = redis_client.pop_from_queue(QUEUE_NAME)
 
@@ -106,14 +123,16 @@ def worker_loop():
         job_id = payload.get("job_id")
         start_sec = payload.get("start_sec")
         end_sec = payload.get("end_sec")
+        output_style = payload.get("output_style", "vertical")
+        content_profile = payload.get("content_profile", "interview")
         logger.info(f"🎬 Job received from Redis, Job id: {job_id}")
 
         db = SessionLocal()
         video_worker_service = VideoWorkerService()
-        
-        try:   
+
+        try:
             job = db.query(Job).filter(Job.id == job_id).first()
-            
+
             if not job:
                 db.close()
                 logger.warning(f"❌ Job {job_id} not found in DB")
@@ -121,78 +140,128 @@ def worker_loop():
 
             if job.status != JobStatus.PENDING and job.status != JobStatus.FAILED:
                 db.close()
-                logger.warning(f"❌Job {job_id} has invalid state {job.status}, skipping"
+                logger.warning(
+                    f"❌Job {job_id} has invalid state {job.status}, skipping"
                 )
                 continue
 
             logger.info(f"⚙️  Processing job: {job_id} of type {job.job_type}")
-        
+
         except Exception as e:
             logger.error(f"❌ Failed to fetch job {job_id} from DB: {e}")
             db.close()
+            continue
 
         try:
-            filename = db.query(Video).filter(Video.id == job.video_id).first().original_filename
+            filename = (
+                db.query(Video)
+                .filter(Video.id == job.video_id)
+                .first()
+                .original_filename
+            )
             if not filename:
                 logger.warning(f"❌ Video {job.video_id} has no filename")
-                job.status = JobStatus.FAILED
-                db.commit()
+                update_job_state(
+                    db,
+                    job.id,
+                    status=JobStatus.FAILED,
+                    error_message="Video sin filename",
+                )
                 db.close()
                 continue
 
-            storage_path = db.query(Video).filter(Video.id == job.video_id).first().storage_path
+            storage_path = (
+                db.query(Video).filter(Video.id == job.video_id).first().storage_path
+            )
             if not storage_path:
                 logger.warning(f"❌ Video {job.video_id} has no storage_path")
-                job.status = JobStatus.FAILED
-                db.commit()
+                update_job_state(
+                    db,
+                    job.id,
+                    status=JobStatus.FAILED,
+                    error_message="Video sin storage_path",
+                )
                 db.close()
                 continue
 
-            job.status = JobStatus.RUNNING
-            db.commit()
+            if not update_job_state(db, job.id, status=JobStatus.RUNNING):
+                db.close()
+                continue
         except Exception as e:
-            logger.error(f"❌ Failed to prepare job {job_id}: {e}") 
+            logger.error(f"❌ Failed to prepare job {job_id}: {e}")
+            db.close()
+            continue
 
-        
         if job.job_type == JobType.REFRAME:
             # ejecutar pipeline
             try:
                 logger.info(f"⚙️  Processing REFRAME job {job.id}")
-                video_url_response = video_worker_service.get_video_url(storage_path, expires_in=300)
-                video_local_path = process(video_url_response, filename, start_sec, end_sec)
+                video_url_response = video_worker_service.get_video_url(
+                    storage_path, expires_in=300
+                )
+                video_local_path = process(
+                    video_url_response,
+                    filename,
+                    start_sec,
+                    end_sec,
+                    output_style=output_style,
+                    content_profile=content_profile,
+                )
             except Exception as e:
                 logger.error(f"❌ Job {job_id} failed during pipeline execution: {e}")
-                job.status = JobStatus.FAILED   
-                job.error_message = str(e)
-                db.commit()
+                update_job_state(
+                    db,
+                    job.id,
+                    status=JobStatus.FAILED,
+                    error_message=str(e),
+                )
                 db.close()
+                continue
 
             # upload to minio
             try:
-                storage_path = video_worker_service.upload_local_video_to_minio(video_local_path, filename)
+                output_filename = f"{job.id}.mp4"
+                storage_path = video_worker_service.upload_local_video_to_minio(
+                    video_local_path, output_filename
+                )
                 logger.info(f"✅ Video uploaded to MinIO")
-                public_storage_path = video_worker_service.get_video_public_url(storage_path, expires_in=300)
+                public_storage_path = video_worker_service.get_video_public_url(
+                    storage_path, expires_in=300
+                )
                 logger.info(f"✅ Public MiniIO url: {public_storage_path}")
             except Exception as e:
                 logger.error(f"❌ Job {job_id} failed during upload to MinIO: {e}")
-                job.status = JobStatus.FAILED      
-                job.error_message = str(e)
-                db.commit()
+                update_job_state(
+                    db,
+                    job.id,
+                    status=JobStatus.FAILED,
+                    error_message=str(e),
+                )
                 db.close()
+                continue
 
-           # update db
+            # update db
             try:
-                job.output_path = public_storage_path
-                job.status = JobStatus.DONE
-                db.commit()
+                # Guardamos storage path corto; la API regenera URL firmada al consultar.
+                persisted = update_job_state(
+                    db,
+                    job.id,
+                    output_path=storage_path,
+                    status=JobStatus.DONE,
+                    error_message=None,
+                )
                 # clear /tmp service...?
-                logger.info(f"✅ Job {job_id} completed successfully")
+                if persisted:
+                    logger.info(f"✅ Job {job_id} completed successfully")
                 db.close()
-            except Exception as e: 
+            except Exception as e:
                 logger.error(f"❌ Job {job_id} failed during DB update: {e}")
-                job.status = JobStatus.FAILED
-                job.error_message = str(e)
-                db.commit()
+                update_job_state(
+                    db,
+                    job.id,
+                    status=JobStatus.FAILED,
+                    error_message=str(e),
+                )
                 db.close()
 
         elif job.job_type == JobType.CANCEL:
