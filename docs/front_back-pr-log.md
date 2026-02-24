@@ -19,12 +19,14 @@ Rama de trabajo: `feature/frontend-worker-metadata-preview`.
 - Se desactivo por defecto el analisis pesado de medios en API durante auto-clips (`ffprobe`/`ffmpeg`) mediante flag de configuracion.
 - El servicio de jobs ahora prioriza metadata ya persistida (`video.duration_seconds`) y, si el flag esta desactivado, evita fallback de probe en `/api`.
 - Se agrego cache local de video fuente en worker para reutilizar descargas entre jobs del mismo video y reducir I/O de red repetido.
+- Se optimizo el loop del worker para evitar consultas duplicadas de `Video` por job y se removio la generacion de URL publica no utilizada tras el upload del clip.
 
 ## Commits realizados
 
 - `feat(upload): move initial video metadata capture to frontend`
 - `refactor(api): disable heavy media analysis in auto-clips by default`
 - `perf(worker): cache source videos locally across reframe jobs`
+- `perf(worker): reduce redundant video reads and skip unused public url generation`
 
 ## Archivos clave
 
