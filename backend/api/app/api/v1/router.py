@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, health, video, job, google_oauth
+from app.api.v1.endpoints import auth, health, video, job, google_oauth, audio
 
 api_router = APIRouter()
 
@@ -9,4 +9,5 @@ api_router.include_router(auth.router)
 api_router.include_router(google_oauth.router, prefix="/auth", tags=["Autenticación"])
 api_router.include_router(health.router)
 api_router.include_router(video.router)
+api_router.include_router(audio.router)
 api_router.include_router(job.router)
