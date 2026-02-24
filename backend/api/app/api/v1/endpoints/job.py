@@ -50,6 +50,7 @@ async def reframe_video(
         subtitles=body.subtitles,
         face_tracking=body.face_tracking,
         color_filter=body.color_filter,
+        output_style=body.output_style,
     )
 
 
@@ -77,6 +78,7 @@ async def auto_reframe_video(
         user_id=current_user.id,
         clips_count=body.clips_count,
         clip_duration_sec=body.clip_duration_sec,
+        output_style=body.output_style,
     )
 
 

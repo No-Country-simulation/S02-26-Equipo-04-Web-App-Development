@@ -1,6 +1,7 @@
 from uuid import UUID
 import re
 import subprocess
+from typing import Literal
 from urllib.parse import unquote, urlparse
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
@@ -103,6 +104,7 @@ class JobService:
         start_sec: int,
         end_sec: int,
         allow_reuse: bool,
+        output_style: Literal["vertical", "speaker_split"] = "vertical",
     ) -> JobReframeResponse:
         self._validate_time_range(start_sec, end_sec)
 
@@ -144,6 +146,7 @@ class JobService:
                     user_id=str(user_id),
                     start_sec=start_sec,
                     end_sec=end_sec,
+                    output_style=output_style,
                 )
             except Exception as e:
                 existing_job.status = JobStatus.FAILED
@@ -179,6 +182,7 @@ class JobService:
                 user_id=str(user_id),
                 start_sec=start_sec,
                 end_sec=end_sec,
+                output_style=output_style,
             )
         except Exception as e:
             job.status = JobStatus.FAILED
@@ -352,16 +356,18 @@ class JobService:
         subtitles: bool | None = None,
         face_tracking: bool | None = None,
         color_filter: bool | None = None,
+        output_style: Literal["vertical", "speaker_split"] = "vertical",
     ) -> JobReframeResponse:
         video = self._get_user_video(video_id, user_id)
 
         logger.info(
-            "Reframe options for video %s: crop_to_vertical=%s subtitles=%s face_tracking=%s color_filter=%s",
+            "Reframe options for video %s: crop_to_vertical=%s subtitles=%s face_tracking=%s color_filter=%s output_style=%s",
             video_id,
             crop_to_vertical,
             subtitles,
             face_tracking,
             color_filter,
+            output_style,
         )
 
         return self._create_reframe_job(
@@ -370,6 +376,7 @@ class JobService:
             start_sec=start_sec,
             end_sec=end_sec,
             allow_reuse=True,
+            output_style=output_style,
         )
 
     def auto_reframe_video(
@@ -378,6 +385,7 @@ class JobService:
         user_id: UUID,
         clips_count: int,
         clip_duration_sec: int,
+        output_style: Literal["vertical", "speaker_split"] = "vertical",
     ) -> JobAutoReframeResponse:
         video = self._get_user_video(video_id, user_id)
         clip_ranges, used_duration = self._build_auto_clip_ranges(
@@ -392,6 +400,7 @@ class JobService:
                 start_sec=start_sec,
                 end_sec=end_sec,
                 allow_reuse=False,
+                output_style=output_style,
             )
             created_jobs.append(
                 JobAutoReframeItem(

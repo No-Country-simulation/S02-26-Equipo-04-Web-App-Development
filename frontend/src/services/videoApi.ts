@@ -43,6 +43,7 @@ export type ReframeJobRequest = {
   subtitles?: boolean;
   face_tracking?: boolean;
   color_filter?: boolean;
+  output_style?: "vertical" | "speaker_split";
 };
 
 export type ReframeJobResponse = {
@@ -202,11 +203,12 @@ export const videoApi = {
   async createAutoReframeJobs(
     videoId: string,
     token: string,
-    options?: { clipsCount?: number; clipDurationSec?: number }
+    options?: { clipsCount?: number; clipDurationSec?: number; outputStyle?: "vertical" | "speaker_split" }
   ) {
     const body = {
       clips_count: options?.clipsCount ?? 3,
-      clip_duration_sec: options?.clipDurationSec ?? 15
+      clip_duration_sec: options?.clipDurationSec ?? 15,
+      output_style: options?.outputStyle ?? "vertical"
     };
 
     const response = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}/auto`, {

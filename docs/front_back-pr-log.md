@@ -75,3 +75,33 @@ Ejecutado en `backend/`:
 - [x] Integracion completa de `feature/frontend-backend-timeline-library-flow`
 - [x] Documentacion frontend/backend actualizada
 - [x] Log unificado frontend+backend agregado
+
+## Actualizacion de la rama (speaker split)
+
+### Objetivo
+
+Agregar una opcion de salida para generar clips en formato "speaker split": arriba enfoque al hablante (seguimiento facial) y abajo plano general horizontal completo.
+
+### Cambios realizados
+
+- Se agrego `output_style` en payloads de jobs manuales y automaticos para backend (`vertical` | `speaker_split`).
+- Se propago `output_style` desde API -> service -> cola Redis -> worker.
+- Se extendio el pipeline del worker para soportar composicion `speaker_split` apilando foco vertical en la parte superior y vista general letterbox en la inferior.
+- Se agrego selector de estilo en Home (`frontend/src/app/app/page.tsx`) antes del upload para elegir entre `Vertical clasico 9:16` y `Split speaker`.
+- Se actualizo `frontend/src/services/videoApi.ts` para enviar `output_style` al crear jobs automaticos.
+
+### Archivos clave
+
+- `backend/api/app/schemas/job.py`
+- `backend/api/app/api/v1/endpoints/job.py`
+- `backend/api/app/services/job_service.py`
+- `backend/api/app/services/queue_service.py`
+- `backend/worker/app/worker.py`
+- `backend/worker/app/pipeline.py`
+- `frontend/src/app/app/page.tsx`
+- `frontend/src/services/videoApi.ts`
+
+### Validaciones locales
+
+- `npm run lint` en `frontend/` -> OK
+- `python3 -m py_compile` sobre archivos backend modificados -> OK

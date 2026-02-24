@@ -1,5 +1,6 @@
 from uuid import UUID
 from datetime import datetime
+from typing import Literal
 from pydantic import Field
 from app.schemas.base import BaseSchema
 from app.models.job import JobStatus, JobType
@@ -40,6 +41,10 @@ class JobReframeRequest(BaseSchema):
         default=None,
         description="Opcional: aplicar filtro de color",
     )
+    output_style: Literal["vertical", "speaker_split"] = Field(
+        default="vertical",
+        description="Estilo de salida: vertical clasico o split speaker",
+    )
 
 
 class AutoClipSegment(BaseSchema):
@@ -53,6 +58,10 @@ class JobAutoReframeRequest(BaseSchema):
     )
     clip_duration_sec: int = Field(
         default=15, ge=5, le=120, description="Duracion por clip"
+    )
+    output_style: Literal["vertical", "speaker_split"] = Field(
+        default="vertical",
+        description="Estilo de salida para los clips automaticos",
     )
 
 

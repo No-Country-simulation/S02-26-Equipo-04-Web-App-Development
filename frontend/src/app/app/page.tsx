@@ -9,6 +9,7 @@ import { useAuthStore } from "@/src/store/useAuthStore";
 import { useEffect, useMemo, useState } from "react";
 
 const HOME_DRAFT_KEY = "home:uploaded-video-draft";
+type ClipOutputStyle = "vertical" | "speaker_split";
 
 function toTimeLabel(seconds: number) {
   const min = Math.floor(seconds / 60)
@@ -93,6 +94,7 @@ export default function AppHomePage() {
   const [jobStatusMap, setJobStatusMap] = useState<Record<string, { status: string; outputPath: string | null }>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [outputStyle, setOutputStyle] = useState<ClipOutputStyle>("vertical");
 
   const hasVideo = Boolean(uploadedVideo);
   const visibleClips = useMemo(() => mapJobsToClips(createdJobs, jobStatusMap), [createdJobs, jobStatusMap]);
@@ -108,6 +110,7 @@ export default function AppHomePage() {
         uploadedVideo: VideoUploadResponse | null;
         createdJobs: AutoReframeJobItem[];
         autoJobCount: number;
+        outputStyle?: ClipOutputStyle;
       };
 
       if (parsed.uploadedVideo) {
@@ -118,6 +121,9 @@ export default function AppHomePage() {
       }
       if (typeof parsed.autoJobCount === "number") {
         setAutoJobCount(parsed.autoJobCount);
+      }
+      if (parsed.outputStyle === "vertical" || parsed.outputStyle === "speaker_split") {
+        setOutputStyle(parsed.outputStyle);
       }
     } catch {
       window.localStorage.removeItem(HOME_DRAFT_KEY);
@@ -133,11 +139,12 @@ export default function AppHomePage() {
     const payload = {
       uploadedVideo,
       createdJobs,
-      autoJobCount
+      autoJobCount,
+      outputStyle
     };
 
     window.localStorage.setItem(HOME_DRAFT_KEY, JSON.stringify(payload));
-  }, [uploadedVideo, createdJobs, autoJobCount]);
+  }, [uploadedVideo, createdJobs, autoJobCount, outputStyle]);
 
   useEffect(() => {
     if (!token || createdJobs.length === 0) {
@@ -234,7 +241,9 @@ export default function AppHomePage() {
     setIsCreatingJobs(true);
 
     try {
-      const autoJobs = await videoApi.createAutoReframeJobs(uploaded.video_id, token);
+      const autoJobs = await videoApi.createAutoReframeJobs(uploaded.video_id, token, {
+        outputStyle
+      });
       setCreatedJobs(autoJobs.jobs);
       setAutoJobCount(autoJobs.total_jobs);
 
@@ -254,6 +263,33 @@ export default function AppHomePage() {
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid gap-5 xl:grid-cols-[1.55fr_0.95fr]">
         <Panel variant="accent" className="p-4 sm:p-5">
+          <div className="mb-4 rounded-xl border border-white/12 bg-white/5 p-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/60">Estilo de clip</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setOutputStyle("vertical")}
+                className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                  outputStyle === "vertical"
+                    ? "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan"
+                    : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
+                }`}
+              >
+                Vertical clasico 9:16
+              </button>
+              <button
+                type="button"
+                onClick={() => setOutputStyle("speaker_split")}
+                className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                  outputStyle === "speaker_split"
+                    ? "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan"
+                    : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
+                }`}
+              >
+                Split speaker (arriba foco, abajo plano general)
+              </button>
+            </div>
+          </div>
           <UploadDropzone
             onUpload={handleUpload}
             isUploading={isUploading}

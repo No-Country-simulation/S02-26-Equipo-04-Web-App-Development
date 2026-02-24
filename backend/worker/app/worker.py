@@ -105,6 +105,7 @@ def worker_loop():
         job_id = payload.get("job_id")
         start_sec = payload.get("start_sec")
         end_sec = payload.get("end_sec")
+        output_style = payload.get("output_style", "vertical")
         logger.info(f"🎬 Job received from Redis, Job id: {job_id}")
 
         db = SessionLocal()
@@ -171,7 +172,11 @@ def worker_loop():
                     storage_path, expires_in=300
                 )
                 video_local_path = process(
-                    video_url_response, filename, start_sec, end_sec
+                    video_url_response,
+                    filename,
+                    start_sec,
+                    end_sec,
+                    output_style=output_style,
                 )
             except Exception as e:
                 logger.error(f"❌ Job {job_id} failed during pipeline execution: {e}")

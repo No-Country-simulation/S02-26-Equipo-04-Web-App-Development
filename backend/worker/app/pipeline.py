@@ -587,6 +587,25 @@ def reframe_vertical(frame, camera_x, final_w, final_h):
     return crop  # 👈 tamaño fijo
 
 
+def compose_speaker_split(frame, camera_x, final_w, final_h):
+    """
+    Genera layout vertical en dos paneles:
+      - Arriba: seguimiento facial (crop vertical guiado por camera_x)
+      - Abajo: video completo horizontal con letterbox
+    """
+    top_ratio = 0.56
+    top_h = int(final_h * top_ratio)
+    bottom_h = max(1, final_h - top_h)
+
+    top_focus = reframe_vertical(frame, camera_x, final_w, final_h)
+    top_panel = cv2.resize(top_focus, (final_w, top_h), interpolation=cv2.INTER_AREA)
+    bottom_panel = resize_with_letterbox(frame, final_w, bottom_h)
+
+    stacked = np.vstack((top_panel, bottom_panel))
+    cv2.line(stacked, (0, top_h), (final_w, top_h), (0, 0, 0), 2)
+    return stacked
+
+
 def close_streams(decoder, encoder):
     """Properly closes FFmpeg pipes."""
     decoder.stdout.close()
@@ -835,7 +854,7 @@ def analyze_speech_activity(video_segment_path):
     return speech_mask
 
 
-def stream_processing(video_path, filename):
+def stream_processing(video_path, filename, output_style="vertical"):
     """
     Main video processing pipeline.
     Reads video frames via FFmpeg pipe, tracks active speaker,
@@ -971,6 +990,8 @@ def stream_processing(video_path, filename):
 
         if DEBUG:
             out_frame = frame.copy()
+        elif output_style == "speaker_split":
+            out_frame = compose_speaker_split(frame, camera_x, FINAL_W, FINAL_H)
         else:
             out_frame = reframe_vertical(frame, camera_x, FINAL_W, FINAL_H)
 
@@ -985,7 +1006,7 @@ def stream_processing(video_path, filename):
     return output_path
 
 
-def generate_video(video_path, filename):
+def generate_video(video_path, filename, output_style="vertical"):
     """
     Executes the full visual processing pipeline on a normalized segment
     and merges the original audio track at the end.
@@ -1002,7 +1023,7 @@ def generate_video(video_path, filename):
     """
 
     # 1. Reframe / crop / camera logic
-    no_audio_out = stream_processing(video_path, filename)
+    no_audio_out = stream_processing(video_path, filename, output_style=output_style)
 
     # 2. Merge original audio track
     result_video_path = merge_audio_track(no_audio_out, video_path, filename)
@@ -1012,12 +1033,14 @@ def generate_video(video_path, filename):
 
 
 # ================= PIPELINE MAIN =================
-def process(video_path, filename, start, end):
+def process(video_path, filename, start, end, output_style="vertical"):
     """
     Returns local path of generated video
         /tmp/result_{filename}
     """
     normalized_video_path = normalize_video_segment(video_path, filename, start, end)
-    result_video_path = generate_video(normalized_video_path, filename)
+    result_video_path = generate_video(
+        normalized_video_path, filename, output_style=output_style
+    )
     logger.info(f"🎉 GENERATED VIDEO PATH: {result_video_path}")
     return result_video_path
