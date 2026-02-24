@@ -80,6 +80,7 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = Field(default="INFO")
     LOG_FORMAT: str = Field(default="json")
+    API_MEDIA_ANALYSIS_ENABLED: bool = Field(default=False)
 
 
 settings = Settings()

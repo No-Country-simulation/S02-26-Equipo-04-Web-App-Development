@@ -19,6 +19,7 @@ from app.schemas.job import (
 )
 from app.services.queue_service import QueueService
 from app.services.video_worker_service import VideoWorkerService
+from app.core.config import settings
 from app.core.logging import setup_logging
 from app.utils.exceptions import (
     JobParameterException,
@@ -215,12 +216,16 @@ class JobService:
     ]:
         duration = self._resolve_video_duration(video)
 
-        source_url = self._get_source_url(video)
+        source_url = None
         highlights: list[tuple[int, int]] = []
         scene_changes: list[int] = []
-        if source_url and duration and duration > 0:
-            highlights = self._extract_nonsilent_segments(source_url, duration)
-            scene_changes = self._extract_scene_change_timestamps(source_url, duration)
+        if settings.API_MEDIA_ANALYSIS_ENABLED:
+            source_url = self._get_source_url(video)
+            if source_url and duration and duration > 0:
+                highlights = self._extract_nonsilent_segments(source_url, duration)
+                scene_changes = self._extract_scene_change_timestamps(
+                    source_url, duration
+                )
 
         resolved_profile = self._resolve_content_profile(
             video=video,
@@ -483,6 +488,8 @@ class JobService:
     def _resolve_video_duration(self, video: Video) -> int | None:
         if video.duration_seconds and video.duration_seconds > 0:
             return int(video.duration_seconds)
+        if not settings.API_MEDIA_ANALYSIS_ENABLED:
+            return None
         source_url = self._get_source_url(video)
         if not source_url:
             return None
