@@ -238,3 +238,36 @@ Priorizar mejor la secuencia previa y posterior a jugadas importantes (pre-gol +
   - mayor peso al contexto previo (~62%) y cierre posterior,
   - minima longitud garantizada por clip.
 - Se reemplazo almacenamiento de duracion por almacenamiento de rango candidato (`start/end`) para mantener contexto exacto en deportes.
+
+## Optimizacion de metadata de video (API liviana)
+
+### Objetivo
+
+Reducir carga del nodo `/api` durante upload, evitando extraccion pesada de metadata con `ffprobe` en tiempo de request y aprovechando metadata basica obtenida por frontend al seleccionar el archivo.
+
+### Cambios aplicados
+
+- `frontend/src/app/app/page.tsx`
+  - Se agrego extraccion local de metadata del archivo antes de subir (`durationSeconds`, `width`, `height`) usando `HTMLVideoElement` + `onloadedmetadata`.
+  - Se agrego fallback por timeout/error para no bloquear el upload si el navegador no puede leer metadata.
+- `frontend/src/services/videoApi.ts`
+  - `videoApi.upload(...)` ahora admite `clientMetadata` opcional y la envia como campos `multipart/form-data` (`duration_seconds`, `width`, `height`, `fps`).
+- `backend/api/app/api/v1/endpoints/video.py`
+  - El endpoint `POST /api/v1/videos/upload` acepta campos de metadata opcionales en `Form` junto al archivo.
+  - Se normalizan valores numericos (`duration_seconds`, `fps`) a enteros seguros antes de persistir.
+- `backend/api/app/services/video_service.py`
+  - Se elimino el flujo de `ffprobe` durante upload en API.
+  - Se agrega persistencia de metadata inicial enviada por cliente (`duration_seconds`, `width`, `height`, `fps`) sin procesamiento multimedia pesado.
+- `backend/api/app/schemas/video.py`
+  - Nuevo schema `ClientVideoMetadata` para validar metadata inicial opcional.
+
+### Impacto esperado
+
+- Menor latencia en `POST /videos/upload`.
+- Menor bloqueo de recursos en `/api` por I/O/CPU de multimedia.
+- Mejor separacion de responsabilidades: frontend aporta metadata para UX inicial y el procesamiento canonico queda preparado para worker/job flow.
+
+### Validaciones
+
+- `npm run lint` en `frontend/` -> OK
+- `python3 -m py_compile` sobre archivos backend modificados -> OK

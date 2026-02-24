@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile, Query, Response, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_active_user
@@ -9,6 +9,7 @@ from app.database.session import get_db
 from app.models.user import User
 from app.schemas.video import (
     UpdateVideoRequest,
+    ClientVideoMetadata,
     UserVideoDetailResponse,
     UserVideoItem,
     UserVideosResponse,
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/videos", tags=["Videos"])
     response_model=VideoUploadResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Subir video (autenticado)",
-    description="Sube un video (requiere token) y guarda la metadata",
+    description="Sube un video (requiere token) y opcionalmente recibe metadata basica enviada por frontend",
     responses={
         201: {"description": "Video subido exitosamente"},
         400: {"description": "Archivo inválido"},
@@ -36,10 +37,28 @@ async def upload_video(
     file: Annotated[UploadFile, File(...)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[Session, Depends(get_db)],
+    duration_seconds: Annotated[float | None, Form(ge=0)] = None,
+    width: Annotated[int | None, Form(ge=1)] = None,
+    height: Annotated[int | None, Form(ge=1)] = None,
+    fps: Annotated[float | None, Form(ge=0)] = None,
 ) -> VideoUploadResponse:
     """Sube un video con autenticación (asociado a usuario)"""
+    client_metadata = ClientVideoMetadata(
+        duration_seconds=(
+            max(1, int(round(duration_seconds)))
+            if duration_seconds and duration_seconds > 0
+            else None
+        ),
+        width=width,
+        height=height,
+        fps=max(1, int(round(fps))) if fps and fps > 0 else None,
+    )
     service = VideoService(db)
-    return service.upload_video_authenticated(file, current_user.id)
+    return service.upload_video_authenticated(
+        file,
+        current_user.id,
+        client_metadata=client_metadata,
+    )
 
 
 @router.get(

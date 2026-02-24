@@ -16,6 +16,13 @@ class VideoUploadResponse(BaseSchema):
     uploaded_at: datetime
 
 
+class ClientVideoMetadata(BaseSchema):
+    duration_seconds: int | None = Field(default=None, ge=1, le=86400)
+    width: int | None = Field(default=None, ge=1, le=16384)
+    height: int | None = Field(default=None, ge=1, le=16384)
+    fps: int | None = Field(default=None, ge=1, le=240)
+
+
 class VideoURLResponse(BaseSchema):
     video_id: UUID
     url: str

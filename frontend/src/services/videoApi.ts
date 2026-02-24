@@ -12,6 +12,13 @@ export type VideoUploadResponse = {
   uploaded_at: string;
 };
 
+export type UploadClientMetadata = {
+  durationSeconds?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+};
+
 export type VideoUrlResponse = {
   video_id: string;
   url: string;
@@ -169,9 +176,22 @@ async function parseResponse<T>(response: Response) {
 }
 
 export const videoApi = {
-  async upload(file: File, token?: string | null) {
+  async upload(file: File, token?: string | null, clientMetadata?: UploadClientMetadata) {
     const formData = new FormData();
     formData.append("file", file);
+
+    if (typeof clientMetadata?.durationSeconds === "number") {
+      formData.append("duration_seconds", String(clientMetadata.durationSeconds));
+    }
+    if (typeof clientMetadata?.width === "number") {
+      formData.append("width", String(clientMetadata.width));
+    }
+    if (typeof clientMetadata?.height === "number") {
+      formData.append("height", String(clientMetadata.height));
+    }
+    if (typeof clientMetadata?.fps === "number") {
+      formData.append("fps", String(clientMetadata.fps));
+    }
 
     const hasToken = Boolean(token && token.trim().length > 0);
     const endpoint = "/api/v1/videos/upload";

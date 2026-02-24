@@ -4,8 +4,6 @@ from fastapi import UploadFile
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 import boto3
-import subprocess
-import json
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
@@ -18,6 +16,7 @@ from app.schemas.video import (
     VideoURLResponse,
     UserVideoItem,
     UserVideosResponse,
+    ClientVideoMetadata,
 )
 from app.utils.exceptions import (
     BadRequestException,
@@ -165,56 +164,40 @@ class VideoService:
             self.db.rollback()
             raise VideoDBException("Error creando registro de video", str(exc))
 
-    def _extract_metadata(self, storage_path: str) -> dict:
-        try:
-            bucket, object_key = self._extract_bucket_and_key(storage_path)
-            s3_client = self._get_s3_client()
-            presigned_url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": bucket, "Key": object_key},
-                ExpiresIn=3600,
+    def _save_client_metadata_to_video(
+        self, video: Video, client_metadata: ClientVideoMetadata | None
+    ) -> None:
+        if not client_metadata:
+            return
+
+        has_any_value = any(
+            value is not None
+            for value in (
+                client_metadata.duration_seconds,
+                client_metadata.width,
+                client_metadata.height,
+                client_metadata.fps,
             )
-            cmd = [
-                "ffprobe",
-                "-v",
-                "quiet",
-                "-print_format",
-                "json",
-                "-show_format",
-                "-show_streams",
-                presigned_url,
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if result.returncode != 0:
-                return {}
-            return json.loads(result.stdout) if result.stdout else {}
-        except Exception:
-            return {}
+        )
+        if not has_any_value:
+            return
 
-    def _save_metadata_to_video(self, video: Video, metadata: dict) -> None:
         try:
-            if metadata.get("format"):
-                video.duration_seconds = int(
-                    float(metadata["format"].get("duration", 0))
-                )
-
-            for stream in metadata.get("streams", []):
-                if stream.get("codec_type") == "video":
-                    fps_str = stream.get("r_frame_rate", "0")
-                    if fps_str and "/" in str(fps_str):
-                        fps_value = float(fps_str.split("/")[0])
-                        video.fps = int(fps_value)
-                    video.width = stream.get("width")
-                    video.height = stream.get("height")
-                    video.codec = stream.get("codec_name")
-                    video.bitrate = stream.get("bit_rate")
-                elif stream.get("codec_type") == "audio":
-                    video.has_audio = True
-                    video.audio_codec = stream.get("codec_name")
-
+            if client_metadata.duration_seconds is not None:
+                video.duration_seconds = client_metadata.duration_seconds
+            if client_metadata.width is not None:
+                video.width = client_metadata.width
+            if client_metadata.height is not None:
+                video.height = client_metadata.height
+            if client_metadata.fps is not None:
+                video.fps = client_metadata.fps
             self.db.commit()
-        except Exception:
+        except Exception as exc:
             self.db.rollback()
+            raise VideoDBException(
+                "Error guardando metadata inicial del video",
+                str(exc),
+            )
 
     def _extract_bucket_and_key(self, storage_path: str) -> tuple[str, str]:
         cleaned_path = storage_path.replace("s3://", "")
@@ -300,7 +283,11 @@ class VideoService:
             self.db.rollback()
             raise VideoDBException("Error eliminando video", str(exc))
 
-    def upload_video_public(self, file: UploadFile) -> VideoUploadResponse:
+    def upload_video_public(
+        self,
+        file: UploadFile,
+        client_metadata: ClientVideoMetadata | None = None,
+    ) -> VideoUploadResponse:
         """
         Sube un video públicamente (sin autenticación) - Solo para desarrollo.
 
@@ -348,8 +335,7 @@ class VideoService:
         except Exception as exc:
             raise VideoDBException("Error actualizando storage_path", str(exc))
 
-        metadata = self._extract_metadata(video.storage_path)
-        self._save_metadata_to_video(video, metadata)
+        self._save_client_metadata_to_video(video, client_metadata)
 
         return VideoUploadResponse(
             video_id=video.id,
@@ -364,7 +350,10 @@ class VideoService:
         )
 
     def upload_video_authenticated(
-        self, file: UploadFile, user_id: UUID
+        self,
+        file: UploadFile,
+        user_id: UUID,
+        client_metadata: ClientVideoMetadata | None = None,
     ) -> VideoUploadResponse:
         """
         Sube un video asociado a un usuario autenticado.
@@ -414,8 +403,7 @@ class VideoService:
         except Exception as exc:
             raise VideoDBException("Error actualizando storage_path", str(exc))
 
-        metadata = self._extract_metadata(video.storage_path)
-        self._save_metadata_to_video(video, metadata)
+        self._save_client_metadata_to_video(video, client_metadata)
 
         return VideoUploadResponse(
             video_id=video.id,

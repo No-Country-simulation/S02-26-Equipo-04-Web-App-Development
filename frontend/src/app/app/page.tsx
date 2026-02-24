@@ -7,6 +7,7 @@ import { Panel } from "@/src/components/ui/Panel";
 import {
   VideoApiError,
   type AutoReframeJobItem,
+  type UploadClientMetadata,
   type UserClipItem,
   type VideoUploadResponse,
   videoApi
@@ -99,6 +100,44 @@ function normalizeVideoError(error: unknown, fallbackMessage: string) {
   }
 
   return fallbackMessage;
+}
+
+function extractVideoClientMetadata(file: File): Promise<UploadClientMetadata> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    let finished = false;
+
+    const complete = (metadata: UploadClientMetadata) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      window.clearTimeout(timeoutId);
+      video.removeAttribute("src");
+      URL.revokeObjectURL(objectUrl);
+      resolve(metadata);
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      complete({});
+    }, 5000);
+
+    video.preload = "metadata";
+    video.muted = true;
+    video.onloadedmetadata = () => {
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      complete({
+        durationSeconds: duration > 0 ? Math.max(1, Math.round(duration)) : undefined,
+        width: video.videoWidth > 0 ? video.videoWidth : undefined,
+        height: video.videoHeight > 0 ? video.videoHeight : undefined
+      });
+    };
+    video.onerror = () => {
+      complete({});
+    };
+    video.src = objectUrl;
+  });
 }
 
 export default function AppHomePage() {
@@ -257,9 +296,10 @@ export default function AppHomePage() {
     window.localStorage.removeItem(HOME_DRAFT_KEY);
 
     let uploaded: VideoUploadResponse;
+    const clientMetadata = await extractVideoClientMetadata(file);
 
     try {
-      uploaded = await videoApi.upload(file, token);
+      uploaded = await videoApi.upload(file, token, clientMetadata);
     } catch (error) {
       setUploadError(normalizeVideoError(error, "No pudimos subir el video."));
       setIsUploading(false);
