@@ -1,5 +1,4 @@
 import redis
-import json
 import os
 import subprocess
 import cv2
@@ -12,7 +11,6 @@ from worker.app.pipeline import process
 # imports del nodo1 /api
 from app.models.job import Job
 from app.models.video import Video
-from app.models.user import User
 from app.models.enums import JobStatus, JobType
 from app.services.video_worker_service import VideoWorkerService
 from app.database.base import SessionLocal
@@ -156,6 +154,10 @@ def update_job_state(db, job_id, **fields):
         return False
 
 
+def _get_video_for_job(db, video_id):
+    return db.query(Video).filter(Video.id == video_id).first()
+
+
 def worker_loop():
     logger.info("🎧 Worker listening for jobs...\n")
 
@@ -197,12 +199,19 @@ def worker_loop():
             continue
 
         try:
-            filename = (
-                db.query(Video)
-                .filter(Video.id == job.video_id)
-                .first()
-                .original_filename
-            )
+            video = _get_video_for_job(db, job.video_id)
+            if not video:
+                logger.warning(f"❌ Video {job.video_id} not found")
+                update_job_state(
+                    db,
+                    job.id,
+                    status=JobStatus.FAILED,
+                    error_message="Video no encontrado",
+                )
+                db.close()
+                continue
+
+            filename = video.original_filename
             if not filename:
                 logger.warning(f"❌ Video {job.video_id} has no filename")
                 update_job_state(
@@ -214,9 +223,7 @@ def worker_loop():
                 db.close()
                 continue
 
-            source_storage_path = (
-                db.query(Video).filter(Video.id == job.video_id).first().storage_path
-            )
+            source_storage_path = video.storage_path
             if not source_storage_path:
                 logger.warning(f"❌ Video {job.video_id} has no storage_path")
                 update_job_state(
@@ -270,10 +277,6 @@ def worker_loop():
                     video_local_path, output_filename
                 )
                 logger.info(f"✅ Video uploaded to MinIO")
-                public_storage_path = video_worker_service.get_video_public_url(
-                    storage_path, expires_in=300
-                )
-                logger.info(f"✅ Public MiniIO url: {public_storage_path}")
             except Exception as e:
                 logger.error(f"❌ Job {job_id} failed during upload to MinIO: {e}")
                 update_job_state(
