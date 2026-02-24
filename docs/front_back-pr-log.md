@@ -20,6 +20,7 @@ Rama de trabajo: `feature/frontend-worker-metadata-preview`.
 - El servicio de jobs ahora prioriza metadata ya persistida (`video.duration_seconds`) y, si el flag esta desactivado, evita fallback de probe en `/api`.
 - Se agrego cache local de video fuente en worker para reutilizar descargas entre jobs del mismo video y reducir I/O de red repetido.
 - Se optimizo el loop del worker para evitar consultas duplicadas de `Video` por job y se removio la generacion de URL publica no utilizada tras el upload del clip.
+- Se agregaron variables de entorno en `docker-compose` para parametrizar cache de source video en worker (ruta y TTL).
 
 ## Commits realizados
 
@@ -27,6 +28,7 @@ Rama de trabajo: `feature/frontend-worker-metadata-preview`.
 - `refactor(api): disable heavy media analysis in auto-clips by default`
 - `perf(worker): cache source videos locally across reframe jobs`
 - `perf(worker): reduce redundant video reads and skip unused public url generation`
+- `chore(worker): configure source cache env vars in compose`
 
 ## Archivos clave
 
@@ -38,6 +40,7 @@ Rama de trabajo: `feature/frontend-worker-metadata-preview`.
 - `backend/api/app/services/job_service.py`
 - `backend/api/app/core/config.py`
 - `backend/worker/app/worker.py`
+- `backend/docker-compose.yml`
 - `docs/front_back-pr-log.md`
 
 ## Validaciones locales
