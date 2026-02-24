@@ -4,6 +4,9 @@ import os
 import subprocess
 import cv2
 import time
+import hashlib
+from pathlib import Path
+from urllib.request import urlretrieve
 from worker.app.pipeline import process
 
 # imports del nodo1 /api
@@ -92,6 +95,47 @@ def check_dependencies():
 
 logger = setup_logging()
 QUEUE_NAME = "reframe_queue"
+SOURCE_CACHE_DIR = Path(os.getenv("WORKER_SOURCE_CACHE_DIR", "tmp/source_cache"))
+SOURCE_CACHE_TTL_SECONDS = int(os.getenv("WORKER_SOURCE_CACHE_TTL_SECONDS", "1800"))
+
+
+def _ensure_source_cache_dir() -> None:
+    SOURCE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _cache_path_for_storage(storage_path: str) -> Path:
+    key = hashlib.sha1(storage_path.encode("utf-8")).hexdigest()
+    return SOURCE_CACHE_DIR / f"{key}.mp4"
+
+
+def _prune_source_cache(max_age_seconds: int) -> None:
+    now = time.time()
+    for path in SOURCE_CACHE_DIR.glob("*.mp4"):
+        try:
+            age = now - path.stat().st_mtime
+            if age > max_age_seconds:
+                path.unlink(missing_ok=True)
+        except Exception as exc:
+            logger.warning(f"⚠️ Could not prune cache file {path}: {exc}")
+
+
+def _resolve_source_video_path(
+    video_worker_service: VideoWorkerService, source_storage_path: str
+) -> str:
+    _ensure_source_cache_dir()
+    _prune_source_cache(SOURCE_CACHE_TTL_SECONDS)
+
+    cached_path = _cache_path_for_storage(source_storage_path)
+    if cached_path.exists() and cached_path.stat().st_size > 0:
+        age = time.time() - cached_path.stat().st_mtime
+        if age <= SOURCE_CACHE_TTL_SECONDS:
+            logger.info(f"📦 Reusing cached source video: {cached_path}")
+            return str(cached_path)
+
+    source_url = video_worker_service.get_video_url(source_storage_path, expires_in=300)
+    logger.info(f"⬇️ Downloading source video to cache: {cached_path}")
+    urlretrieve(source_url, cached_path)
+    return str(cached_path)
 
 
 def update_job_state(db, job_id, **fields):
@@ -170,10 +214,10 @@ def worker_loop():
                 db.close()
                 continue
 
-            storage_path = (
+            source_storage_path = (
                 db.query(Video).filter(Video.id == job.video_id).first().storage_path
             )
-            if not storage_path:
+            if not source_storage_path:
                 logger.warning(f"❌ Video {job.video_id} has no storage_path")
                 update_job_state(
                     db,
@@ -196,11 +240,12 @@ def worker_loop():
             # ejecutar pipeline
             try:
                 logger.info(f"⚙️  Processing REFRAME job {job.id}")
-                video_url_response = video_worker_service.get_video_url(
-                    storage_path, expires_in=300
+                source_video_path = _resolve_source_video_path(
+                    video_worker_service,
+                    source_storage_path,
                 )
                 video_local_path = process(
-                    video_url_response,
+                    source_video_path,
                     filename,
                     start_sec,
                     end_sec,
