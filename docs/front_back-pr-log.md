@@ -16,10 +16,13 @@ Rama de trabajo: `feature/frontend-worker-metadata-preview`.
 - Se elimino en API el uso de `ffprobe` durante upload (extraccion pesada de metadata en tiempo de request).
 - Se incorporo `ClientVideoMetadata` como schema de validacion para metadata inicial enviada por frontend.
 - Se agrego persistencia de metadata inicial en `VideoService` sin ejecutar tareas de video/audio pesadas en `/api`.
+- Se desactivo por defecto el analisis pesado de medios en API durante auto-clips (`ffprobe`/`ffmpeg`) mediante flag de configuracion.
+- El servicio de jobs ahora prioriza metadata ya persistida (`video.duration_seconds`) y, si el flag esta desactivado, evita fallback de probe en `/api`.
 
 ## Commits realizados
 
 - `feat(upload): move initial video metadata capture to frontend`
+- `refactor(api): disable heavy media analysis in auto-clips by default`
 
 ## Archivos clave
 
@@ -28,6 +31,8 @@ Rama de trabajo: `feature/frontend-worker-metadata-preview`.
 - `backend/api/app/api/v1/endpoints/video.py`
 - `backend/api/app/services/video_service.py`
 - `backend/api/app/schemas/video.py`
+- `backend/api/app/services/job_service.py`
+- `backend/api/app/core/config.py`
 - `docs/front_back-pr-log.md`
 
 ## Validaciones locales
@@ -39,11 +44,13 @@ Ejecutado en `frontend/`:
 Ejecutado en raiz del repo:
 
 - `python3 -m py_compile backend/api/app/api/v1/endpoints/video.py backend/api/app/services/video_service.py backend/api/app/schemas/video.py` -> OK
+- `python3 -m py_compile backend/api/app/services/job_service.py backend/api/app/core/config.py` -> OK
 
 ## Checklist antes de PR a develop
 
 - [x] Rama creada desde `develop` actualizado
 - [x] Cambios de frontend para metadata previa al upload
 - [x] Cambios de backend para recibir/persistir metadata sin `ffprobe` en API
+- [x] Analisis pesado de auto-clips desactivado por defecto en `/api`
 - [x] Validaciones locales ejecutadas
 - [x] Worklog front+back actualizado solo con el alcance de esta rama
