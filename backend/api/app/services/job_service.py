@@ -2,6 +2,7 @@ from uuid import UUID
 import re
 import subprocess
 from typing import Literal
+from statistics import median
 from urllib.parse import unquote, urlparse
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
@@ -105,6 +106,7 @@ class JobService:
         end_sec: int,
         allow_reuse: bool,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
+        content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
     ) -> JobReframeResponse:
         self._validate_time_range(start_sec, end_sec)
 
@@ -147,6 +149,7 @@ class JobService:
                     start_sec=start_sec,
                     end_sec=end_sec,
                     output_style=output_style,
+                    content_profile=content_profile,
                 )
             except Exception as e:
                 existing_job.status = JobStatus.FAILED
@@ -183,6 +186,7 @@ class JobService:
                 start_sec=start_sec,
                 end_sec=end_sec,
                 output_style=output_style,
+                content_profile=content_profile,
             )
         except Exception as e:
             job.status = JobStatus.FAILED
@@ -201,53 +205,257 @@ class JobService:
         )
 
     def _build_auto_clip_ranges(
-        self, video: Video, clips_count: int, clip_duration_sec: int
-    ) -> tuple[list[tuple[int, int]], int | None]:
+        self,
+        video: Video,
+        clips_count: int | None,
+        clip_duration_sec: int | None,
+        requested_profile: Literal["auto", "interview", "sports", "music"],
+    ) -> tuple[
+        list[tuple[int, int]], int | None, Literal["interview", "sports", "music"]
+    ]:
         duration = self._resolve_video_duration(video)
 
-        if not duration or duration <= 0:
-            starts = [i * clip_duration_sec for i in range(clips_count)]
-            return ([(start, start + clip_duration_sec) for start in starts], None)
-
-        safe_clip_duration = min(clip_duration_sec, max(5, duration))
-        max_start = max(duration - safe_clip_duration, 0)
         source_url = self._get_source_url(video)
+        highlights: list[tuple[int, int]] = []
+        scene_changes: list[int] = []
+        if source_url and duration and duration > 0:
+            highlights = self._extract_nonsilent_segments(source_url, duration)
+            scene_changes = self._extract_scene_change_timestamps(source_url, duration)
+
+        resolved_profile = self._resolve_content_profile(
+            video=video,
+            requested_profile=requested_profile,
+            duration=duration,
+            highlights=highlights,
+            scene_changes=scene_changes,
+        )
+
+        effective_count = self._resolve_auto_clips_count(duration, clips_count)
+        min_len, max_len, default_len = self._profile_duration_policy(resolved_profile)
+        preferred_duration = clip_duration_sec or default_len
+
+        if not duration or duration <= 0:
+            safe_fallback = max(min_len, min(max_len, preferred_duration))
+            starts = [i * safe_fallback for i in range(effective_count)]
+            return (
+                [(start, start + safe_fallback) for start in starts],
+                None,
+                resolved_profile,
+            )
+
+        safe_clip_duration = min(
+            max(min_len, preferred_duration), min(max_len, duration)
+        )
+        max_start = max(duration - safe_clip_duration, 0)
 
         if not source_url:
-            starts = self._distributed_starts(max_start, clips_count)
+            starts = self._distributed_starts(max_start, effective_count)
             ranges = [
                 (start, min(start + safe_clip_duration, duration)) for start in starts
             ]
-            return (ranges, duration)
+            return (ranges, duration, resolved_profile)
 
-        highlights = self._extract_nonsilent_segments(source_url, duration)
         starts: list[int] = []
+        candidate_ranges: dict[int, tuple[int, int]] = {}
         min_gap = max(1, safe_clip_duration // 2)
 
         if highlights:
             scored = sorted(highlights, key=lambda seg: seg[1] - seg[0], reverse=True)
             for start_h, end_h in scored:
+                segment_len = max(1, end_h - start_h)
                 center = (start_h + end_h) / 2
                 start = int(round(center - (safe_clip_duration / 2)))
                 start = max(0, min(max_start, start))
                 if all(abs(start - existing) >= min_gap for existing in starts):
+                    dynamic_len = int(round(segment_len * 0.9))
+                    dynamic_len = max(min_len, min(max_len, dynamic_len))
+                    if resolved_profile == "sports":
+                        start, end = self._sports_context_window(
+                            anchor=int(round(center)),
+                            duration_sec=duration,
+                            base_duration=max(dynamic_len, safe_clip_duration),
+                            min_len=min_len,
+                            max_len=max_len,
+                        )
+                    else:
+                        end = min(start + dynamic_len, duration)
+
                     starts.append(start)
-                if len(starts) >= clips_count:
+                    candidate_ranges[start] = (start, end)
+                if len(starts) >= effective_count:
                     break
 
-        if len(starts) < clips_count:
-            for extra in self._distributed_starts(max_start, clips_count):
+        if len(starts) < effective_count and scene_changes:
+            for ts in scene_changes:
+                start = int(round(ts - (safe_clip_duration / 2)))
+                start = max(0, min(max_start, start))
+                if all(abs(start - existing) >= min_gap for existing in starts):
+                    if resolved_profile == "sports":
+                        start, end = self._sports_context_window(
+                            anchor=ts,
+                            duration_sec=duration,
+                            base_duration=max(safe_clip_duration, 16),
+                            min_len=min_len,
+                            max_len=max_len,
+                        )
+                    else:
+                        end = min(start + safe_clip_duration, duration)
+
+                    starts.append(start)
+                    candidate_ranges[start] = (start, end)
+                if len(starts) >= effective_count:
+                    break
+
+        if len(starts) < effective_count:
+            for extra in self._distributed_starts(max_start, effective_count):
                 if all(abs(extra - existing) >= min_gap for existing in starts):
                     starts.append(extra)
-                if len(starts) >= clips_count:
+                    candidate_ranges[extra] = (
+                        extra,
+                        min(extra + safe_clip_duration, duration),
+                    )
+                if len(starts) >= effective_count:
                     break
 
-        unique_sorted = sorted(set(starts))[:clips_count]
-        ranges = [
-            (start, min(start + safe_clip_duration, duration))
-            for start in unique_sorted
+        unique_sorted = sorted(set(starts))[:effective_count]
+        ranges: list[tuple[int, int]] = []
+        for start in unique_sorted:
+            stored = candidate_ranges.get(start)
+            if stored:
+                start, end = stored
+            else:
+                end = min(start + safe_clip_duration, duration)
+            if end <= start:
+                end = min(duration, start + min_len)
+            ranges.append((start, end))
+
+        return (ranges, duration, resolved_profile)
+
+    def _sports_context_window(
+        self,
+        *,
+        anchor: int,
+        duration_sec: int,
+        base_duration: int,
+        min_len: int,
+        max_len: int,
+    ) -> tuple[int, int]:
+        # En deportes priorizamos contexto previo a la accion (pre-jugada + gol/reaccion).
+        target_len = max(min_len, min(max_len, max(base_duration, 16)))
+        pre_ratio = 0.62
+        pre = int(round(target_len * pre_ratio))
+        post = max(1, target_len - pre)
+
+        start = max(0, anchor - pre)
+        end = min(duration_sec, anchor + post)
+
+        current_len = end - start
+        if current_len < min_len:
+            missing = min_len - current_len
+            extend_right = min(missing, max(0, duration_sec - end))
+            end += extend_right
+            missing -= extend_right
+            if missing > 0:
+                start = max(0, start - missing)
+
+        return (start, end)
+
+    def _resolve_auto_clips_count(
+        self, duration: int | None, requested: int | None
+    ) -> int:
+        if requested is not None:
+            return requested
+        if not duration:
+            return 3
+        if duration < 90:
+            return 2
+        if duration < 300:
+            return 3
+        if duration < 900:
+            return 4
+        return 5
+
+    def _profile_duration_policy(
+        self, profile: Literal["interview", "sports", "music"]
+    ) -> tuple[int, int, int]:
+        if profile == "sports":
+            return (8, 22, 14)
+        if profile == "music":
+            return (12, 32, 20)
+        return (8, 20, 14)
+
+    def _resolve_content_profile(
+        self,
+        *,
+        video: Video,
+        requested_profile: Literal["auto", "interview", "sports", "music"],
+        duration: int | None,
+        highlights: list[tuple[int, int]],
+        scene_changes: list[int],
+    ) -> Literal["interview", "sports", "music"]:
+        if requested_profile != "auto":
+            return requested_profile
+
+        filename = (video.original_filename or "").lower()
+        sports_keywords = ["gol", "football", "futbol", "soccer", "liga", "vs", "match"]
+        music_keywords = [
+            "music",
+            "musica",
+            "song",
+            "live",
+            "lyrics",
+            "concierto",
+            "karaoke",
         ]
-        return (ranges, duration)
+
+        if any(key in filename for key in sports_keywords):
+            return "sports"
+        if any(key in filename for key in music_keywords):
+            return "music"
+
+        if not duration or duration <= 0:
+            return "interview"
+
+        nonsilent_seconds = sum(max(0, end - start) for start, end in highlights)
+        nonsilent_ratio = nonsilent_seconds / duration if duration > 0 else 0
+        scenes_per_min = (len(scene_changes) / max(duration, 1)) * 60
+
+        if scenes_per_min >= 18 and nonsilent_ratio >= 0.45:
+            return "sports"
+        if nonsilent_ratio >= 0.8 and scenes_per_min <= 12:
+            return "music"
+        return "interview"
+
+    def _extract_scene_change_timestamps(
+        self, source_url: str, duration_sec: int
+    ) -> list[int]:
+        try:
+            cmd = [
+                "ffmpeg",
+                "-hide_banner",
+                "-i",
+                source_url,
+                "-vf",
+                "select='gt(scene,0.35)',showinfo",
+                "-an",
+                "-f",
+                "null",
+                "-",
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            output = f"{result.stdout}\n{result.stderr}"
+            timestamps: list[int] = []
+            for line in output.splitlines():
+                match = re.search(r"pts_time:([0-9]+(?:\.[0-9]+)?)", line)
+                if not match:
+                    continue
+                ts = int(float(match.group(1)))
+                if 0 <= ts <= duration_sec:
+                    timestamps.append(ts)
+            return sorted(set(timestamps))
+        except Exception as exc:
+            logger.warning(f"No se pudo detectar cambios de escena: {exc}")
+            return []
 
     def _distributed_starts(self, max_start: int, clips_count: int) -> list[int]:
         if clips_count <= 1:
@@ -357,17 +565,19 @@ class JobService:
         face_tracking: bool | None = None,
         color_filter: bool | None = None,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
+        content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
     ) -> JobReframeResponse:
         video = self._get_user_video(video_id, user_id)
 
         logger.info(
-            "Reframe options for video %s: crop_to_vertical=%s subtitles=%s face_tracking=%s color_filter=%s output_style=%s",
+            "Reframe options for video %s: crop_to_vertical=%s subtitles=%s face_tracking=%s color_filter=%s output_style=%s content_profile=%s",
             video_id,
             crop_to_vertical,
             subtitles,
             face_tracking,
             color_filter,
             output_style,
+            content_profile,
         )
 
         return self._create_reframe_job(
@@ -375,21 +585,26 @@ class JobService:
             user_id=user_id,
             start_sec=start_sec,
             end_sec=end_sec,
-            allow_reuse=True,
+            allow_reuse=False,
             output_style=output_style,
+            content_profile=content_profile,
         )
 
     def auto_reframe_video(
         self,
         video_id: UUID,
         user_id: UUID,
-        clips_count: int,
-        clip_duration_sec: int,
+        clips_count: int | None,
+        clip_duration_sec: int | None,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
+        content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
     ) -> JobAutoReframeResponse:
         video = self._get_user_video(video_id, user_id)
-        clip_ranges, used_duration = self._build_auto_clip_ranges(
-            video, clips_count, clip_duration_sec
+        clip_ranges, used_duration, resolved_profile = self._build_auto_clip_ranges(
+            video,
+            clips_count,
+            clip_duration_sec,
+            content_profile,
         )
 
         created_jobs: list[JobAutoReframeItem] = []
@@ -401,6 +616,7 @@ class JobService:
                 end_sec=end_sec,
                 allow_reuse=False,
                 output_style=output_style,
+                content_profile=resolved_profile,
             )
             created_jobs.append(
                 JobAutoReframeItem(
@@ -413,10 +629,16 @@ class JobService:
                 )
             )
 
+        effective_duration = (
+            int(round(median([max(1, end - start) for start, end in clip_ranges])))
+            if clip_ranges
+            else (clip_duration_sec or 15)
+        )
+
         return JobAutoReframeResponse(
             video_id=video.id,
             total_jobs=len(created_jobs),
-            clip_duration_sec=clip_duration_sec,
+            clip_duration_sec=effective_duration,
             used_video_duration_sec=used_duration,
             jobs=created_jobs,
         )

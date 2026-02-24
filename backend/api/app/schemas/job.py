@@ -45,6 +45,10 @@ class JobReframeRequest(BaseSchema):
         default="vertical",
         description="Estilo de salida: vertical clasico o split speaker",
     )
+    content_profile: Literal["auto", "interview", "sports", "music"] = Field(
+        default="auto",
+        description="Perfil de contenido para ajustar framing (auto/entrevista/deportes/musica)",
+    )
 
 
 class AutoClipSegment(BaseSchema):
@@ -53,15 +57,25 @@ class AutoClipSegment(BaseSchema):
 
 
 class JobAutoReframeRequest(BaseSchema):
-    clips_count: int = Field(
-        default=3, ge=1, le=20, description="Cantidad de clips a generar"
+    clips_count: int | None = Field(
+        default=None,
+        ge=1,
+        le=20,
+        description="Cantidad de clips a generar (opcional, backend decide si no se envia)",
     )
-    clip_duration_sec: int = Field(
-        default=15, ge=5, le=120, description="Duracion por clip"
+    clip_duration_sec: int | None = Field(
+        default=None,
+        ge=5,
+        le=120,
+        description="Duracion por clip (opcional, backend decide si no se envia)",
     )
     output_style: Literal["vertical", "speaker_split"] = Field(
         default="vertical",
         description="Estilo de salida para los clips automaticos",
+    )
+    content_profile: Literal["auto", "interview", "sports", "music"] = Field(
+        default="auto",
+        description="Perfil de contenido para ajustar framing (auto/entrevista/deportes/musica)",
     )
 
 

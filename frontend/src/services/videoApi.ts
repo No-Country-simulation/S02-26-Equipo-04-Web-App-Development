@@ -44,6 +44,7 @@ export type ReframeJobRequest = {
   face_tracking?: boolean;
   color_filter?: boolean;
   output_style?: "vertical" | "speaker_split";
+  content_profile?: "auto" | "interview" | "sports" | "music";
 };
 
 export type ReframeJobResponse = {
@@ -203,13 +204,24 @@ export const videoApi = {
   async createAutoReframeJobs(
     videoId: string,
     token: string,
-    options?: { clipsCount?: number; clipDurationSec?: number; outputStyle?: "vertical" | "speaker_split" }
+    options?: {
+      clipsCount?: number;
+      clipDurationSec?: number;
+      outputStyle?: "vertical" | "speaker_split";
+      contentProfile?: "auto" | "interview" | "sports" | "music";
+    }
   ) {
-    const body = {
-      clips_count: options?.clipsCount ?? 3,
-      clip_duration_sec: options?.clipDurationSec ?? 15,
-      output_style: options?.outputStyle ?? "vertical"
+    const body: Record<string, unknown> = {
+      output_style: options?.outputStyle ?? "vertical",
+      content_profile: options?.contentProfile ?? "auto"
     };
+
+    if (typeof options?.clipsCount === "number") {
+      body.clips_count = options.clipsCount;
+    }
+    if (typeof options?.clipDurationSec === "number") {
+      body.clip_duration_sec = options.clipDurationSec;
+    }
 
     const response = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}/auto`, {
       method: "POST",

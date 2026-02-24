@@ -51,6 +51,7 @@ async def reframe_video(
         face_tracking=body.face_tracking,
         color_filter=body.color_filter,
         output_style=body.output_style,
+        content_profile=body.content_profile,
     )
 
 
@@ -79,6 +80,7 @@ async def auto_reframe_video(
         clips_count=body.clips_count,
         clip_duration_sec=body.clip_duration_sec,
         output_style=body.output_style,
+        content_profile=body.content_profile,
     )
 
 

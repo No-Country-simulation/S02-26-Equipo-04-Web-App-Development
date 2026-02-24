@@ -4,12 +4,19 @@ import { GeneratedClipsSection, type Clip } from "@/src/components/home/Generate
 import { ProjectStatusPanel } from "@/src/components/home/ProjectStatusPanel";
 import { UploadDropzone } from "@/src/components/home/UploadDropzone";
 import { Panel } from "@/src/components/ui/Panel";
-import { VideoApiError, type AutoReframeJobItem, type VideoUploadResponse, videoApi } from "@/src/services/videoApi";
+import {
+  VideoApiError,
+  type AutoReframeJobItem,
+  type UserClipItem,
+  type VideoUploadResponse,
+  videoApi
+} from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useEffect, useMemo, useState } from "react";
 
 const HOME_DRAFT_KEY = "home:uploaded-video-draft";
 type ClipOutputStyle = "vertical" | "speaker_split";
+type ClipContentProfile = "auto" | "interview" | "sports" | "music";
 
 function toTimeLabel(seconds: number) {
   const min = Math.floor(seconds / 60)
@@ -51,6 +58,17 @@ function mapJobsToClips(
       previewUrl: statusInfo?.outputPath ?? null
     };
   });
+}
+
+function mapUserClipsToCards(clips: UserClipItem[]): Clip[] {
+  return clips.map((clip, index) => ({
+    id: clip.job_id,
+    title: `Clip ${index + 1}`,
+    duration: "00:15",
+    preset: "Auto Reframe",
+    status: mapJobStatusToClipStatus(clip.status),
+    previewUrl: clip.output_path
+  }));
 }
 
 function isTerminalStatus(status: string) {
@@ -95,9 +113,16 @@ export default function AppHomePage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [outputStyle, setOutputStyle] = useState<ClipOutputStyle>("vertical");
+  const [contentProfile, setContentProfile] = useState<ClipContentProfile>("auto");
+  const [fallbackClips, setFallbackClips] = useState<UserClipItem[]>([]);
 
   const hasVideo = Boolean(uploadedVideo);
-  const visibleClips = useMemo(() => mapJobsToClips(createdJobs, jobStatusMap), [createdJobs, jobStatusMap]);
+  const visibleClips = useMemo(() => {
+    if (createdJobs.length > 0) {
+      return mapJobsToClips(createdJobs, jobStatusMap);
+    }
+    return mapUserClipsToCards(fallbackClips);
+  }, [createdJobs, jobStatusMap, fallbackClips]);
 
   useEffect(() => {
     try {
@@ -111,6 +136,7 @@ export default function AppHomePage() {
         createdJobs: AutoReframeJobItem[];
         autoJobCount: number;
         outputStyle?: ClipOutputStyle;
+        contentProfile?: ClipContentProfile;
       };
 
       if (parsed.uploadedVideo) {
@@ -124,6 +150,14 @@ export default function AppHomePage() {
       }
       if (parsed.outputStyle === "vertical" || parsed.outputStyle === "speaker_split") {
         setOutputStyle(parsed.outputStyle);
+      }
+      if (
+        parsed.contentProfile === "auto" ||
+        parsed.contentProfile === "interview" ||
+        parsed.contentProfile === "sports" ||
+        parsed.contentProfile === "music"
+      ) {
+        setContentProfile(parsed.contentProfile);
       }
     } catch {
       window.localStorage.removeItem(HOME_DRAFT_KEY);
@@ -140,11 +174,12 @@ export default function AppHomePage() {
       uploadedVideo,
       createdJobs,
       autoJobCount,
-      outputStyle
+      outputStyle,
+      contentProfile
     };
 
     window.localStorage.setItem(HOME_DRAFT_KEY, JSON.stringify(payload));
-  }, [uploadedVideo, createdJobs, autoJobCount, outputStyle]);
+  }, [uploadedVideo, createdJobs, autoJobCount, outputStyle, contentProfile]);
 
   useEffect(() => {
     if (!token || createdJobs.length === 0) {
@@ -214,6 +249,7 @@ export default function AppHomePage() {
     setIsCreatingJobs(false);
     setUploadedVideo(null);
     setCreatedJobs([]);
+    setFallbackClips([]);
     setJobStatusMap({});
     setAutoJobCount(0);
     setUploadError(null);
@@ -242,7 +278,8 @@ export default function AppHomePage() {
 
     try {
       const autoJobs = await videoApi.createAutoReframeJobs(uploaded.video_id, token, {
-        outputStyle
+        outputStyle,
+        contentProfile
       });
       setCreatedJobs(autoJobs.jobs);
       setAutoJobCount(autoJobs.total_jobs);
@@ -258,6 +295,37 @@ export default function AppHomePage() {
       setIsCreatingJobs(false);
     }
   };
+
+  useEffect(() => {
+    if (!token || !uploadedVideo || createdJobs.length > 0 || isUploading || isCreatingJobs) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const hydrateFromLibrary = async () => {
+      try {
+        const data = await videoApi.getMyClips(token, { limit: 40, offset: 0 });
+        if (cancelled) {
+          return;
+        }
+
+        const related = data.clips.filter((clip) => clip.video_id === uploadedVideo.video_id);
+        if (related.length > 0) {
+          setFallbackClips(related);
+          setAutoJobCount((prev) => (prev > 0 ? prev : related.length));
+        }
+      } catch {
+        // Silencioso: este hydrate es best-effort para evitar estados vacios en Home.
+      }
+    };
+
+    void hydrateFromLibrary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, uploadedVideo, createdJobs.length, isUploading, isCreatingJobs]);
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -289,6 +357,65 @@ export default function AppHomePage() {
                 Split speaker (arriba foco, abajo plano general)
               </button>
             </div>
+
+            <div className="mt-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/55">Perfil de contenido (auto en Home)</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => setContentProfile("auto")}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                    contentProfile === "auto"
+                      ? "border-neon-mint/45 bg-neon-mint/15 text-neon-mint"
+                      : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
+                  }`}
+                >
+                  Auto detectar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContentProfile("interview")}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                    contentProfile === "interview"
+                      ? "border-neon-mint/45 bg-neon-mint/15 text-neon-mint"
+                      : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
+                  }`}
+                >
+                  Entrevista
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContentProfile("sports")}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                    contentProfile === "sports"
+                      ? "border-neon-mint/45 bg-neon-mint/15 text-neon-mint"
+                      : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
+                  }`}
+                >
+                  Deportes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContentProfile("music")}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                    contentProfile === "music"
+                      ? "border-neon-mint/45 bg-neon-mint/15 text-neon-mint"
+                      : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
+                  }`}
+                >
+                  Musica
+                </button>
+              </div>
+            </div>
+
+            {outputStyle === "speaker_split" && (
+              <div className="mt-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/55">Ajuste de layout speaker split</p>
+                <div className="mt-2 text-xs text-white/70">
+                  En `Auto detectar`, si el backend clasifica como `deportes`, aplica framing mas abierto.
+                </div>
+              </div>
+            )}
           </div>
           <UploadDropzone
             onUpload={handleUpload}

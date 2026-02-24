@@ -572,6 +572,21 @@ def resize_with_letterbox(frame, final_w, final_h):
     return canvas
 
 
+def resize_with_cover(frame, final_w, final_h):
+    """Resize preserving aspect ratio and filling target area by center-cropping."""
+    h, w = frame.shape[:2]
+
+    scale = max(final_w / w, final_h / h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+
+    resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    x1 = max(0, (new_w - final_w) // 2)
+    y1 = max(0, (new_h - final_h) // 2)
+    return resized[y1 : y1 + final_h, x1 : x1 + final_w]
+
+
 def reframe_vertical(frame, camera_x, final_w, final_h):
     """Crops frame to vertical 9:16 region centered on camera_x."""
     h, w = frame.shape[:2]
@@ -587,19 +602,54 @@ def reframe_vertical(frame, camera_x, final_w, final_h):
     return crop  # 👈 tamaño fijo
 
 
-def compose_speaker_split(frame, camera_x, final_w, final_h):
+def compose_speaker_split(
+    frame, camera_x, final_w, final_h, content_profile="interview"
+):
     """
     Genera layout vertical en dos paneles:
       - Arriba: seguimiento facial (crop vertical guiado por camera_x)
       - Abajo: video completo horizontal con letterbox
     """
-    top_ratio = 0.56
+    is_sports = content_profile == "sports"
+    top_ratio = 0.64 if not is_sports else 0.52
     top_h = int(final_h * top_ratio)
     bottom_h = max(1, final_h - top_h)
 
-    top_focus = reframe_vertical(frame, camera_x, final_w, final_h)
+    h, w = frame.shape[:2]
+    target_aspect = final_w / top_h
+
+    crop_h = h
+    crop_w = int(crop_h * target_aspect)
+
+    if crop_w > w:
+        crop_w = w
+        crop_h = int(crop_w / target_aspect)
+
+    crop_w = max(2, crop_w - (crop_w % 2))
+    crop_h = max(2, crop_h - (crop_h % 2))
+
+    frame_center_x = w // 2
+    tracked_x = int(camera_x if camera_x is not None else frame_center_x)
+    if is_sports:
+        # En deportes reducimos paneo agresivo y privilegiamos contexto de jugada.
+        center_x = int((tracked_x * 0.35) + (frame_center_x * 0.65))
+    else:
+        center_x = tracked_x
+    half_w = crop_w // 2
+    center_x = max(half_w, min(w - half_w, center_x))
+
+    x1 = max(0, center_x - half_w)
+    x2 = min(w, x1 + crop_w)
+    y1 = max(0, (h - crop_h) // 2)
+    y2 = y1 + crop_h
+
+    top_focus = frame[y1:y2, x1:x2]
     top_panel = cv2.resize(top_focus, (final_w, top_h), interpolation=cv2.INTER_AREA)
-    bottom_panel = resize_with_letterbox(frame, final_w, bottom_h)
+    bottom_panel = (
+        resize_with_cover(frame, final_w, bottom_h)
+        if is_sports
+        else resize_with_letterbox(frame, final_w, bottom_h)
+    )
 
     stacked = np.vstack((top_panel, bottom_panel))
     cv2.line(stacked, (0, top_h), (final_w, top_h), (0, 0, 0), 2)
@@ -854,7 +904,9 @@ def analyze_speech_activity(video_segment_path):
     return speech_mask
 
 
-def stream_processing(video_path, filename, output_style="vertical"):
+def stream_processing(
+    video_path, filename, output_style="vertical", content_profile="interview"
+):
     """
     Main video processing pipeline.
     Reads video frames via FFmpeg pipe, tracks active speaker,
@@ -991,7 +1043,13 @@ def stream_processing(video_path, filename, output_style="vertical"):
         if DEBUG:
             out_frame = frame.copy()
         elif output_style == "speaker_split":
-            out_frame = compose_speaker_split(frame, camera_x, FINAL_W, FINAL_H)
+            out_frame = compose_speaker_split(
+                frame,
+                camera_x,
+                FINAL_W,
+                FINAL_H,
+                content_profile=content_profile,
+            )
         else:
             out_frame = reframe_vertical(frame, camera_x, FINAL_W, FINAL_H)
 
@@ -1006,7 +1064,9 @@ def stream_processing(video_path, filename, output_style="vertical"):
     return output_path
 
 
-def generate_video(video_path, filename, output_style="vertical"):
+def generate_video(
+    video_path, filename, output_style="vertical", content_profile="interview"
+):
     """
     Executes the full visual processing pipeline on a normalized segment
     and merges the original audio track at the end.
@@ -1023,7 +1083,12 @@ def generate_video(video_path, filename, output_style="vertical"):
     """
 
     # 1. Reframe / crop / camera logic
-    no_audio_out = stream_processing(video_path, filename, output_style=output_style)
+    no_audio_out = stream_processing(
+        video_path,
+        filename,
+        output_style=output_style,
+        content_profile=content_profile,
+    )
 
     # 2. Merge original audio track
     result_video_path = merge_audio_track(no_audio_out, video_path, filename)
@@ -1033,14 +1098,24 @@ def generate_video(video_path, filename, output_style="vertical"):
 
 
 # ================= PIPELINE MAIN =================
-def process(video_path, filename, start, end, output_style="vertical"):
+def process(
+    video_path,
+    filename,
+    start,
+    end,
+    output_style="vertical",
+    content_profile="interview",
+):
     """
     Returns local path of generated video
         /tmp/result_{filename}
     """
     normalized_video_path = normalize_video_segment(video_path, filename, start, end)
     result_video_path = generate_video(
-        normalized_video_path, filename, output_style=output_style
+        normalized_video_path,
+        filename,
+        output_style=output_style,
+        content_profile=content_profile,
     )
     logger.info(f"🎉 GENERATED VIDEO PATH: {result_video_path}")
     return result_video_path

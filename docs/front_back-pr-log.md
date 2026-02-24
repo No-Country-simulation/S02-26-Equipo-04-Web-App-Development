@@ -105,3 +105,136 @@ Agregar una opcion de salida para generar clips en formato "speaker split": arri
 
 - `npm run lint` en `frontend/` -> OK
 - `python3 -m py_compile` sobre archivos backend modificados -> OK
+
+## Ajuste de calidad visual (speaker split)
+
+### Problema detectado
+
+- En clips `speaker_split`, el panel superior podia deformar la imagen (aspecto estirado/achatado).
+- En entrevistas, algunos rostros quedaban demasiado al borde por recorte superior demasiado angosto.
+
+### Correccion aplicada
+
+- Se ajusto la composicion de `speaker_split` en `backend/worker/app/pipeline.py` para:
+  - calcular el recorte superior con el **mismo aspect ratio** del panel destino (evita deformacion),
+  - aumentar el espacio del panel superior para mostrar mejor el rostro,
+  - mantener el panel inferior con plano general en letterbox sin distorsion.
+
+## Ajuste de perfiles de contenido (entrevista/deportes)
+
+### Objetivo
+
+Evitar zoom excesivo en clips de futbol/deportes dentro de `speaker_split`, manteniendo mas contexto de jugada (jugador + balon + entorno).
+
+### Cambios realizados
+
+- Se agrego `content_profile` en requests de jobs (`interview` | `sports`) para reframe manual y automatico.
+- Se propago `content_profile` en toda la cadena API -> service -> Redis -> worker -> pipeline.
+- En Home se agrego selector de perfil de contenido al elegir `speaker_split`:
+  - `Entrevista (mas foco en rostro)`
+  - `Deportes (menos zoom, mas contexto)`
+- En pipeline, `speaker_split` ahora adapta composicion por perfil:
+  - `interview`: panel superior mas dominante y tracking mas directo.
+  - `sports`: panel superior mas bajo y centro suavizado hacia el medio del frame para reducir paneo agresivo y zoom percibido.
+
+### Archivos clave
+
+- `backend/api/app/schemas/job.py`
+- `backend/api/app/api/v1/endpoints/job.py`
+- `backend/api/app/services/job_service.py`
+- `backend/api/app/services/queue_service.py`
+- `backend/worker/app/worker.py`
+- `backend/worker/app/pipeline.py`
+- `frontend/src/services/videoApi.ts`
+- `frontend/src/app/app/page.tsx`
+
+## Hotfix de persistencia de clips
+
+### Problema detectado
+
+- Los jobs terminaban el procesamiento en worker, pero fallaban al guardar resultado con error DB:
+  `value too long for type character varying(500)` en `jobs.output_path`.
+- Consecuencia: el clip no quedaba en `DONE` ni visible en Home/Biblioteca, aunque el archivo se subia a MinIO.
+
+### Correccion aplicada
+
+- En `backend/worker/app/worker.py` se dejo de persistir la URL firmada completa en `output_path`.
+- Ahora se guarda el `storage_path` corto (ej. `s3://...`) y la API genera URL presignada al consultar estado/listados.
+- Se ajusto manejo de errores en update de DB para hacer `rollback()` antes de marcar `FAILED`, evitando `PendingRollbackError` en cadena.
+
+## Hotfix de estabilidad worker + Home
+
+### Problemas detectados
+
+- Algunos jobs terminaban procesamiento, pero el worker podia caer con `StaleDataError`/`ObjectDeletedError` al persistir estado final.
+- En Home, en ciertos flujos quedaba UI desincronizada (skeleton sin clips hasta recargar/navegar).
+
+### Correcciones aplicadas
+
+- `backend/worker/app/worker.py`:
+  - Se agrego persistencia de estado robusta con update directo por `job_id` (`update_job_state`) para evitar caidas por filas ausentes o stale ORM.
+  - En fallos de pipeline/upload/update se guarda estado `FAILED` de forma tolerante a errores, sin tumbar el proceso principal.
+- `frontend/src/app/app/page.tsx`:
+  - Se agrego hydrate de respaldo desde `my-clips` cuando Home pierde estado local de jobs, para mostrar resultados sin requerir recarga manual.
+- `backend/worker/app/pipeline.py`:
+  - En perfil `sports`, el panel inferior de `speaker_split` usa `cover` (menos bandas negras) y ajuste de proporcion para reducir hueco visual.
+
+## Hotfix timeline editor
+
+### Problema detectado
+
+- En timeline manual, la creacion de job podia reusar un job existente del mismo video (pendiente/running/failed), haciendo que el recorte solicitado no se encolara como nuevo trabajo.
+
+### Correccion aplicada
+
+- En `backend/api/app/services/job_service.py`, el flujo `reframe_video` paso a crear job nuevo (`allow_reuse=False`) para respetar cada solicitud del timeline editor.
+
+## Mejora de autodeteccion de clips en Home
+
+### Objetivo
+
+Generar clips automaticos con deteccion real de momentos importantes y duracion variable definida por backend (sin hardcode fijo de 15s) para el flujo de Home/Panel.
+
+### Cambios aplicados
+
+- `backend/api/app/schemas/job.py`
+  - `clips_count` y `clip_duration_sec` pasaron a opcionales en auto reframe.
+  - Se amplio `content_profile` a `auto | interview | sports | music`.
+- `backend/api/app/services/job_service.py`
+  - Nuevo modo inteligente de seleccion de segmentos:
+    - analisis de no-silencios (`silencedetect`),
+    - deteccion de cambios de escena (`select='gt(scene,0.35)' + showinfo`),
+    - ranking de candidatos con separacion minima.
+  - Backend decide cantidad de clips si no viene en request (`2-5` segun duracion total).
+  - Duracion por clip variable por perfil:
+    - `sports`: mas corta y dinamica,
+    - `music`: mas extensa para frase/coro,
+    - `interview`: intermedia para idea completa.
+  - En `content_profile=auto`, se resuelve perfil final por heuristica (nombre de archivo + densidad de escena + ratio de no-silencio).
+  - Los jobs auto encolan el `resolved_profile` para que el worker aplique framing acorde.
+- `frontend/src/services/videoApi.ts`
+  - En auto reframe ya no envia defaults hardcodeados de `clips_count` y `clip_duration_sec`.
+  - `content_profile` ahora soporta `auto` y `music`.
+- `frontend/src/app/app/page.tsx`
+  - Home ahora usa por defecto `Auto detectar` para perfil de contenido.
+  - Se agrego opcion manual de override (`Entrevista`, `Deportes`, `Musica`) para pruebas.
+
+### Validaciones
+
+- `python3 -m py_compile` en backend -> OK
+- `npm run lint` en frontend -> OK
+- `docker compose up -d --build api worker` -> OK
+
+## Ajuste fino de highlights para futbol/deportes
+
+### Objetivo
+
+Priorizar mejor la secuencia previa y posterior a jugadas importantes (pre-gol + gol + reaccion), no solo el instante del pico.
+
+### Cambios aplicados
+
+- En `backend/api/app/services/job_service.py` se incorporo ventana contextual para `sports`:
+  - los anchors de highlights/escenas ahora se expanden de forma asimetrica,
+  - mayor peso al contexto previo (~62%) y cierre posterior,
+  - minima longitud garantizada por clip.
+- Se reemplazo almacenamiento de duracion por almacenamiento de rango candidato (`start/end`) para mantener contexto exacto en deportes.

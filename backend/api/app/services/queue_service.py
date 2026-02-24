@@ -16,6 +16,7 @@ class QueueService:
         start_sec: int,
         end_sec: int,
         output_style: str = "vertical",
+        content_profile: str = "interview",
     ):
         # idealmente, solo enviamos job_id y que el worker consulte tabla Jobs;
         payload = {
@@ -25,6 +26,7 @@ class QueueService:
             "start_sec": start_sec,
             "end_sec": end_sec,
             "output_style": output_style,
+            "content_profile": content_profile,
             "type": "REFRAME",
         }
         self.redis.push_to_queue("reframe_queue", payload)
