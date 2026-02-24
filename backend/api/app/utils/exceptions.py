@@ -66,3 +66,19 @@ class JobParameterException(BadRequestException):
     """Excepción para parámetros de recorte de video inválidos (start_sec/end_sec)"""
     def __init__(self, message: str = "Invalid job parameters: start_sec/end_sec"):
         super().__init__(message)
+
+
+# ============ AUDIO EXCEPTIONS ============
+
+class AudioValidationException(BadRequestException):
+    """Excepción para errores de validación de archivos de audio"""
+    def __init__(self, message: str = "Invalid audio file"):
+        super().__init__(message)
+
+
+class AudioDBException(AppException):
+    """Excepción para errores de base de datos relacionados con audios"""
+    def __init__(self, message: str = "Database error", original_error: str | None = None):
+        if original_error:
+            message = f"{message}: {original_error}"
+        super().__init__(message, status_code=500)
