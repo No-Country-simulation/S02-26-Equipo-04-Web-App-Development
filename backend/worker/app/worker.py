@@ -11,7 +11,7 @@ from app.models.job import Job
 from app.models.video import Video
 from app.models.user import User
 from app.models.enums import JobStatus, JobType
-from app.services.video_worker_service import VideoWorkerService
+from app.services.storage_service import StorageService
 from app.database.base import SessionLocal
 from app.utils.redis_client import redis_client
 from app.core.logging import setup_logging
@@ -120,15 +120,14 @@ def worker_loop():
 
         if not payload:
             continue
+
+
         job_id = payload.get("job_id")
-        start_sec = payload.get("start_sec")
-        end_sec = payload.get("end_sec")
-        output_style = payload.get("output_style", "vertical")
-        content_profile = payload.get("content_profile", "interview")
+
         logger.info(f"🎬 Job received from Redis, Job id: {job_id}")
 
         db = SessionLocal()
-        video_worker_service = VideoWorkerService()
+        storage_service = StorageService()
 
         try:
             job = db.query(Job).filter(Job.id == job_id).first()
@@ -192,11 +191,25 @@ def worker_loop():
             db.close()
             continue
 
+        if job.job_type == JobType.AUTO_REFRAME:
+            logger.info(f"⚙️  Processing AUTO_REFRAME job {job.id}")
+            logger.warning(f"❌ payload: {payload}")
+            pass
+
+
+
         if job.job_type == JobType.REFRAME:
             # ejecutar pipeline
             try:
+                # recuperar datos del payload
+                start_sec = payload.get("start_sec")
+                end_sec = payload.get("end_sec")
+                output_style = payload.get("output_style", "vertical")
+                content_profile = payload.get("content_profile", "interview")
+
                 logger.info(f"⚙️  Processing REFRAME job {job.id}")
-                video_url_response = video_worker_service.get_video_url(
+
+                video_url_response = storage_service.get_video_url(
                     storage_path, expires_in=300
                 )
                 video_local_path = process(
@@ -221,11 +234,11 @@ def worker_loop():
             # upload to minio
             try:
                 output_filename = f"{job.id}.mp4"
-                storage_path = video_worker_service.upload_local_video_to_minio(
+                storage_path, bucket, key = storage_service.upload_local_video_to_minio(
                     video_local_path, output_filename
                 )
                 logger.info(f"✅ Video uploaded to MinIO")
-                public_storage_path = video_worker_service.get_video_public_url(
+                public_storage_path = storage_service.get_video_public_url(
                     storage_path, expires_in=300
                 )
                 logger.info(f"✅ Public MiniIO url: {public_storage_path}")
