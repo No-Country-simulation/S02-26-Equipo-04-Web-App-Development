@@ -24,7 +24,7 @@ function normalizeVideoError(error: unknown, fallbackMessage: string) {
 
   return fallbackMessage;
 }
-
+  
 export default function TimelinePage() {
   const searchParams = useSearchParams();
   const preferredVideoId = searchParams.get("videoId")?.trim() ?? "";
@@ -44,6 +44,30 @@ export default function TimelinePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitInfo, setSubmitInfo] = useState<string | null>(null);
+  const [submitErrorSettings, setSubmitErrorSettings] = useState<string | null>(null);
+  const [submitInfoSettings, setSubmitInfoSettings] = useState<string | null>(null);
+  const [draftFilename, setDraftFilename] = useState("");
+
+
+  const saveRaname =  async()=>{
+      if (!token) {
+      return;
+    }
+
+    setSubmitErrorSettings(null);
+    setSubmitInfoSettings(null);
+    try {
+      const updated = await videoApi.updateMyVideo(preferredVideoId, token, { filename: draftFilename });
+      // setVideos((prev) => prev.map((item) => (item.video_id === videoId ? updated : item)));
+          setSubmitInfoSettings(`Ajustes Guardados.`);
+
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "No pudimos actualizar el nombre del video.");
+          setSubmitErrorSettings(error);
+
+    }
+
+  }
 
   useEffect(() => {
     if (!token) {
@@ -104,6 +128,7 @@ export default function TimelinePage() {
 
         setVideos(nextVideos);
         setFocusedClip(selectedClip);
+        setDraftFilename(selectedClip?.source_filename || "")
         setTotalVideos(response.total);
         setSelectedVideoId((prev) => {
           if (preferredVideoFromQuery && nextVideos.some((video) => video.video_id === preferredVideoFromQuery)) {
@@ -174,6 +199,7 @@ export default function TimelinePage() {
       setIsSubmitting(false);
     }
   };
+    const videoEditarBool = !Boolean(preferredVideoId && preferredVideoId.trim().length > 0);
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -181,7 +207,7 @@ export default function TimelinePage() {
         <Panel>
           <p className="text-xs uppercase tracking-[0.22em] text-white/65">timeline</p>
           <h3 className="mt-1 font-display text-2xl text-white sm:text-3xl">Preview y recorte</h3>
-          <label className="mt-3 flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:border-neon-cyan/40">
+          {videoEditarBool &&(<label className="mt-3 flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:border-neon-cyan/40">
             <Search size={14} className="text-neon-cyan/80" />
             <input
               value={query}
@@ -193,7 +219,7 @@ export default function TimelinePage() {
               className="w-full bg-transparent text-sm text-white/90 outline-none placeholder:text-white/40"
             />
           </label>
-
+)}
           {focusedClip ? (
             <div className="mt-3 rounded-xl border border-neon-cyan/35 bg-neon-cyan/10 px-3 py-2 text-xs text-neon-cyan">
               Editando desde clip {focusedClip.job_id.slice(0, 8)} sobre video {focusedClip.video_id.slice(0, 8)}.
@@ -218,16 +244,39 @@ export default function TimelinePage() {
             </p>
           )}
 
-          <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+
+
+          {
+          // !videoEditarBool&&(
+          //   <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+          //     <label className="">
+          //       Nombre
+          //     </label>
+          //     <input
+          //         value={draftFilename}
+          //         onChange={(event) => setDraftFilename(event.target.value)}
+          //         className="w-full rounded-lg border border-white/20 bg-night-900/70 px-3 mt-1 py-2 text-xs text-white outline-none transition focus:border-neon-cyan/50"
+          //         maxLength={255}
+          //         autoFocus
+          //         />
+          //         {/* <Button className="mt-3 w-auto px-4" disabled={isSubmitting || !selectedVideoId}>
+          //         Guardar Cambios
+          //       </Button> */}
+          // </div>)
+          
+          }
+
+          
+          {/* <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
             <p>Recorte seleccionado: {Math.floor(trimStart)}s - {Math.ceil(trimEnd)}s</p>
             <Button className="mt-3 w-auto px-4" onClick={handleCreateJob} disabled={isSubmitting || !selectedVideoId}>
               {isSubmitting ? "Creando clip..." : "Generar clip con timeline"}
             </Button>
             {submitInfo ? <p className="mt-2 text-xs text-neon-mint">{submitInfo}</p> : null}
             {submitError ? <p className="mt-2 text-xs text-rose-200">{submitError}</p> : null}
-          </div>
+          </div> */}
 
-          {!isLoading && videos.length > 0 ? (
+          {videoEditarBool &&!isLoading && videos.length > 0 ? (
             <>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 {videos.map((video) => {
@@ -286,7 +335,7 @@ export default function TimelinePage() {
         <Panel>
           <p className="text-xs uppercase tracking-[0.22em] text-white/65">configuracion</p>
           <h3 className="mt-1 font-display text-2xl text-white sm:text-3xl">Ajustes de recorte</h3>
-          <VideoSettings />
+          <VideoSettings submitInfoSettings={submitInfoSettings} submitErrorSettings={submitErrorSettings} videoEditarBool={videoEditarBool} draftFilename={draftFilename} setDraftFilename={setDraftFilename} saveRaname={saveRaname} trimStart={trimStart} trimEnd={trimEnd} isSubmitting={isSubmitting} submitInfo={submitInfo} selectedVideoId={selectedVideoId} submitError={submitError}  handleCreateJob={handleCreateJob} />
         </Panel>
       </div>
     </section>

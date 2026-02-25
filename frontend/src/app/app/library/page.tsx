@@ -387,7 +387,9 @@ export default function LibraryPage() {
 
               <h2 className="font-display text-lg text-white">Video {video.video_id.slice(0, 8)}</h2>
               {editingVideoId === video.video_id ? (
+               
                 <div className="mt-2 space-y-2">
+            
                   <input
                     value={draftFilename}
                     onChange={(event) => setDraftFilename(event.target.value)}
