@@ -64,6 +64,18 @@ class Settings(BaseSettings):
             raise ValueError(f"{info.field_name} is required in production")
         return v
 
+    # === INSTAGRAM OAUTH ===
+    INSTAGRAM_APP_ID: str = Field(default="")
+    INSTAGRAM_APP_SECRET: str = Field(default="")
+    INSTAGRAM_REDIRECT_URI: str = Field(default="http://localhost:3000/auth/callback")
+
+    @field_validator("INSTAGRAM_APP_ID", "INSTAGRAM_APP_SECRET")
+    @classmethod
+    def validate_instagram_credentials(cls, v, info):
+        if info.data.get("ENVIRONMENT") == "production" and not v:
+            raise ValueError(f"{info.field_name} is required in production")
+        return v
+
     ALLOWED_ORIGINS: list[str] = Field(
         default=["http://localhost:3000", "http://localhost:5173"]
     )
