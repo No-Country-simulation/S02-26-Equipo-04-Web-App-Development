@@ -525,6 +525,125 @@ Después de completar el flujo, verifica:
 
 ---
 
+## 📸 Pruebas de Instagram OAuth 2.0
+
+### 📋 Requisitos previos
+- Tener las credenciales de Instagram OAuth configuradas en `.env`
+- El archivo `.env` debe tener:
+  ```bash
+  INSTAGRAM_APP_ID=tu-app-id
+  INSTAGRAM_APP_SECRET=tu-app-secret
+  INSTAGRAM_REDIRECT_URI=http://localhost:3000/auth/callback
+  ```
+- **Cuenta de Instagram Business o Creator** conectada a una página de Facebook
+- App de Meta en modo **Development** con tu cuenta como Test User
+
+**⚠️ IMPORTANTE:** Las credenciales reales están en el archivo `.env` (que NO se sube a GitHub). Si necesitas las credenciales, pídelas al equipo por Discord.
+
+### 📍 **Paso 1: Generar URL de autorización de Instagram**
+
+**GET** `http://localhost:8000/api/v1/auth/instagram/login`
+
+**Headers:** Ninguno requerido
+
+**Respuesta esperada:**
+```json
+{
+  "authorization_url": "https://api.instagram.com/oauth/authorize?client_id=...",
+  "state": "Z8Kj9NN3PxwTCtyzWRfXs-uEIiuRVWX86nqIsKeUM-d"
+}
+```
+
+**⚠️ IMPORTANTE:** Guarda el valor de `state` para el siguiente paso.
+
+---
+
+### 📍 **Paso 2: Autenticarse con Instagram (manual)**
+
+1. **Copia la URL** completa de `authorization_url` del paso anterior
+2. **Pégala en tu navegador** y presiona Enter
+3. **Inicia sesión con tu cuenta de Instagram** (debe ser Business o Creator)
+4. **Autoriza los permisos** solicitados por la aplicación
+5. **Instagram te redirigirá** a una URL como:
+   ```
+   http://localhost:3000/auth/callback?state=Z8Kj9NN3...&code=AQDxT7...
+   ```
+6. **Copia el valor del parámetro `code`** de la URL
+
+---
+
+### 📍 **Paso 3: Completar el flujo OAuth (callback)**
+
+**POST** `http://localhost:8000/api/v1/auth/instagram/callback`
+
+**Headers:**
+```
+Content-Type: application/json
+```
+
+**Body (raw JSON):**
+```json
+{
+  "code": "AQDxT7aLpN8fG2kYmJzVq4tXwRsUiOpEdCvBnHgFjMlKq",
+  "state": "Z8Kj9NN3PxwTCtyzWRfXs-uEIiuRVWX86nqIsKeUM-d"
+}
+```
+
+**Respuesta esperada (200 OK):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "user": {
+    "id": "f349941g-b6ee-5792-96ge-ee7e2b2c678g",
+    "email": "123456789@instagram.oauth",
+    "role": "USER",
+    "is_active": true,
+    "is_verified": true,
+    "provider": "instagram"
+  }
+}
+```
+
+---
+
+### 📍 **Verificar usuario en la base de datos**
+
+```bash
+# Conectarse a la base de datos
+docker exec -it postgres psql -U postgres -d fastapi_db
+
+# Ver usuarios creados con Instagram OAuth
+SELECT id, email, provider, provider_user_id, is_verified FROM users WHERE provider='instagram';
+
+# Salir de psql
+\q
+```
+
+**Deberías ver:**
+```
+                  id                  |           email             | provider  | provider_user_id | is_verified
+--------------------------------------+-----------------------------+-----------+------------------+-------------
+ f349941g-b6ee-5792-96ge-ee7e2b2c678g | 123456789@instagram.oauth   | instagram | 123456789        | t
+```
+
+---
+
+### ✅ **Validaciones del flujo Instagram OAuth**
+
+Después de completar el flujo, verifica:
+
+- [ ] El endpoint `/auth/instagram/login` genera una URL válida
+- [ ] Instagram redirige correctamente después de autenticar
+- [ ] El endpoint `/auth/instagram/callback` devuelve un JWT válido
+- [ ] El usuario se crea en la tabla `users` con `provider='instagram'`
+- [ ] La cuenta de Instagram debe ser Business o Creator para que funcione
+- [ ] El perfil del usuario se crea automáticamente en la tabla `profiles`
+- [ ] El campo `hashed_password` del usuario OAuth es `NULL`
+- [ ] El `access_token` funciona para acceder a endpoints protegidos
+
+---
+
 ### 🔧 **Troubleshooting OAuth**
 
 **Error: "Error en el servidor remoto: (400) Solicitud incorrecta"**
