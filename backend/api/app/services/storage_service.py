@@ -88,6 +88,7 @@ class StorageService:
 
     def _extract_bucket_and_key(self, storage_path: str) -> tuple[str, str]:
         if not storage_path.startswith("s3://"):
+            logger.error(f"❌ Invalid storage_path format: {storage_path}")
             raise BadRequestException("storage_path debe comenzar con 's3://'")
 
         cleaned_path = storage_path[5:]  # más eficiente que replace
