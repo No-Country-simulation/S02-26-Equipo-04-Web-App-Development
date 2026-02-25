@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, UploadFile, Query, Response, statu
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_active_user
-from app.database.session import get_db
+from app.services.dependencies import get_video_service
 from app.models.user import User
 from app.schemas.video import (
     UpdateVideoRequest,
@@ -35,10 +35,9 @@ router = APIRouter(prefix="/videos", tags=["Videos"])
 async def upload_video(
     file: Annotated[UploadFile, File(...)],
     current_user: Annotated[User, Depends(get_current_active_user)],
-    db: Annotated[Session, Depends(get_db)],
+    service: VideoService = Depends(get_video_service),
 ) -> VideoUploadResponse:
     """Sube un video con autenticación (asociado a usuario)"""
-    service = VideoService(db)
     return service.upload_video_authenticated(file, current_user.id)
 
 
@@ -56,7 +55,7 @@ async def upload_video(
 )
 async def get_video_url(
     video_id: UUID,
-    db: Annotated[Session, Depends(get_db)],
+    service: VideoService = Depends(get_video_service),
     expires_in: Annotated[
         int,
         Query(
@@ -67,7 +66,6 @@ async def get_video_url(
     ] = 3600,
 ) -> VideoURLResponse:
     """Obtiene una URL presignada temporal para descargar el video (expira en 1 hora por defecto)"""
-    service = VideoService(db)
     return service.get_video_url(video_id, expires_in)
 
 
@@ -80,14 +78,13 @@ async def get_video_url(
 )
 async def get_my_videos(
     current_user: Annotated[User, Depends(get_current_active_user)],
-    db: Annotated[Session, Depends(get_db)],
+    service: VideoService = Depends(get_video_service),
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
     q: Annotated[
         str | None, Query(description="Busqueda por nombre de archivo o id de video")
     ] = None,
 ) -> UserVideosResponse:
-    service = VideoService(db)
     return service.list_user_videos(
         current_user.id, limit=limit, offset=offset, query=q
     )
@@ -103,9 +100,8 @@ async def get_my_videos(
 async def get_my_video_by_id(
     video_id: UUID,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    db: Annotated[Session, Depends(get_db)],
+    service: VideoService = Depends(get_video_service),
 ) -> UserVideoDetailResponse:
-    service = VideoService(db)
     return service.get_user_video(video_id, current_user.id)
 
 
@@ -120,9 +116,8 @@ async def update_my_video(
     video_id: UUID,
     body: UpdateVideoRequest,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    db: Annotated[Session, Depends(get_db)],
+    service: VideoService = Depends(get_video_service),
 ) -> UserVideoItem:
-    service = VideoService(db)
     return service.update_user_video(video_id, current_user.id, body)
 
 
@@ -135,8 +130,7 @@ async def update_my_video(
 async def delete_my_video(
     video_id: UUID,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    db: Annotated[Session, Depends(get_db)],
+    service: VideoService = Depends(get_video_service),
 ) -> Response:
-    service = VideoService(db)
     service.delete_user_video(video_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

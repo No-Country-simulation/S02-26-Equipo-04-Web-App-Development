@@ -15,7 +15,7 @@ sys.path.insert(0, '/app')
 inspector = inspect(engine)
 
 print("\n" + "="*60)
-print("🗂️ Tablas en la base de datos")
+print("🗂️  Tablas en la base de datos")
 print("="*60 + "\n")
 
 tables = inspector.get_table_names()
@@ -30,6 +30,8 @@ print("="*60 + "\n")
 
 users = db.query(User).all()
 
+print(f"\n📊 Total: {len(users)} usuario(s)\n")
+
 if not users:
     print("❌ No hay usuarios registrados\n")
 else:
@@ -37,15 +39,17 @@ else:
         print(f"📧 Email:      {user.email}")
         #print(f"👤 Nombre:     {user.full_name}")
         print(f"🆔 ID:         {user.id}")
-        #print(f"✅ Activo:     {user.is_active}")
-        #print(f"🔐 Verificado: {user.is_verified}")
+        print(f"✅ Activo:     {user.is_active}")
+        print(f"🔐 Verificado: {user.is_verified}")
         print(f"📅 Creado:     {user.created_at}")
-        #print(f"🔑 Último login: {user.last_login_at}")
+        print(f"🔑 Último login: {user.last_login_at}")
         print("-" * 60)
 
-print(f"\n📊 Total: {len(users)} usuario(s)\n")
 
 videos = db.query(Video).all()
+
+print(f"\n📊 Total: {len(videos)} video(s)\n")
+
 if not videos:
     print("❌ No hay videos registrados\n")
 else:
@@ -56,7 +60,11 @@ else:
         print(f"📅 Creado:     {video.created_at}")
         print("-" * 60)
 
+
 jobs = db.query(Job).all()
+
+print(f"\n📊 Total: {len(jobs)} job(s)\n")
+
 if not jobs:
     print("❌ No hay jobs registrados\n")
 else:
