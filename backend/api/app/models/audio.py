@@ -2,7 +2,6 @@ from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from app.database.base import Base
 from app.models.base import UUIDAsPrimaryKeyMixin, TimestampMixin
-from sqlalchemy.orm import relationship
 
 
 class Audio(Base, UUIDAsPrimaryKeyMixin, TimestampMixin):
@@ -19,4 +18,3 @@ class Audio(Base, UUIDAsPrimaryKeyMixin, TimestampMixin):
     bitrate = Column(Integer, nullable=True)  # bits per second
     status = Column(String(50), nullable=True)  # pending, processing, completed, failed
 
-    video = relationship("Video", back_populates="audios")
