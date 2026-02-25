@@ -134,6 +134,12 @@ Rama de trabajo: `feature/frontend-sync-upload-develop`.
 - Se habilito en backend upload de videos `.webm` cuando el navegador envia `application/octet-stream` (caso reproducido con drag/drop en Chrome).
 - Se movio el directorio temporal del worker a `/tmp/worker` para evitar crash por permisos en `backend/tmp` (`PermissionError: tmp/normalized`).
 
+## Nota destacada
+
+- Riesgo para produccion detectado: si el worker usa un volumen/path sin permisos de escritura para temporales, el pipeline puede fallar con `PermissionError` y dejar jobs sin completar (impacta generacion de clips).
+- Mitigacion aplicada en esta rama: uso de directorio temporal seguro `/tmp/worker` en `backend/worker/app/pipeline.py`.
+- Seguimiento recomendado para backend: parametrizar y validar el path temporal por entorno (ej. `WORKER_OUTPUT_DIR`) y verificar permisos del volumen en deploy.
+
 ## Commits realizados
 
 - `fix(frontend): align timeline clip creation with backend constraints`
@@ -141,12 +147,16 @@ Rama de trabajo: `feature/frontend-sync-upload-develop`.
 - `fix(frontend): send auto2 defaults and surface backend 400 details`
 - `fix(backend): accept octet-stream video uploads and avoid worker tmp permission crashes`
 - `docs(frontend): log timeline compatibility updates on develop sync`
+- `docs(frontend): update worklog with auto2 integration fixes`
+- `docs(frontend): record upload and worker stability fixes`
 
 ## Archivos clave
 
 - `frontend/src/app/app/timeline/page.tsx`
 - `frontend/src/components/home/VideoSettings.tsx`
 - `frontend/src/components/home/videoPrevewTimeLine/useVideoTrim.ts`
+- `backend/api/app/services/video_service.py`
+- `backend/worker/app/pipeline.py`
 - `docs/frontend-pr-log.md`
 
 ## Validaciones locales
