@@ -126,10 +126,14 @@ Rama de trabajo: `feature/frontend-sync-upload-develop`.
 - Se corrigio guardado de nombre en timeline para usar el `selectedVideoId` real y refrescar listado local luego de editar filename.
 - Se corrigio manejo de error en guardado de nombre para mostrar el mensaje real del backend en lugar de estado previo.
 - Se eliminaron warnings de lint pendientes en timeline/settings para mantener baseline limpia.
+- Se adapto la integracion de Home para el refactor de backend priorizando `POST /api/v1/jobs/reframe/{video_id}/auto2` con fallback automatico a `/auto` cuando `auto2` no existe.
+- Se normalizo la respuesta de `auto2` en frontend para no romper el flujo aunque no devuelva arreglo `jobs`.
+- Se agrego polling temporal de biblioteca tras generar jobs automaticos para hidratar clips cuando el backend procesa de forma asincronica y no retorna jobs individuales de inmediato.
 
 ## Commits realizados
 
 - `fix(frontend): align timeline clip creation with backend constraints`
+- `fix(frontend): support auto2 job orchestration and async clip hydration`
 - `docs(frontend): log timeline compatibility updates on develop sync`
 
 ## Archivos clave
