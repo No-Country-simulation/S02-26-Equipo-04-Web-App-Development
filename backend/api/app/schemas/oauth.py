@@ -1,4 +1,4 @@
-"""Schemas para Google OAuth"""
+"""Schemas para OAuth (Google, Instagram)"""
 from pydantic import BaseModel, HttpUrl
 
 
@@ -22,5 +22,19 @@ class GoogleUserInfo(BaseModel):
 
 class GoogleCallbackRequest(BaseModel):
     """Request del frontend con el authorization code"""
+    code: str
+    state: str
+
+
+# === INSTAGRAM OAUTH ===
+
+class InstagramAuthURL(BaseModel):
+    """URL de autorización de Instagram + state token"""
+    authorization_url: HttpUrl
+    state: str
+
+
+class InstagramCallbackRequest(BaseModel):
+    """Request del frontend con el authorization code de Instagram"""
     code: str
     state: str
