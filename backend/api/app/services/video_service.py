@@ -134,7 +134,8 @@ class VideoService:
         if not video.storage_path:
             return None
         try:
-            return self.storage.get_video_url(video.storage_path, expires_in=expires_in)
+            return self.storage.get_video_public_url(video.storage_path, expires_in=expires_in)
+        
         except Exception as exc:
             logger.warning(f"Error generando URL de preview para video {video.id}: {exc}")
             raise VideoValidationException("No se pudo generar la URL de preview", str(exc))
