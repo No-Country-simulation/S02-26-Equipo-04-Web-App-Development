@@ -28,5 +28,5 @@ def get_job_service(
     queue: QueueService = Depends(get_queue_service),
     storage: StorageService = Depends(get_storage_service),
 ) -> JobService:
-    return JobService(db, queue)
+    return JobService(db, queue, storage)
 
