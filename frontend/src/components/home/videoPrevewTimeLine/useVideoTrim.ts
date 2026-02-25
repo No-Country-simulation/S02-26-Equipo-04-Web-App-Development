@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type DragType = "start" | "end" | null;
+const MIN_CLIP_SECONDS = 5;
 
 export function useVideoTrim(
   duration: number,
@@ -19,6 +20,7 @@ export function useVideoTrim(
     duration > 0 && containerWidth > 0
       ? containerWidth / duration
       : 1;
+  const minGapPx = Math.max(MIN_CLIP_SECONDS * pixelsPerSecond, 1);
 
   // init
   useEffect(() => {
@@ -67,13 +69,13 @@ export function useVideoTrim(
     const x = e.clientX - rect.left;
 
     if (dragging.current === "start") {
-      const newStart = Math.min(Math.max(0, x), endPx - 5);
+      const newStart = Math.min(Math.max(0, x), endPx - minGapPx);
       setStartPx(newStart);
       notify(newStart / pixelsPerSecond, endPx / pixelsPerSecond);
     }
 
     if (dragging.current === "end") {
-      const newEnd = Math.max(Math.min(containerWidth, x), startPx + 5);
+      const newEnd = Math.max(Math.min(containerWidth, x), startPx + minGapPx);
       setEndPx(newEnd);
       notify(startPx / pixelsPerSecond, newEnd / pixelsPerSecond);
     }

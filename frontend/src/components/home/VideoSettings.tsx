@@ -7,6 +7,7 @@ type ButtonGeneraRecorte={
   trimStart :number,
   selectedVideoId: string | null,
   trimEnd:number,
+  minClipDurationSec:number,
   isSubmitting:boolean,
   submitInfo:string  | null, 
   submitError:string| null,
@@ -26,11 +27,12 @@ const settingItems: Array<{ key: keyof VideoSettings; label: string }> = [
   { key: "colorFilter", label: "Filtro de color" }
 ];
 
-export function VideoSettings( {submitInfoSettings,submitErrorSettings, trimStart,videoEditarBool,draftFilename,setDraftFilename, saveRaname,  trimEnd, isSubmitting,  submitInfo, submitError,selectedVideoId,handleCreateJob}:ButtonGeneraRecorte){
+export function VideoSettings( {submitInfoSettings,submitErrorSettings, trimStart,videoEditarBool,draftFilename,setDraftFilename, saveRaname,  trimEnd, minClipDurationSec, isSubmitting,  submitInfo, submitError,selectedVideoId,handleCreateJob}:ButtonGeneraRecorte){
       const settings = useVideoSettingsStore((state) => state.settings);
       const saveSettings = useVideoSettingsStore((state) => state.saveSettings);
-      const resetSettings = useVideoSettingsStore((state) => state.resetSettings);
-        const [draft, setDraft] = useState<VideoSettings>(settings);
+      const [draft, setDraft] = useState<VideoSettings>(settings);
+      const selectedDuration = Math.max(0, Math.ceil(trimEnd) - Math.floor(trimStart));
+      const canCreateClip = Boolean(selectedVideoId) && selectedDuration >= minClipDurationSec;
       
      const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -96,15 +98,18 @@ export function VideoSettings( {submitInfoSettings,submitErrorSettings, trimStar
                   </div>
 
 
-                  <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+          <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
             <p>Recorte seleccionado: {Math.floor(trimStart)}s - {Math.ceil(trimEnd)}s</p>
-            <Button className="mt-3 w-auto px-4" onClick={handleCreateJob} disabled={isSubmitting || !selectedVideoId}>
+            <p className="mt-1 text-xs text-white/60">Duracion estimada: {selectedDuration}s (minimo {minClipDurationSec}s)</p>
+            <Button className="mt-3 w-auto px-4" onClick={handleCreateJob} disabled={isSubmitting || !canCreateClip}>
               {isSubmitting ? "Creando clip..." : "Generar clip con timeline"}
             </Button>
+            {!canCreateClip ? (
+              <p className="mt-2 text-xs text-amber-200">Ajusta el recorte para que tenga al menos {minClipDurationSec}s.</p>
+            ) : null}
             {submitInfo ? <p className="mt-2 text-xs text-neon-mint">{submitInfo}</p> : null}
             {submitError ? <p className="mt-2 text-xs text-rose-200">{submitError}</p> : null}
           </div> 
                 </form>
     </>)
 }
-

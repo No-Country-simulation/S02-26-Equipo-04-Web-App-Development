@@ -3,7 +3,6 @@
 import { VideoSettings } from "@/src/components/home/VideoSettings";
 import { VideoPreview } from "@/src/components/home/videoPrevewTimeLine/VideoPreview";
 import { Panel } from "@/src/components/ui/Panel";
-import { Button } from "@/src/components/ui/Button";
 import { videoApi, type UserClipItem, type UserVideoItem, VideoApiError } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useVideoSettingsStore } from "@/src/store/useVideoSettingsStore";
@@ -12,6 +11,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 10;
+const MIN_CLIP_SECONDS = 5;
 
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof VideoApiError) {
@@ -54,16 +54,21 @@ export default function TimelinePage() {
       return;
     }
 
+    if (!selectedVideoId) {
+      setSubmitErrorSettings("Selecciona un video para guardar el nombre.");
+      return;
+    }
+
     setSubmitErrorSettings(null);
     setSubmitInfoSettings(null);
     try {
-      const updated = await videoApi.updateMyVideo(preferredVideoId, token, { filename: draftFilename });
-      // setVideos((prev) => prev.map((item) => (item.video_id === videoId ? updated : item)));
-          setSubmitInfoSettings(`Ajustes Guardados.`);
+      const updated = await videoApi.updateMyVideo(selectedVideoId, token, { filename: draftFilename.trim() });
+      setVideos((prev) => prev.map((item) => (item.video_id === selectedVideoId ? updated : item)));
+      setSubmitInfoSettings("Ajustes guardados.");
 
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "No pudimos actualizar el nombre del video.");
-          setSubmitErrorSettings(error);
+      const message = saveError instanceof Error ? saveError.message : "No pudimos actualizar el nombre del video.";
+      setSubmitErrorSettings(message);
 
     }
 
@@ -164,6 +169,13 @@ export default function TimelinePage() {
     [videos, selectedVideoId]
   );
 
+  useEffect(() => {
+    if (!selectedVideo) {
+      return;
+    }
+    setDraftFilename(selectedVideo.filename);
+  }, [selectedVideo]);
+
   const selectedPreviewUrl =
     focusedClip && focusedClip.video_id === selectedVideoId
       ? (focusedClip.output_path ?? selectedVideo?.preview_url ?? null)
@@ -176,7 +188,7 @@ export default function TimelinePage() {
     }
 
     const normalizedStart = Math.max(0, Math.floor(trimStart));
-    const normalizedEnd = Math.max(normalizedStart + 1, Math.ceil(trimEnd));
+    const normalizedEnd = Math.max(normalizedStart + MIN_CLIP_SECONDS, Math.ceil(trimEnd));
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -335,7 +347,7 @@ export default function TimelinePage() {
         <Panel>
           <p className="text-xs uppercase tracking-[0.22em] text-white/65">configuracion</p>
           <h3 className="mt-1 font-display text-2xl text-white sm:text-3xl">Ajustes de recorte</h3>
-          <VideoSettings submitInfoSettings={submitInfoSettings} submitErrorSettings={submitErrorSettings} videoEditarBool={videoEditarBool} draftFilename={draftFilename} setDraftFilename={setDraftFilename} saveRaname={saveRaname} trimStart={trimStart} trimEnd={trimEnd} isSubmitting={isSubmitting} submitInfo={submitInfo} selectedVideoId={selectedVideoId} submitError={submitError}  handleCreateJob={handleCreateJob} />
+          <VideoSettings submitInfoSettings={submitInfoSettings} submitErrorSettings={submitErrorSettings} videoEditarBool={videoEditarBool} draftFilename={draftFilename} setDraftFilename={setDraftFilename} saveRaname={saveRaname} trimStart={trimStart} trimEnd={trimEnd} minClipDurationSec={MIN_CLIP_SECONDS} isSubmitting={isSubmitting} submitInfo={submitInfo} selectedVideoId={selectedVideoId} submitError={submitError}  handleCreateJob={handleCreateJob} />
         </Panel>
       </div>
     </section>
