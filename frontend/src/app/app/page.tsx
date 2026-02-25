@@ -316,9 +316,12 @@ export default function AppHomePage() {
         }
 
         const related = data.clips.filter((clip) => clip.video_id === uploadedVideo.video_id);
-        if (related.length > 0) {
-          setFallbackClips(related);
-          setAutoJobCount((prev) => (prev > 0 ? prev : related.length));
+        setFallbackClips(related);
+        setAutoJobCount((prev) => (prev > 0 ? prev : related.length));
+
+        const expectedClips = autoJobCount > 0 ? autoJobCount : null;
+        const reachedExpectedCount = expectedClips !== null && related.length >= expectedClips;
+        if (reachedExpectedCount) {
           setIsHydratingClips(false);
           window.clearInterval(intervalId);
           return;
@@ -344,7 +347,7 @@ export default function AppHomePage() {
       window.clearInterval(intervalId);
       setIsHydratingClips(false);
     };
-  }, [token, uploadedVideo, createdJobs.length, isUploading, isCreatingJobs]);
+  }, [token, uploadedVideo, createdJobs.length, isUploading, isCreatingJobs, autoJobCount]);
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
