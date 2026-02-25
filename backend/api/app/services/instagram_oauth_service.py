@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.enums import UserRole
 from app.schemas.oauth import InstagramAuthURL
 from app.schemas.token import Token
-from app.schemas.user import UserResponse
+from app.schemas.user import UserPublic
 
 logger = logging.getLogger(__name__)
 
@@ -223,5 +223,5 @@ class InstagramOAuthService:
         return Token(
             access_token=jwt_token,
             token_type="bearer",
-            user=UserResponse.model_validate(user)
+            user=UserPublic.model_validate(user)
         )
