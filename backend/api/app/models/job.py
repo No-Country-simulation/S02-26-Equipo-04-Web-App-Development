@@ -1,5 +1,6 @@
 from sqlalchemy import String, Column, ForeignKey, Enum
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from app.database.base import Base
 from app.models.enums import JobType, JobStatus
 from app.models.base import UUIDAsPrimaryKeyMixin, TimestampMixin
@@ -14,3 +15,5 @@ class Job(Base, UUIDAsPrimaryKeyMixin, TimestampMixin):
     job_type = Column(Enum(JobType), default=JobType.REFRAME, name="job_type_enum", nullable=False)
     status = Column(Enum(JobStatus), default=JobStatus.PENDING, name="job_status_enum", nullable=False, index=True)
     error_message = Column(String(500), nullable=True)
+
+    video = relationship("Video")

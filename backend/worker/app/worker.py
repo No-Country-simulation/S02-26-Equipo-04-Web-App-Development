@@ -11,6 +11,9 @@ from app.models.job import Job
 from app.models.video import Video
 from app.models.user import User
 from app.models.enums import JobStatus, JobType
+from app.services.storage_service import StorageService
+from app.services.queue_service import QueueService
+#from app.services.job_service import JobService
 from app.services.video_worker_service import VideoWorkerService
 from app.database.base import SessionLocal
 from app.utils.redis_client import redis_client
@@ -34,6 +37,13 @@ worker.py
 """
 
 
+logger = setup_logging()
+QUEUE_NAME = "reframe_queue"
+
+queue_service = QueueService(redis_client)
+storage_service = StorageService()
+
+######################## ENVIRONMENT CHECKS #########################
 def check_ffmpeg():
     """
     Verifica que FFmpeg esté instalado en el contenedor
@@ -90,26 +100,212 @@ def check_dependencies():
         logger.info(f"{k}: {v}")
 
 
-logger = setup_logging()
-QUEUE_NAME = "reframe_queue"
+
+######################## WORKER METHODS #########################
+
+def handle_job(payload, job_service, queue_service, storage_service):
+    job_id = payload.get("job_id")
+    logger.info(f"🎬 Job received from Redis, Job id: {job_id}")
+
+    job = job_service.get_by_id(job_id)
+
+    if not job:
+        logger.warning(f"Job {job_id} not found")
+        return
+
+    if job.status not in [JobStatus.PENDING, JobStatus.FAILED]:
+        logger.warning(f"Invalid job state {job.status}")
+        return
+
+    job_service.update_status(job.id, JobStatus.RUNNING)
+
+    if job.job_type == JobType.AUTO_REFRAME:
+        handle_auto_reframe(job, payload, job_service, storage_service)
+        return
+    
+    if job.job_type == JobType.REFRAME:
+        handle_reframe(job, payload, job_service, storage_service)
+        return
+
+    if job.job_type == JobType.CANCEL:
+        handle_cancel(job, job_service)
+        return
+
+    job_service.update_status(job.id, JobStatus.FAILED, "Unknown job type")
 
 
-def update_job_state(db, job_id, **fields):
+def handle_cancel(job, job_service):
+    logger.info(f"⚙️  Processing CANCEL job {job.id}")
+    # TODO cancel(job.video_id)
+
+
+def handle_reframe_pipeline(job, payload, filename, video_url):
+    # ejecutar pipeline
     try:
-        updated_rows = (
-            db.query(Job)
-            .filter(Job.id == job_id)
-            .update(fields, synchronize_session=False)
+        # recuperar datos del payload
+        start_sec = payload.get("start_sec")
+        end_sec = payload.get("end_sec")
+        output_style = payload.get("output_style", "vertical")
+        content_profile = payload.get("content_profile", "interview")
+        logger.info(f"⚙️  Processing REFRAME job {job.id}")
+
+        video_local_path = process(
+            video_url,
+            filename,
+            start_sec,
+            end_sec,
+            output_style=output_style,
+            content_profile=content_profile,
         )
-        db.commit()
-        if updated_rows == 0:
-            logger.warning(f"⚠️ Job {job_id} no longer exists while updating state")
-            return False
-        return True
-    except Exception as exc:
-        db.rollback()
-        logger.error(f"❌ Could not persist state for job {job_id}: {exc}")
-        return False
+        return video_local_path
+    
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during pipeline execution: {e}")
+        raise
+
+
+def _get_video_from_job(job, job_service, storage_service):
+    try:
+        video = job.video
+        if not video:
+            job_service.update_status(job.id, JobStatus.FAILED, "No video")
+            return None
+
+        filename = video.original_filename
+        if not filename:
+            logger.warning(f"❌ Video {job.video_id} has no filename")
+            job_service.update_status(job.id, JobStatus.FAILED, "No filename")
+            return None
+        
+        video_url = storage_service.get_video_url(video.storage_path)
+        if not video_url:
+            logger.warning(f"❌ Video {job.video_id} has no storage_path")
+            job_service.update_status(job.id, JobStatus.FAILED, "No video URL")
+            return None
+        
+        return video, filename, video_url
+
+    except Exception as e:
+        logger.error(f"❌ Failed to prepare job {job.id}: {e}")
+        job_service.update_status(
+            job.id,
+            JobStatus.FAILED,
+            error_message=str(e),
+        )
+        return
+
+
+def handle_auto_reframe(job, payload, job_service, storage_service):
+    logger.info(f"⚙️  Processing AUTO-REFRAME job {job.id}")
+
+    result = _get_video_from_job(job, job_service, storage_service)
+    if not result:
+        # ya se actualizó el estado dentro de _get_video_from_job...
+        return
+    video, filename, video_url = result
+
+    try:
+        # llamar calculos para auto frame
+        clips_count = payload.get("clips_count")
+        clip_duration_sec = payload.get("clip_duration_sec")
+        requested_profile = payload.get("content_profile", "auto")
+        segments = job_service._build_auto_clip_ranges(video, clips_count, clip_duration_sec, requested_profile)
+        logger.info(f"✅ Auto-reframe calculations completed. Segments: {segments}")
+
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during auto-reframe calculations: {e}")
+        job_service.update_status(job.id, JobStatus.FAILED, str(e))
+        return
+    
+    # Crear jobs hijos REFRAME y publicarlos en Redis
+    try:
+        ranges, duration, resolved_profile = segments
+        for start_sec, end_sec in ranges:
+            new_job = job_service.create_reframe_job_for_worker(
+                user_id=job.user_id,
+                video_id=video.id,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                output_style=payload.get("output_style", "vertical"),
+                content_profile=resolved_profile,
+                job_type=JobType.REFRAME
+            )
+            queue_service.publish_reframe_job(
+                job_id=str(new_job.id),
+                video_id=str(video.id),
+                user_id=str(job.user_id),
+                start_sec=start_sec,
+                end_sec=end_sec,
+                output_style=payload.get("output_style", "vertical"),
+                content_profile=resolved_profile,
+            )
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during job creation: {e}")
+        job_service.update_status(job.id, JobStatus.FAILED, str(e))
+        return
+    
+    # Marcar job padre como COMPLETADO (esta completado al enviar nuevos jobs hijos)
+    try:
+        job_service.update_status(job.id, JobStatus.DONE)
+        logger.info(f"✅ AUTO-REFRAME job {job.id} completed successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to update parent job {job.id} status: {e}")
+        job_service.update_status(job.id, JobStatus.FAILED, str(e))
+
+
+def handle_reframe(job, payload, job_service, storage_service):
+    
+    result = _get_video_from_job(job, job_service, storage_service)
+    if not result:
+        # ya se actualizó el estado dentro de _get_video_from_job...
+        return
+    video, filename, video_url = result
+
+    try:
+        video_local_path = handle_reframe_pipeline(job, payload, filename, video_url)
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during pipeline execution: {e}")
+        job_service.update_status(job.id, JobStatus.FAILED, str(e))
+        return
+    
+    try:
+        output_filename = f"{job.id}.mp4"
+        storage_path, bucket, key = storage_service.upload_local_video_to_minio(video_local_path, output_filename)
+        logger.info(f"✅ Video uploaded to MinIO")
+        
+        public_storage_path = storage_service.get_video_public_url(
+                storage_path, expires_in=300
+            )
+        logger.info(f"✅ Public MiniIO url: {public_storage_path}")
+
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during upload to MinIO: {e}")
+        job_service.update_status(
+            job.id,
+            JobStatus.FAILED,
+            error_message=str(e),
+        )
+        return
+    
+    # update db
+    try:
+        # Guardamos storage path corto; la API regenera URL firmada al consultar.
+        job_service.update_status(
+            job.id,
+            status=JobStatus.DONE,
+            error_message=None,
+            output_path=storage_path
+        )
+        # clear /tmp service...?
+        logger.info(f"✅ Job {job.id} completed successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during DB update: {e}")
+        job_service.update_status(
+            job.id,
+            status=JobStatus.FAILED,
+            error_message=str(e),
+        )
 
 
 def worker_loop():
@@ -120,157 +316,22 @@ def worker_loop():
 
         if not payload:
             continue
-        job_id = payload.get("job_id")
-        start_sec = payload.get("start_sec")
-        end_sec = payload.get("end_sec")
-        output_style = payload.get("output_style", "vertical")
-        content_profile = payload.get("content_profile", "interview")
-        logger.info(f"🎬 Job received from Redis, Job id: {job_id}")
 
         db = SessionLocal()
-        video_worker_service = VideoWorkerService()
 
         try:
-            job = db.query(Job).filter(Job.id == job_id).first()
+            #job_service = JobService(db) Falta desacoplarlo de pydantic y los esquemas para poder usarlo!
+            job_service = VideoWorkerService(db, storage_service, queue_service)
 
-            if not job:
-                db.close()
-                logger.warning(f"❌ Job {job_id} not found in DB")
-                continue
-
-            if job.status != JobStatus.PENDING and job.status != JobStatus.FAILED:
-                db.close()
-                logger.warning(
-                    f"❌Job {job_id} has invalid state {job.status}, skipping"
-                )
-                continue
-
-            logger.info(f"⚙️  Processing job: {job_id} of type {job.job_type}")
-
-        except Exception as e:
-            logger.error(f"❌ Failed to fetch job {job_id} from DB: {e}")
-            db.close()
-            continue
-
-        try:
-            filename = (
-                db.query(Video)
-                .filter(Video.id == job.video_id)
-                .first()
-                .original_filename
+            handle_job(
+                payload=payload,
+                job_service=job_service,
+                queue_service=queue_service,
+                storage_service=storage_service
             )
-            if not filename:
-                logger.warning(f"❌ Video {job.video_id} has no filename")
-                update_job_state(
-                    db,
-                    job.id,
-                    status=JobStatus.FAILED,
-                    error_message="Video sin filename",
-                )
-                db.close()
-                continue
 
-            storage_path = (
-                db.query(Video).filter(Video.id == job.video_id).first().storage_path
-            )
-            if not storage_path:
-                logger.warning(f"❌ Video {job.video_id} has no storage_path")
-                update_job_state(
-                    db,
-                    job.id,
-                    status=JobStatus.FAILED,
-                    error_message="Video sin storage_path",
-                )
-                db.close()
-                continue
-
-            if not update_job_state(db, job.id, status=JobStatus.RUNNING):
-                db.close()
-                continue
-        except Exception as e:
-            logger.error(f"❌ Failed to prepare job {job_id}: {e}")
+        finally:
             db.close()
-            continue
-
-        if job.job_type == JobType.REFRAME:
-            # ejecutar pipeline
-            try:
-                logger.info(f"⚙️  Processing REFRAME job {job.id}")
-                video_url_response = video_worker_service.get_video_url(
-                    storage_path, expires_in=300
-                )
-                video_local_path = process(
-                    video_url_response,
-                    filename,
-                    start_sec,
-                    end_sec,
-                    output_style=output_style,
-                    content_profile=content_profile,
-                )
-            except Exception as e:
-                logger.error(f"❌ Job {job_id} failed during pipeline execution: {e}")
-                update_job_state(
-                    db,
-                    job.id,
-                    status=JobStatus.FAILED,
-                    error_message=str(e),
-                )
-                db.close()
-                continue
-
-            # upload to minio
-            try:
-                output_filename = f"{job.id}.mp4"
-                storage_path = video_worker_service.upload_local_video_to_minio(
-                    video_local_path, output_filename
-                )
-                logger.info(f"✅ Video uploaded to MinIO")
-                public_storage_path = video_worker_service.get_video_public_url(
-                    storage_path, expires_in=300
-                )
-                logger.info(f"✅ Public MiniIO url: {public_storage_path}")
-            except Exception as e:
-                logger.error(f"❌ Job {job_id} failed during upload to MinIO: {e}")
-                update_job_state(
-                    db,
-                    job.id,
-                    status=JobStatus.FAILED,
-                    error_message=str(e),
-                )
-                db.close()
-                continue
-
-            # update db
-            try:
-                # Guardamos storage path corto; la API regenera URL firmada al consultar.
-                persisted = update_job_state(
-                    db,
-                    job.id,
-                    output_path=storage_path,
-                    status=JobStatus.DONE,
-                    error_message=None,
-                )
-                # clear /tmp service...?
-                if persisted:
-                    logger.info(f"✅ Job {job_id} completed successfully")
-                db.close()
-            except Exception as e:
-                logger.error(f"❌ Job {job_id} failed during DB update: {e}")
-                update_job_state(
-                    db,
-                    job.id,
-                    status=JobStatus.FAILED,
-                    error_message=str(e),
-                )
-                db.close()
-
-        elif job.job_type == JobType.CANCEL:
-            logger.info(f"⚙️  Processing CANCEL job {job.id}")
-            # TODO cancel(job.video_id)
-
-        else:
-            logger.warning(f"❌ Unknown job type {job.job_type} for job {job.id}")
-            continue
 
 
 if __name__ == "__main__":

@@ -60,6 +60,13 @@ class VideoDBException(AppException):
             message = f"{message}: {original_error}"
         super().__init__(message, status_code=500)
 
+class VideoProcessingException(AppException):
+    """Excepción para errores durante el procesamiento de videos (metadata extraction, etc)"""
+    def __init__(self, message: str = "Error processing video", original_error: str | None = None):
+        if original_error:
+            message = f"{message}: {original_error}"
+        super().__init__(message, status_code=500)
+        
 # ============ JOB EXCEPTIONS ============
 
 class JobParameterException(BadRequestException):

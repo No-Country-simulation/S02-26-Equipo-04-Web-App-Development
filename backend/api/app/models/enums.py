@@ -15,6 +15,17 @@ class UserRole(str, enum.Enum):
     USER = "USER"
     ADMIN = "ADMIN"
 
+
+class VideoStatus(str, enum.Enum):
+    """
+    Estados posibles de un video en el sistema.
+    """
+    PENDING_METADATA = "pending_metadata"
+    PROCESSING_METADATA = "processing_metadata"
+    AVAILABLE = "available"
+    INVALID = "invalid"
+
+
 class JobType(str, enum.Enum):
     """
     Tipos de trabajos que se pueden procesar.
@@ -23,6 +34,8 @@ class JobType(str, enum.Enum):
      ... a futuro THUMBNAIL, TRANSCRIPTION, etc.
     """ 
     REFRAME = "REFRAME"
+    AUTO_REFRAME = "AUTO_REFRAME"
+
 
 class JobStatus(str, enum.Enum):
     """

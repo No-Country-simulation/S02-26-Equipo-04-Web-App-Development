@@ -25,6 +25,9 @@ class JobStatusResponse(BaseSchema):
 class JobReframeRequest(BaseSchema):
     start_sec: int = Field(..., description="Inicio de recorte en Segundo")
     end_sec: int = Field(..., description="Final del recorte en Segundos")
+    job_type: JobType = Field(
+        default=JobType.REFRAME,
+    )
     crop_to_vertical: bool | None = Field(
         default=None,
         description="Opcional: forzar salida vertical",
@@ -95,6 +98,15 @@ class JobAutoReframeResponse(BaseSchema):
     used_video_duration_sec: int | None = None
     jobs: list[JobAutoReframeItem]
 
+
+class JobAutoReframeResponse2(BaseSchema):
+    job_id: UUID
+    job_type: JobType
+    status: JobStatus
+    filename: str
+    total_jobs: int
+    created_at: datetime
+    
 
 class UserClipItem(BaseSchema):
     job_id: UUID
