@@ -18,7 +18,7 @@ from app.schemas.job import (
     UserClipItem,
 )
 from app.services.queue_service import QueueService
-from app.services.video_worker_service import VideoWorkerService
+from app.services.storage_service import StorageService
 from app.core.logging import setup_logging
 from app.utils.exceptions import (
     JobParameterException,
@@ -28,13 +28,15 @@ from app.utils.exceptions import (
 
 logger = setup_logging()
 
+MIN_VIDEO_DURATION_SECS = 5
 
 class JobService:
     """Servicio de Jobs - Persiste un Job, luego envia mensaje a Redis"""
 
-    def __init__(self, db: Session, queue: QueueService):
+    def __init__(self, db: Session, queue: QueueService, storage_service: StorageService):
         self.db = db
         self.queue = queue
+        self.storage = storage_service
 
     def _extract_storage_path(self, output_path: str | None) -> str | None:
         if not output_path:
@@ -60,7 +62,7 @@ class JobService:
             return output_path
 
         try:
-            return VideoWorkerService().get_video_public_url(
+            return self.storage.get_video_public_url(
                 storage_path, expires_in=3600
             )
         except Exception as exc:
@@ -94,7 +96,7 @@ class JobService:
         return video
 
     def _validate_time_range(self, start_sec: int, end_sec: int) -> None:
-        if start_sec < 0 or start_sec > end_sec:
+        if start_sec < 0 or start_sec > end_sec or end_sec <= 0 or (end_sec - start_sec) < MIN_VIDEO_DURATION_SECS:
             raise JobParameterException()
 
     def _create_reframe_job(
@@ -108,6 +110,7 @@ class JobService:
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
     ) -> JobReframeResponse:
+        
         self._validate_time_range(start_sec, end_sec)
 
         existing_job = None
@@ -473,7 +476,7 @@ class JobService:
         if not video.storage_path:
             return None
         try:
-            return VideoWorkerService().get_video_url(
+            return self.storage.get_video_url(
                 video.storage_path, expires_in=600
             )
         except Exception as exc:
@@ -567,7 +570,10 @@ class JobService:
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
     ) -> JobReframeResponse:
+        
         video = self._get_user_video(video_id, user_id)
+
+        self._validate_time_range(start_sec, end_sec)
 
         logger.info(
             "Reframe options for video %s: crop_to_vertical=%s subtitles=%s face_tracking=%s color_filter=%s output_style=%s content_profile=%s",
@@ -599,7 +605,9 @@ class JobService:
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
     ) -> JobAutoReframeResponse:
+        
         video = self._get_user_video(video_id, user_id)
+        
         clip_ranges, used_duration, resolved_profile = self._build_auto_clip_ranges(
             video,
             clips_count,
@@ -726,7 +734,7 @@ class JobService:
         if job.output_path:
             storage_path = self._extract_storage_path(job.output_path)
             if storage_path:
-                VideoWorkerService().delete_video_from_storage(storage_path)
+                self.storage.delete_video_from_storage(storage_path)
 
         try:
             self.db.delete(job)

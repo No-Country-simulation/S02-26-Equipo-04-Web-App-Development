@@ -126,6 +126,7 @@ def worker_loop():
 
         logger.info(f"🎬 Job received from Redis, Job id: {job_id}")
 
+
         db = SessionLocal()
         storage_service = StorageService()
 
@@ -191,13 +192,7 @@ def worker_loop():
             db.close()
             continue
 
-        if job.job_type == JobType.AUTO_REFRAME:
-            logger.info(f"⚙️  Processing AUTO_REFRAME job {job.id}")
-            logger.warning(f"❌ payload: {payload}")
-            pass
-
-
-
+        
         if job.job_type == JobType.REFRAME:
             # ejecutar pipeline
             try:

@@ -1,9 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 from fastapi import APIRouter, Depends, Response, status, Path, Query
-from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_active_user
-from app.database.session import get_db
 
 from app.models.user import User
 from app.services.job_service import JobService
