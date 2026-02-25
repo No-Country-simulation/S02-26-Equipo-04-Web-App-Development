@@ -133,6 +133,10 @@ Rama de trabajo: `feature/frontend-sync-upload-develop`.
 - Se mejoro el mensaje de error en Home para mostrar detalle real de backend (ya no se tapa siempre con mensaje generico de archivo invalido).
 - Se habilito en backend upload de videos `.webm` cuando el navegador envia `application/octet-stream` (caso reproducido con drag/drop en Chrome).
 - Se movio el directorio temporal del worker a `/tmp/worker` para evitar crash por permisos en `backend/tmp` (`PermissionError: tmp/normalized`).
+- Se ajusto Home para que la hidratacion de clips siga activa hasta completar la cantidad esperada de resultados, evitando que aparezca solo el primer clip si el resto termina mas tarde.
+- Se mejoro la grilla de `clips generados` en Home para que una sola tarjeta no se estire a pantalla completa (cards con ancho consistente desde el primer render).
+- Se removio la opcion lateral `Settings IA` del sidebar.
+- Se creo `frontend/src/app/app/export/page.tsx` como nueva vista de exportacion con resumen de estado, listado de clips listos, descarga directa y copia de link.
 
 ## Nota destacada
 
@@ -149,12 +153,17 @@ Rama de trabajo: `feature/frontend-sync-upload-develop`.
 - `docs(frontend): log timeline compatibility updates on develop sync`
 - `docs(frontend): update worklog with auto2 integration fixes`
 - `docs(frontend): record upload and worker stability fixes`
+- `feat(frontend): polish home clips grid and add export center view`
+- `docs(frontend): update worklog with home hydration and export page`
 
 ## Archivos clave
 
 - `frontend/src/app/app/timeline/page.tsx`
 - `frontend/src/components/home/VideoSettings.tsx`
 - `frontend/src/components/home/videoPrevewTimeLine/useVideoTrim.ts`
+- `frontend/src/components/home/GeneratedClipsSection.tsx`
+- `frontend/src/components/layout/Sidebar.tsx`
+- `frontend/src/app/app/export/page.tsx`
 - `backend/api/app/services/video_service.py`
 - `backend/worker/app/pipeline.py`
 - `docs/frontend-pr-log.md`
