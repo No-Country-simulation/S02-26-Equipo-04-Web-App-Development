@@ -112,6 +112,7 @@ export default function AppHomePage() {
   const [jobStatusMap, setJobStatusMap] = useState<Record<string, { status: string; outputPath: string | null }>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [isHydratingClips, setIsHydratingClips] = useState(false);
   const [outputStyle, setOutputStyle] = useState<ClipOutputStyle>("vertical");
   const [contentProfile, setContentProfile] = useState<ClipContentProfile>("auto");
   const [fallbackClips, setFallbackClips] = useState<UserClipItem[]>([]);
@@ -298,13 +299,17 @@ export default function AppHomePage() {
 
   useEffect(() => {
     if (!token || !uploadedVideo || createdJobs.length > 0 || isUploading || isCreatingJobs) {
+      setIsHydratingClips(false);
       return;
     }
 
     let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 20;
 
     const hydrateFromLibrary = async () => {
       try {
+        attempts += 1;
         const data = await videoApi.getMyClips(token, { limit: 40, offset: 0 });
         if (cancelled) {
           return;
@@ -314,16 +319,30 @@ export default function AppHomePage() {
         if (related.length > 0) {
           setFallbackClips(related);
           setAutoJobCount((prev) => (prev > 0 ? prev : related.length));
+          setIsHydratingClips(false);
+          window.clearInterval(intervalId);
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          setIsHydratingClips(false);
+          window.clearInterval(intervalId);
         }
       } catch {
         // Silencioso: este hydrate es best-effort para evitar estados vacios en Home.
       }
     };
 
+    setIsHydratingClips(true);
+    const intervalId = window.setInterval(() => {
+      void hydrateFromLibrary();
+    }, 5000);
     void hydrateFromLibrary();
 
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+      setIsHydratingClips(false);
     };
   }, [token, uploadedVideo, createdJobs.length, isUploading, isCreatingJobs]);
 
@@ -439,7 +458,7 @@ export default function AppHomePage() {
       <Panel className="mt-5">
         <GeneratedClipsSection
           clips={visibleClips}
-          showLoading={isUploading || (isCreatingJobs && createdJobs.length === 0)}
+          showLoading={isUploading || (isCreatingJobs && createdJobs.length === 0) || (isHydratingClips && visibleClips.length === 0)}
           isRefreshingStatuses={isPollingStatuses}
         />
       </Panel>
