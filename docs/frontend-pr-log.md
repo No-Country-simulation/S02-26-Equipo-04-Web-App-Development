@@ -112,3 +112,46 @@ Ejecutado en `frontend/`:
 - [x] Integracion de cambios frontend/backend de `feature/frontend-backend-timeline-library-flow`
 - [x] `npm run lint` OK
 - [x] Documentacion actualizada
+
+## Objetivo de la rama
+
+Ajustar el frontend a cambios recientes de backend en `develop`, priorizando estabilidad del flujo de timeline (crear clips y guardar nombre de video).
+
+Rama de trabajo: `feature/frontend-sync-upload-develop`.
+
+## Cambios realizados
+
+- Se alineo el timeline con la validacion actual de backend (duracion minima de 5s por clip) en `frontend/src/app/app/timeline/page.tsx` y `frontend/src/components/home/videoPrevewTimeLine/useVideoTrim.ts`.
+- Se reforzo el panel de ajustes en `frontend/src/components/home/VideoSettings.tsx` mostrando duracion estimada, minimo permitido y bloqueo del boton cuando el recorte no cumple reglas.
+- Se corrigio guardado de nombre en timeline para usar el `selectedVideoId` real y refrescar listado local luego de editar filename.
+- Se corrigio manejo de error en guardado de nombre para mostrar el mensaje real del backend en lugar de estado previo.
+- Se eliminaron warnings de lint pendientes en timeline/settings para mantener baseline limpia.
+
+## Commits realizados
+
+- `fix(frontend): align timeline clip creation with backend constraints`
+- `docs(frontend): log timeline compatibility updates on develop sync`
+
+## Archivos clave
+
+- `frontend/src/app/app/timeline/page.tsx`
+- `frontend/src/components/home/VideoSettings.tsx`
+- `frontend/src/components/home/videoPrevewTimeLine/useVideoTrim.ts`
+- `docs/frontend-pr-log.md`
+
+## Validaciones locales
+
+Ejecutado en `frontend/`:
+
+- `npm run lint` -> OK
+- `npm run test -- --run` -> OK
+- `npm run build` -> OK
+
+## Checklist antes de PR a develop
+
+- [x] Rama creada desde `develop`
+- [x] Commits convencionales y atomicos
+- [x] `npm run lint` OK
+- [x] `npm run test` OK
+- [x] `npm run build` OK
+- [x] Documentacion actualizada
