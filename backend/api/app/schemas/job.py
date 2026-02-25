@@ -25,6 +25,9 @@ class JobStatusResponse(BaseSchema):
 class JobReframeRequest(BaseSchema):
     start_sec: int = Field(..., description="Inicio de recorte en Segundo")
     end_sec: int = Field(..., description="Final del recorte en Segundos")
+    job_type: JobType = Field(
+        default=JobType.REFRAME,
+    )
     crop_to_vertical: bool | None = Field(
         default=None,
         description="Opcional: forzar salida vertical",
