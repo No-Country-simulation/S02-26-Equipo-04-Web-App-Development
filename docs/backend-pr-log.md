@@ -118,3 +118,29 @@ Intentado en `backend/api/`:
 - [x] Rama creada desde `develop` actualizado
 - [x] Integracion de cambios backend/frontend de `feature/frontend-backend-timeline-library-flow`
 - [x] Documentacion actualizada
+
+## Objetivo de la rama
+
+Registrar por separado los ajustes de backend detectados durante `feature/frontend-sync-upload-develop`, para enviarlos en PR backend independiente del PR frontend.
+
+Rama de trabajo origen: `feature/frontend-sync-upload-develop`.
+
+## Cambios implementados (backend)
+
+- Se habilito en `backend/api/app/services/video_service.py` la aceptacion de `application/octet-stream` cuando la extension es valida (ej. `.webm`), evitando rechazo de uploads desde drag/drop en navegador.
+- Se actualizo `backend/worker/app/pipeline.py` para usar `WORKER_OUTPUT_DIR` y default seguro `/tmp/worker`, reduciendo fallos por permisos en rutas temporales.
+
+## Nota operativa para deploy
+
+- Validar en cada entorno que `WORKER_OUTPUT_DIR` apunte a un path escribible por el proceso worker.
+- Verificar permisos del volumen temporal en infraestructura para prevenir `PermissionError` durante normalizacion/procesamiento.
+
+## Commits relacionados
+
+- `fix(frontend): stabilize auto2 flow and unblock video uploads` (incluye estos cambios backend en el mismo commit)
+
+## Archivos clave
+
+- `backend/api/app/services/video_service.py`
+- `backend/worker/app/pipeline.py`
+- `docs/backend-pr-log.md`
