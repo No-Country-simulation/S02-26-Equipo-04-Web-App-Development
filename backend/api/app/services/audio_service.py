@@ -252,6 +252,13 @@ class AudioService:
             )
 
         total = base_query.count()
+        
+        # Mensaje cuando no hay audios
+        if total == 0:
+            import logging
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.info(f"No hay audios almacenados para el usuario {user_id}")
+        
         rows = (
             base_query.order_by(Audio.created_at.desc())
             .offset(offset)
@@ -266,3 +273,77 @@ class AudioService:
         return UserAudiosResponse(
             total=total, limit=limit, offset=offset, audios=audios
         )
+
+    def delete_audio(self, audio_id: UUID, user_id: UUID) -> None:
+        """
+        Elimina un audio del usuario.
+        
+        Args:
+            audio_id: ID del audio a eliminar
+            user_id: ID del usuario propietario
+            
+        Raises:
+            AudioNotFoundException: Si el audio no existe o no pertenece al usuario
+            BadRequestException: Si el audio no tiene storage_path
+            AudioDBException: Si falla la eliminación
+        """
+        # Buscar el audio y verificar propiedad
+        audio = self.db.query(Audio).filter(
+            Audio.id == audio_id,
+            Audio.user_id == user_id
+        ).first()
+        
+        if not audio:
+            raise AudioNotFoundException(
+                f"Audio con ID '{audio_id}' no encontrado o no pertenece al usuario"
+            )
+        
+        if not audio.storage_path:
+            raise AudioValidationException(
+                "El audio no tiene una ruta de almacenamiento válida"
+            )
+        
+        # Primero eliminar de MinIO
+        self.storage.delete_video_from_storage(audio.storage_path)
+        
+        # Luego eliminar de base de datos
+        try:
+            self.db.delete(audio)
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise AudioDBException(f"Error eliminando audio: {str(exc)}")
+
+    def delete_all_user_audios(self, user_id: UUID) -> None:
+        """
+        Elimina todos los audios de un usuario.
+        
+        Args:
+            user_id: ID del usuario propietario
+            
+        Raises:
+            AudioDBException: Si falla la eliminación
+        """
+        # Obtener todos los audios del usuario
+        audios = self.db.query(Audio).filter(Audio.user_id == user_id).all()
+        
+        if not audios:
+            return  # Nada que eliminar
+        
+        # Eliminar de MinIO y luego de BD
+        try:
+            for audio in audios:
+                if audio.storage_path:
+                    try:
+                        self.storage.delete_video_from_storage(audio.storage_path)
+                    except Exception as e:
+                        # Log pero continuar con el siguiente
+                        import logging
+                        logging.warning(f"No se pudo eliminar archivo de MinIO: {audio.storage_path}. Error: {e}")
+                
+                self.db.delete(audio)
+            
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise AudioDBException(f"Error eliminando audios: {str(exc)}")
