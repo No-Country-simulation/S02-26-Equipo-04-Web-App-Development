@@ -196,17 +196,19 @@ def handle_reframe_pipeline(job, payload, filename, video_url):
         content_profile = payload.get("content_profile", "interview")
         logger.info(f"⚙️  Processing REFRAME job {job.id}")
         watermark = payload.get("watermark")
+        subtitles = payload.get("subtitles")
 
-        video_local_path = process(
+        video_local_path, srt_local_path = process(
             video_url,
             filename,
             start_sec,
             end_sec,
             watermark,
+            subtitles,
             output_style=output_style,
             content_profile=content_profile,
         )
-        return video_local_path
+        return video_local_path, srt_local_path
     
     except Exception as e:
         logger.error(f"❌ Job {job.id} failed during pipeline execution: {e}")
@@ -277,6 +279,7 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
                 start_sec=start_sec,
                 end_sec=end_sec,
                 watermark=watermark,
+                subtitles=True,
                 output_style=payload.get("output_style", "vertical"),
                 content_profile=resolved_profile,
                 job_type=JobType.REFRAME
@@ -288,6 +291,7 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
                 start_sec=start_sec,
                 end_sec=end_sec,
                 watermark=watermark,
+                subtitles=True,
                 output_style=payload.get("output_style", "vertical"),
                 content_profile=resolved_profile,
             )
@@ -314,7 +318,7 @@ def handle_reframe(job, payload, job_service, storage_service):
     video, filename, video_url = result
 
     try:
-        video_local_path = handle_reframe_pipeline(job, payload, filename, video_url)
+        video_local_path, srt_local_path = handle_reframe_pipeline(job, payload, filename, video_url)
     except Exception as e:
         logger.error(f"❌ Job {job.id} failed during pipeline execution: {e}")
         job_service.update_status(job.id, JobStatus.FAILED, str(e))
@@ -339,6 +343,27 @@ def handle_reframe(job, payload, job_service, storage_service):
         )
         return
     
+    srt_storage_path = None
+    if srt_local_path is not None:
+        try:
+            output_srt_filename = f"{job.id}.srt"
+            srt_storage_path, bucket, key = storage_service.upload_local_video_to_minio(srt_local_path, output_srt_filename)
+            logger.info(f"✅ Subtitles uploaded to MinIO")
+
+            public_srt_storage_path = storage_service.get_video_public_url(
+                    srt_storage_path, expires_in=300
+                )
+            logger.info(f"✅ Public Subtitles MiniIO url: {public_srt_storage_path}")
+
+        except Exception as e:
+            logger.error(f"❌ Job {job.id} failed during upload Subtitles to MinIO: {e}")
+            job_service.update_status(
+                job.id,
+                JobStatus.FAILED,
+                error_message=str(e),
+            )
+            return
+
     # update db
     try:
         # Guardamos storage path corto; la API regenera URL firmada al consultar.
@@ -346,7 +371,8 @@ def handle_reframe(job, payload, job_service, storage_service):
             job.id,
             status=JobStatus.DONE,
             error_message=None,
-            output_path=storage_path
+            video_path=storage_path,
+            subtitles_path=srt_storage_path
         )
         # clear /tmp service...?
         logger.info(f"✅ Job {job.id} completed successfully")

@@ -4,8 +4,7 @@ import subprocess
 from pathlib import Path
 from uuid import UUID, uuid4
 from app.core.config import settings
-
-from typing import Literal
+from typing import Literal, Optional
 
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
@@ -395,12 +394,12 @@ class VideoWorkerService:
 
     # ==================== JOB PERSISTENCE ==========================
     def update_status(
-            
         self,
         job_id: UUID,
         status: JobStatus,
         error_message: str | None = None,
-        output_path: str | None = None
+        video_path: Optional[str] = None,
+        subtitles_path: Optional[str] = None
     ) -> bool:
         try:
             job = self.db.query(Job).filter(Job.id == job_id).first()
@@ -408,13 +407,15 @@ class VideoWorkerService:
                 logger.warning(f"❌ Job {job_id} not found in DB for status update")
                 return False
 
+            # Crear output_path como dict JSON solo con lo que exista
+            output_path = {k: v for k, v in {
+                "video": video_path,
+                "subtitles": subtitles_path
+            }.items() if v is not None}
+
             job.status = status
-
-            if error_message is not None:
-                job.error_message = error_message
-
-            if output_path is not None:
-                job.output_path = output_path
+            job.error_message = error_message or None
+            job.output_path = output_path or None
 
             self.db.commit()
             return True
@@ -422,7 +423,8 @@ class VideoWorkerService:
         except Exception as exc:
             self.db.rollback()
             logger.error(f"❌ Could not persist state for job {job_id}: {exc}")
-            return False       
+            return False      
+
 
     def get_by_id(self, job_id: UUID) -> Job | None:
         job = self.db.query(Job).filter(Job.id == job_id).first()
@@ -438,6 +440,7 @@ class VideoWorkerService:
         start_sec: int,
         end_sec: int,
         watermark: str,
+        subtitles: bool,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
         job_type: JobType = JobType.REFRAME
@@ -466,6 +469,7 @@ class VideoWorkerService:
                 start_sec=start_sec,
                 end_sec=end_sec,
                 watermark=watermark,
+                subtitles=subtitles,
                 output_style=output_style,
                 content_profile=content_profile
             )

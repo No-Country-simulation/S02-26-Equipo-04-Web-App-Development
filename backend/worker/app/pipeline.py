@@ -1,6 +1,7 @@
-from fileinput import filename
 import os
 import uuid
+import whisper
+import logging
 import cv2
 import math
 import ffmpeg
@@ -8,7 +9,8 @@ import librosa
 import subprocess
 import numpy as np
 from pathlib import Path
-import logging
+from datetime import timedelta
+from fileinput import filename
 
 """
 ============================
@@ -52,6 +54,7 @@ OUTPUT_DIR = Path("/tmp")
 NORMALIZED_VIDEO = OUTPUT_DIR / "normalized"
 PROCESSED_VIDEO = OUTPUT_DIR / "processed"
 RESULT_VIDEO = OUTPUT_DIR / "result"
+SUBTITLES = RESULT_VIDEO
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 NORMALIZED_VIDEO.mkdir(exist_ok=True)
@@ -94,11 +97,9 @@ if face_cascade.empty():
 # logger
 logger = logging.getLogger("pipeline")
 logger.propagate = True
+
+
 # ========================================================================
-
-
-def _mp4_filename(filename: str) -> str:
-    return f"{Path(filename).stem}.mp4"
 
 
 class CameraDirector:
@@ -291,6 +292,99 @@ class CameraDirector:
                 self.frames_in_state = 0
 
         return self.current_x
+
+
+# ========================================================================
+
+
+def generate_srt_from_audio(audio: np.ndarray, sample_rate: int, output_dir: Path, base_name: str) -> Path:
+    """
+    Genera SRT desde audio en memoria usando Whisper.
+    Devuelve path al .srt.
+    """
+
+    # Transcribir
+    model = whisper.load_model("base")
+    audio = np.copy(audio)  # copy para qu sea un array writable
+    result = model.transcribe(audio, fp16=False)
+
+    # Construir lista de segmentos
+    segments = [
+        {"start": seg["start"], "end": seg["end"], "text": seg["text"].strip()}
+        for seg in result.get("segments", [])
+    ]
+
+    # Generar SRT
+    srt_path = output_dir / f"{base_name}.srt"
+    with srt_path.open("w", encoding="utf-8") as f:
+        for idx, seg in enumerate(segments, start=1):
+            start = _format_srt_timestamp(seg["start"])
+            end = _format_srt_timestamp(seg["end"])
+            f.write(f"{idx}\n{start} --> {end}\n{seg['text']}\n\n")
+
+    return str(srt_path)
+
+def _format_srt_timestamp(seconds: float) -> str:
+    from datetime import timedelta
+    td = timedelta(seconds=seconds)
+    total_seconds = int(td.total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    secs = total_seconds % 60
+    millis = int((seconds - int(seconds)) * 1000)
+    return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
+
+
+def analyze_speech_activity(video_segment_path, generate_subtitles: bool = False):
+    """
+    Estimate speech activity from a normalized video segment.
+
+    Audio is extracted in-memory via FFmpeg, converted to mono 16 kHz,
+    and analyzed using RMS energy.
+
+    Returns a boolean mask aligned with video frames.
+    """
+
+    # 🎧 Extraer audio RAW en memoria
+    cmd = [
+        "ffmpeg",
+        "-loglevel",
+        "error",
+        "-i",
+        video_segment_path,
+        "-ac",
+        "1",  # mono
+        "-ar",
+        str(AUDIO_SAMPLE_RATE),  # sample rate
+        "-f",
+        "f32le",  # float32 PCM
+        "-",
+    ]
+
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    audio_bytes = process.stdout.read()
+    audio = np.frombuffer(audio_bytes, np.float32)
+
+    # 2️⃣ RMS por frame
+    sr = AUDIO_SAMPLE_RATE
+    hop = int(sr / TARGET_FPS)
+    rms = librosa.feature.rms(y=audio, hop_length=hop)[0]
+    threshold = np.median(rms) + 0.5 * np.std(rms)
+    speech_mask = rms > threshold
+
+    # Subtítulos opcionales
+    srt_path = None
+
+    if generate_subtitles:
+        base_name = Path(video_segment_path).stem
+
+        # quitar prefijo "normalized_"
+        if base_name.startswith("normalized_"):
+            base_name = base_name[len("normalized_"):]
+
+        srt_path = generate_srt_from_audio(audio, AUDIO_SAMPLE_RATE, RESULT_VIDEO, base_name)
+
+    return speech_mask, srt_path
 
 
 # ========================================================================
@@ -557,7 +651,7 @@ def merge_audio_track_and_add_watermark(
     processed_video_path: str,
     normalized_video_path: str,
     filename: str,
-    watermark_text: str,
+    watermark_text: str
 ) -> str:
     """
     Merges original audio into processed video and adds watermark text.
@@ -940,52 +1034,16 @@ def update_active_speaker(
     return active_center, candidate_center, candidate_frames, active_lock_frames
 
 
-def analyze_speech_activity(video_segment_path):
-    """
-    Estimate speech activity from a normalized video segment.
+def _mp4_filename(filename: str) -> str:
+    return f"{Path(filename).stem}.mp4"
 
-    Audio is extracted in-memory via FFmpeg, converted to mono 16 kHz,
-    and analyzed using RMS energy.
 
-    Returns a boolean mask aligned with video frames.
-    """
-
-    # 🎧 Extraer audio RAW en memoria
-    cmd = [
-        "ffmpeg",
-        "-loglevel",
-        "error",
-        "-i",
-        video_segment_path,
-        "-ac",
-        "1",  # mono
-        "-ar",
-        str(AUDIO_SAMPLE_RATE),  # sample rate
-        "-f",
-        "f32le",  # float32 PCM
-        "-",
-    ]
-
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    audio_bytes = process.stdout.read()
-    audio = np.frombuffer(audio_bytes, np.float32)
-
-    sr = AUDIO_SAMPLE_RATE
-    hop = int(sr / TARGET_FPS)
-
-    # 📈 Energía RMS por frame de video
-    rms = librosa.feature.rms(y=audio, hop_length=hop)[0]
-
-    # 🧠 Más robusto que percentil fijo
-    threshold = np.median(rms) + 0.5 * np.std(rms)
-
-    speech_mask = rms > threshold
-
-    return speech_mask
+def _srt_filename(filename: str) -> str:
+    return f"{Path(filename).stem}.srt"
 
 
 def stream_processing(
-    video_path, filename, output_style="vertical", content_profile="interview"
+    video_path, filename, subtitles, output_style="vertical", content_profile="interview"
 ):
     """
     Main video processing pipeline.
@@ -1017,7 +1075,7 @@ def stream_processing(
     else:
         encoder = init_stream_encoder(output_path, FINAL_W, FINAL_H, fps)
 
-    voice_mask = analyze_speech_activity(video_path)
+    voice_mask, srt_path = analyze_speech_activity(video_path, subtitles)
 
     frame_size = w * h * 3
     frame_idx = 0
@@ -1141,11 +1199,11 @@ def stream_processing(
     close_streams(decoder, encoder)
 
     logger.info(f"✅ VIDEO PROCESSED: {output_path}")
-    return output_path
+    return output_path, srt_path
 
 
 def generate_video(
-    video_path, filename, watermark, output_style="vertical", content_profile="interview"
+    video_path, filename, watermark, subtitles, output_style="vertical", content_profile="interview"
 ):
     """
     Executes the full visual processing pipeline on a normalized segment
@@ -1163,9 +1221,10 @@ def generate_video(
     """
 
     # 1. Reframe / crop / camera logic
-    no_audio_out = stream_processing(
+    no_audio_out, srt_path = stream_processing(
         video_path,
         filename,
+        subtitles,
         output_style=output_style,
         content_profile=content_profile,
     )
@@ -1176,8 +1235,8 @@ def generate_video(
     # 2.b Merge original audio track + Watermark ("Hacelo Corto")
     result_video_path = merge_audio_track_and_add_watermark(no_audio_out, video_path, filename, watermark)
     logger.info(f"✅ RESULT VIDEO: {result_video_path}")
-
-    return result_video_path
+    logger.info(f"✅ RESULT SUBTITLES: {srt_path}")
+    return result_video_path, srt_path
 
 
 # ================= PIPELINE MAIN =================
@@ -1187,6 +1246,7 @@ def process(
     start,
     end,
     watermark,
+    subtitles,
     output_style="vertical",
     content_profile="interview",
 ):
@@ -1195,12 +1255,13 @@ def process(
         /tmp/result_{filename}
     """
     normalized_video_path = normalize_video_segment(video_path, filename, start, end)
-    result_video_path = generate_video(
+    result_video_path, result_srt_path = generate_video(
         normalized_video_path,
         filename,
         watermark,
+        subtitles,
         output_style=output_style,
         content_profile=content_profile,
     )
-    logger.info(f"🎉 GENERATED VIDEO PATH: {result_video_path}")
-    return result_video_path
+    logger.info(f"🎉 GENERATED")
+    return result_video_path, result_srt_path

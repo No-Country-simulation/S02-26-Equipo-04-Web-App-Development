@@ -2,7 +2,7 @@ from http.client import HTTPException
 from uuid import UUID
 import re
 import subprocess
-from typing import Literal
+from typing import Literal, Optional
 from statistics import median
 from urllib.parse import unquote, urlparse
 from sqlalchemy import String, cast
@@ -42,6 +42,7 @@ class JobService:
         self.queue = queue
         self.storage = storage_service
 
+
     def _extract_storage_path(self, output_path: str | None) -> str | None:
         if not output_path:
             return None
@@ -56,6 +57,38 @@ class JobService:
             return None
 
         return f"s3://{unquote(normalized_path)}"
+
+
+    def _resolve_output_urls(self, output_path: dict[str, str] | None) -> dict[str, str] | None:
+        """
+    Convierte todas las rutas S3 de un output_path JSON a URLs públicas presignadas.
+    output_path: dict con keys como "video", "subtitles", etc. y valores S3 paths.
+
+    Devuelve un dict con las mismas keys y URLs públicas.
+    """
+        if not output_path:
+            return None
+
+        resolved: dict[str, str] = {}
+        for key, path in output_path.items():
+            if not path:
+                resolved[key] = None
+                continue
+
+            storage_path = self._extract_storage_path(path)
+            if not storage_path:
+                # Si no es un path S3 válido, devolvemos el valor tal cual
+                resolved[key] = path
+                continue
+
+            try:
+                resolved[key] = self.storage.get_video_public_url(storage_path, expires_in=3600)
+            except Exception as exc:
+                logger.warning(f"No se pudo generar URL pública para '{key}': {exc}")
+                resolved[key] = path
+
+        return resolved
+
 
     def _resolve_output_url(self, output_path: str | None) -> str | None:
         if not output_path:
@@ -72,6 +105,7 @@ class JobService:
         except Exception as exc:
             logger.warning(f"No se pudo regenerar URL de salida para clip: {exc}")
             return output_path
+        
 
     def get_job_status(self, job_id: UUID, user_id: UUID) -> JobStatusResponse:
         job = (
@@ -84,7 +118,7 @@ class JobService:
         return JobStatusResponse(
             job_id=job.id,
             status=job.status,
-            output_path=self._resolve_output_url(job.output_path),
+            output_path=self._resolve_output_urls(job.output_path),
         )
 
     def _get_user_video(self, video_id: UUID, user_id: UUID) -> Video:
@@ -114,13 +148,17 @@ class JobService:
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
         job_type: JobType = JobType.REFRAME,
-        watermark: str | None
+        watermark: str | None,
+        subtitles: str | None
     ) -> JobReframeResponse:
         
         self._validate_time_range(start_sec, end_sec)
 
         if watermark is None:
             watermark = "Hacelo Corto"
+
+        if subtitles is None:
+            subtitles = False
 
         existing_job = None
         if allow_reuse:
@@ -162,7 +200,8 @@ class JobService:
                     end_sec=end_sec,
                     output_style=output_style,
                     content_profile=content_profile,
-                    watermark=watermark
+                    watermark=watermark,
+                    subtitles=subtitles
                 )
             except Exception as e:
                 existing_job.status = JobStatus.FAILED
@@ -200,7 +239,8 @@ class JobService:
                 end_sec=end_sec,
                 output_style=output_style,
                 content_profile=content_profile,
-                watermark=watermark
+                watermark=watermark,
+                subtitles=subtitles
             )
         except Exception as e:
             job.status = JobStatus.FAILED
@@ -229,7 +269,8 @@ class JobService:
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
         job_type: JobType = JobType.AUTO_REFRAME,
-        watermark: str | None
+        watermark: str | None,
+        subtitles: bool | None
     ) -> JobReframeResponse:    
         
         if not clips_count or clips_count < 1:
@@ -238,6 +279,8 @@ class JobService:
             raise JobParameterException("clip_duration_sec must be at least 5 seconds")
         if watermark is None:
             watermark = "Hacelo Corto"
+        if subtitles is None:
+            subtitles = False
         
         job = Job(
             user_id=user_id,
@@ -658,9 +701,9 @@ class JobService:
             output_style=output_style,
             content_profile=content_profile,
             job_type=job_type,
-            watermark=watermark
+            watermark=watermark,
+            subtitles=subtitles
         )
-
 
     def auto_reframe_video2(
         self,
@@ -671,7 +714,8 @@ class JobService:
         clip_duration_sec: int | None,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
-        watermark: str | None = None
+        watermark: str | None = None,
+        subtitles: str | None = None
     ) -> JobReframeResponse:
         
         video = self._get_user_video(video_id, user_id)
@@ -687,7 +731,8 @@ class JobService:
             output_style=output_style,
             content_profile=content_profile,
             job_type=JobType.AUTO_REFRAME,
-            watermark=watermark
+            watermark=watermark,
+            subtitles=subtitles
         )
 
 
@@ -748,6 +793,7 @@ class JobService:
             jobs=created_jobs,
         )
 
+
     def list_user_clips(
         self, user_id: UUID, limit: int = 20, offset: int = 0, query: str | None = None
     ) -> UserClipsResponse:
@@ -779,7 +825,7 @@ class JobService:
                 job_id=job.id,
                 video_id=job.video_id,
                 status=job.status,
-                output_path=self._resolve_output_url(job.output_path),
+                output_path=self._resolve_output_urls(job.output_path),
                 source_filename=video.original_filename,
                 created_at=job.created_at,
             )
@@ -787,6 +833,7 @@ class JobService:
         ]
 
         return UserClipsResponse(total=total, limit=limit, offset=offset, clips=clips)
+
 
     def get_user_clip(self, job_id: UUID, user_id: UUID) -> UserClipDetailResponse:
         row = (
@@ -808,11 +855,12 @@ class JobService:
             job_id=job.id,
             video_id=job.video_id,
             status=job.status,
-            output_path=self._resolve_output_url(job.output_path),
+            output_path=self._resolve_output_urls(job.output_path),
             source_filename=video.original_filename,
             created_at=job.created_at,
         )
         return UserClipDetailResponse(clip=clip)
+
 
     def delete_user_clip(self, job_id: UUID, user_id: UUID) -> None:
         job = (
@@ -840,12 +888,14 @@ class JobService:
             self.db.rollback()
             raise VideoDBException("Error eliminando clip", str(exc))
         
+    
     def update_status(
         self,
         job_id: UUID,
         status: JobStatus,
         error_message: str | None = None,
-        output_path: str | None = None
+        video_path: Optional[str] = None,
+        subtitles_path: Optional[str] = None
     ) -> bool:
         try:
             job = self.db.query(Job).filter(Job.id == job_id).first()
@@ -853,13 +903,15 @@ class JobService:
                 logger.warning(f"❌ Job {job_id} not found in DB for status update")
                 return False
 
+            # Crear output_path como dict JSON solo con lo que exista
+            output_path = {k: v for k, v in {
+                "video": video_path,
+                "subtitles": subtitles_path
+            }.items() if v is not None}
+
             job.status = status
-
-            if error_message is not None:
-                job.error_message = error_message
-
-            if output_path is not None:
-                job.output_path = output_path
+            job.error_message = error_message or None
+            job.output_path = output_path or None
 
             self.db.commit()
             return True
@@ -867,7 +919,7 @@ class JobService:
         except Exception as exc:
             self.db.rollback()
             logger.error(f"❌ Could not persist state for job {job_id}: {exc}")
-            return False
+            return False      
         
     def get_by_id(self, job_id: UUID) -> Job | None:
         job = self.db.query(Job).filter(Job.id == job_id).first()
