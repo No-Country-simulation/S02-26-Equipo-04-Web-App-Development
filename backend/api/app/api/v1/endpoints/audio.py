@@ -1,0 +1,121 @@
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import get_current_active_user
+from app.services.dependencies import get_audio_service
+from app.models.user import User
+from app.schemas.audio import AudioUploadResponse, AudioURLResponse, UserAudiosResponse
+from app.services.audio_service import AudioService
+
+router = APIRouter(prefix="/audios", tags=["Audio"])
+
+
+@router.post(
+    "/{video_id}/audio",
+    response_model=AudioUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Subir audio a un video (autenticado)",
+    description="Sube un archivo de audio y lo asocia a un video existente (requiere token)",
+    responses={
+        201: {"description": "Audio subido exitosamente"},
+        400: {"description": "Archivo inválido"},
+        401: {"description": "No autenticado"},
+        404: {"description": "Video no encontrado"}
+    }
+)
+async def upload_audio_to_video(
+    video_id: UUID,
+    file: Annotated[UploadFile, File(...)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    service: AudioService = Depends(get_audio_service),
+) -> AudioUploadResponse:
+    return service.upload_audio_to_video(file, video_id, current_user.id)
+
+
+@router.get(
+    "/{audio_id}/url",
+    response_model=AudioURLResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Obtener URL de descarga del audio",
+    description="Genera una URL presignada temporal para descargar el audio desde MinIO",
+    responses={
+        200: {"description": "URL generada exitosamente"},
+        404: {"description": "Audio no encontrado"},
+        400: {"description": "Audio sin ruta de almacenamiento"},
+    },
+)
+async def get_audio_url(
+    audio_id: UUID,
+    service: AudioService = Depends(get_audio_service),
+    expires_in: Annotated[
+        int,
+        Query(
+            ge=60,
+            le=7 * 24 * 3600,
+            description="Tiempo en segundos para que la URL presignada expire (entre 60 y 604800 segundos)"
+        )
+    ] = 3600
+) -> AudioURLResponse:
+    return service.get_audio_url(audio_id, expires_in)
+
+
+@router.get(
+    "/my-audios",
+    response_model=UserAudiosResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Listar mis audios",
+    description="Devuelve los audios subidos por el usuario autenticado",
+)
+async def get_my_audios(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    service: AudioService = Depends(get_audio_service),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    q: Annotated[
+        str | None, Query(description="Busqueda por nombre de archivo o id de audio")
+    ] = None,
+) -> UserAudiosResponse:
+    return service.list_user_audios(
+        current_user.id, limit=limit, offset=offset, query=q
+    )
+
+
+@router.delete(
+    "/{audio_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar audio",
+    description="Elimina un audio del usuario autenticado",
+    responses={
+        204: {"description": "Audio eliminado exitosamente"},
+        401: {"description": "No autenticado"},
+        404: {"description": "Audio no encontrado o no pertenece al usuario"}
+    }
+)
+async def delete_audio(
+    audio_id: UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    service: AudioService = Depends(get_audio_service),
+) -> Response:
+    service.delete_audio(audio_id, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar todos mis audios",
+    description="Elimina todos los audios del usuario autenticado",
+    responses={
+        204: {"description": "Audios eliminados exitosamente"},
+        401: {"description": "No autenticado"}
+    }
+)
+async def delete_all_audios(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    service: AudioService = Depends(get_audio_service),
+) -> Response:
+    service.delete_all_user_audios(current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -437,6 +437,7 @@ class VideoWorkerService:
         video_id: UUID,
         start_sec: int,
         end_sec: int,
+        watermark: str,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
         job_type: JobType = JobType.REFRAME
@@ -464,6 +465,7 @@ class VideoWorkerService:
                 user_id=str(user_id),
                 start_sec=start_sec,
                 end_sec=end_sec,
+                watermark=watermark,
                 output_style=output_style,
                 content_profile=content_profile
             )

@@ -7,6 +7,7 @@ from app.services.job_service import JobService
 from app.services.storage_service import StorageService
 from app.services.queue_service import QueueService
 from app.services.video_service import VideoService
+from app.services.audio_service import AudioService
 
 
 def get_storage_service() -> StorageService:
@@ -22,6 +23,12 @@ def get_video_service(
 ) -> VideoService:
     return VideoService(db, storage)
 
+def get_audio_service(
+    db: Session = Depends(get_db),
+    storage: StorageService = Depends(get_storage_service),
+    video: VideoService = Depends(get_video_service),
+) -> AudioService:
+    return AudioService(db, storage, video)
 
 def get_job_service(
     db: Session = Depends(get_db),

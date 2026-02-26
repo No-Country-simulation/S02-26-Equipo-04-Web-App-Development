@@ -6,22 +6,13 @@ from app.schemas.base import BaseSchema
 from app.models.job import JobStatus, JobType
 
 
-class JobReframeResponse(BaseSchema):
-    job_id: UUID
-    job_type: JobType
-    status: JobStatus
-    filename: str
-    start_sec: int
-    end_sec: int
-    created_at: datetime
-
-
 class JobStatusResponse(BaseSchema):
     job_id: UUID
     status: JobStatus
     output_path: str | None = None
 
 
+# ============ REFRAME ============
 class JobReframeRequest(BaseSchema):
     start_sec: int = Field(..., description="Inicio de recorte en Segundo")
     end_sec: int = Field(..., description="Final del recorte en Segundos")
@@ -52,13 +43,24 @@ class JobReframeRequest(BaseSchema):
         default="auto",
         description="Perfil de contenido para ajustar framing (auto/entrevista/deportes/musica)",
     )
+    watermark: str | None = Field(
+        default="Hacelo Corto",
+        max_length=12,
+        description="Opcional: aplicar marca de agua (texto)",
+    )
 
 
-class AutoClipSegment(BaseSchema):
+class JobReframeResponse(BaseSchema):
+    job_id: UUID
+    job_type: JobType
+    status: JobStatus
+    filename: str
     start_sec: int
     end_sec: int
+    created_at: datetime
 
 
+# ============ AUTO REFRAME ============
 class JobAutoReframeRequest(BaseSchema):
     clips_count: int | None = Field(
         default=None,
@@ -80,6 +82,11 @@ class JobAutoReframeRequest(BaseSchema):
         default="auto",
         description="Perfil de contenido para ajustar framing (auto/entrevista/deportes/musica)",
     )
+    watermark: str | None = Field(
+        default="Hacelo Corto",
+        max_length=12,
+        description="Opcional: aplicar marca de agua (texto)",
+    )
 
 
 class JobAutoReframeItem(BaseSchema):
@@ -99,6 +106,7 @@ class JobAutoReframeResponse(BaseSchema):
     jobs: list[JobAutoReframeItem]
 
 
+# ============ AUTO REFRAME 2 ============
 class JobAutoReframeResponse2(BaseSchema):
     job_id: UUID
     job_type: JobType
@@ -106,8 +114,9 @@ class JobAutoReframeResponse2(BaseSchema):
     filename: str
     total_jobs: int
     created_at: datetime
-    
 
+
+# ============ USER CLIP ============
 class UserClipItem(BaseSchema):
     job_id: UUID
     video_id: UUID
@@ -126,3 +135,7 @@ class UserClipsResponse(BaseSchema):
 
 class UserClipDetailResponse(BaseSchema):
     clip: UserClipItem
+
+class AutoClipSegment(BaseSchema):
+    start_sec: int
+    end_sec: int

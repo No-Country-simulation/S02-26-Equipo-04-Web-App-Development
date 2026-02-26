@@ -16,6 +16,7 @@ class QueueService:
         user_id: str,
         start_sec: int,
         end_sec: int,
+        watermark: str,
         output_style: str = "vertical",
         content_profile: str = "interview",
     ):
@@ -29,6 +30,7 @@ class QueueService:
             "output_style": output_style,
             "content_profile": content_profile,
             "type": JobType.REFRAME.value,
+            "watermark": watermark
         }
         self.redis.push_to_queue("reframe_queue", payload)
 
@@ -42,8 +44,10 @@ class QueueService:
         user_id: str,
         clips_count: int,
         clip_duration_sec: int,
+        watermark: str,
         output_style: str = "vertical",
         content_profile: str = "interview",
+        
     ):
         payload = {
             "job_id": job_id,
@@ -54,6 +58,7 @@ class QueueService:
             "output_style": output_style,
             "content_profile": content_profile,
             "type": JobType.AUTO_REFRAME.value,
+            "watermark": watermark
         }
 
         self.redis.push_to_queue("reframe_queue", payload)

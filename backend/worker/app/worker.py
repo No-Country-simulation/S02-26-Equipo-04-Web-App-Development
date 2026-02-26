@@ -4,6 +4,8 @@ import os
 import subprocess
 import cv2
 import time
+from pathlib import Path
+import hashlib
 from worker.app.pipeline import process
 
 # imports del nodo1 /api
@@ -42,6 +44,51 @@ QUEUE_NAME = "reframe_queue"
 
 queue_service = QueueService(redis_client)
 storage_service = StorageService()
+
+SOURCE_CACHE_DIR = Path(os.getenv("WORKER_SOURCE_CACHE_DIR", "tmp/source_cache"))
+SOURCE_CACHE_TTL_SECONDS = int(os.getenv("WORKER_SOURCE_CACHE_TTL_SECONDS", "1800"))
+
+
+######################## ENVIRONMENT CHECKS #########################
+
+def _ensure_source_cache_dir() -> None:
+    SOURCE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _cache_path_for_storage(storage_path: str) -> Path:
+    key = hashlib.sha1(storage_path.encode("utf-8")).hexdigest()
+    return SOURCE_CACHE_DIR / f"{key}.mp4"
+
+
+def _prune_source_cache(max_age_seconds: int) -> None:
+    now = time.time()
+    for path in SOURCE_CACHE_DIR.glob("*.mp4"):
+        try:
+            age = now - path.stat().st_mtime
+            if age > max_age_seconds:
+                path.unlink(missing_ok=True)
+        except Exception as exc:
+            logger.warning(f"⚠️ Could not prune cache file {path}: {exc}")
+
+
+def _resolve_source_video_path(
+    video_worker_service: VideoWorkerService, source_storage_path: str
+) -> str:
+    _ensure_source_cache_dir()
+    _prune_source_cache(SOURCE_CACHE_TTL_SECONDS)
+
+    cached_path = _cache_path_for_storage(source_storage_path)
+    if cached_path.exists() and cached_path.stat().st_size > 0:
+        age = time.time() - cached_path.stat().st_mtime
+        if age <= SOURCE_CACHE_TTL_SECONDS:
+            logger.info(f"📦 Reusing cached source video: {cached_path}")
+            return str(cached_path)
+
+    source_url = video_worker_service.get_video_url(source_storage_path, expires_in=300)
+    logger.info(f"⬇️ Downloading source video to cache: {cached_path}")
+    urlretrieve(source_url, cached_path)
+    return str(cached_path)
+
 
 ######################## ENVIRONMENT CHECKS #########################
 def check_ffmpeg():
@@ -148,12 +195,14 @@ def handle_reframe_pipeline(job, payload, filename, video_url):
         output_style = payload.get("output_style", "vertical")
         content_profile = payload.get("content_profile", "interview")
         logger.info(f"⚙️  Processing REFRAME job {job.id}")
+        watermark = payload.get("watermark")
 
         video_local_path = process(
             video_url,
             filename,
             start_sec,
             end_sec,
+            watermark,
             output_style=output_style,
             content_profile=content_profile,
         )
@@ -209,6 +258,7 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
         clips_count = payload.get("clips_count")
         clip_duration_sec = payload.get("clip_duration_sec")
         requested_profile = payload.get("content_profile", "auto")
+        watermark = payload.get("watermark")
         segments = job_service._build_auto_clip_ranges(video, clips_count, clip_duration_sec, requested_profile)
         logger.info(f"✅ Auto-reframe calculations completed. Segments: {segments}")
 
@@ -226,6 +276,7 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
                 video_id=video.id,
                 start_sec=start_sec,
                 end_sec=end_sec,
+                watermark=watermark,
                 output_style=payload.get("output_style", "vertical"),
                 content_profile=resolved_profile,
                 job_type=JobType.REFRAME
@@ -236,6 +287,7 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
                 user_id=str(job.user_id),
                 start_sec=start_sec,
                 end_sec=end_sec,
+                watermark=watermark,
                 output_style=payload.get("output_style", "vertical"),
                 content_profile=resolved_profile,
             )

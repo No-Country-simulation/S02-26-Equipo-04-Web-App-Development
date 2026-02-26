@@ -52,7 +52,8 @@ async def reframe_video(
         face_tracking=body.face_tracking,
         color_filter=body.color_filter,
         output_style=body.output_style,
-        content_profile=body.content_profile
+        content_profile=body.content_profile,
+        watermark=body.watermark
     )
 
 
@@ -83,8 +84,8 @@ async def auto_reframe_video2(
         clip_duration_sec=body.clip_duration_sec,
         output_style=body.output_style,
         content_profile=body.content_profile,
+        watermark=body.watermark
     )
-
 
 
 @router.post(

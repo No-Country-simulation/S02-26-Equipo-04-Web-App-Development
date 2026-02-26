@@ -48,7 +48,7 @@ DEBUG = os.getenv("WORKER_PIPELINE_DEBUG", "false").strip().lower() in {
 }
 
 # output routes and dirs
-OUTPUT_DIR = Path(os.getenv("WORKER_OUTPUT_DIR", "/tmp/worker"))
+OUTPUT_DIR = Path("/tmp")
 NORMALIZED_VIDEO = OUTPUT_DIR / "normalized"
 PROCESSED_VIDEO = OUTPUT_DIR / "processed"
 RESULT_VIDEO = OUTPUT_DIR / "result"
@@ -549,6 +549,86 @@ def merge_audio_track(processed_video_path, normalized_video_path, filename):
             .global_args("-loglevel", "error")
             .run()
         )
+
+    return output_path
+
+
+def merge_audio_track_and_add_watermark(
+    processed_video_path: str,
+    normalized_video_path: str,
+    filename: str,
+    watermark_text: str,
+) -> str:
+    """
+    Merges original audio into processed video and adds watermark text.
+
+    - Applies drawtext filter (watermark)
+    - Re-encodes video (required for filter)
+    - Encodes audio to AAC
+    - Handles videos without audio stream
+    """
+
+    # seguridad extra, limita a primeros 12 caracteres
+    watermark_text = watermark_text[:12]
+
+    output_name = f"result_{_mp4_filename(filename)}"
+    output_path = str(RESULT_VIDEO / output_name)
+
+    video_in = ffmpeg.input(processed_video_path)
+
+    # 🎨 Watermark filter applied to processed video
+    watermarked_video = video_in.video.filter(
+        "drawtext",
+        fontfile="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        text=watermark_text,
+        x="W-tw-20",          # bottom-right
+        y="H-th-20",
+        fontsize=24,
+        fontcolor="white@0.8",
+    )
+
+    try:
+        audio_in = ffmpeg.input(normalized_video_path)
+
+        (
+            ffmpeg.output(
+                watermarked_video,
+                audio_in.audio,
+                output_path,
+                vcodec="libx264",     # required because we applied filter
+                acodec="aac",
+                preset="fast",
+                crf=23,
+                movflags="+faststart",
+                shortest=None,
+            )
+            .overwrite_output()
+            .global_args("-loglevel", "error")
+            .run()
+        )
+
+        logger.info("🔊 Audio merged + 🏷 Watermark applied")
+
+    except ffmpeg.Error:
+        logger.warning(
+            "⚠️ Input segment has no audio stream; exporting video-only result"
+        )
+
+        (
+            ffmpeg.output(
+                watermarked_video,
+                output_path,
+                vcodec="libx264",
+                preset="fast",
+                crf=23,
+                movflags="+faststart",
+            )
+            .overwrite_output()
+            .global_args("-loglevel", "error")
+            .run()
+        )
+
+    logger.info(f"✅ FINAL VIDEO EXPORTED: {output_path}")
 
     return output_path
 
@@ -1065,7 +1145,7 @@ def stream_processing(
 
 
 def generate_video(
-    video_path, filename, output_style="vertical", content_profile="interview"
+    video_path, filename, watermark, output_style="vertical", content_profile="interview"
 ):
     """
     Executes the full visual processing pipeline on a normalized segment
@@ -1090,8 +1170,11 @@ def generate_video(
         content_profile=content_profile,
     )
 
-    # 2. Merge original audio track
-    result_video_path = merge_audio_track(no_audio_out, video_path, filename)
+    # 2.a Merge original audio track
+    #result_video_path = merge_audio_track(no_audio_out, video_path, filename)
+
+    # 2.b Merge original audio track + Watermark ("Hacelo Corto")
+    result_video_path = merge_audio_track_and_add_watermark(no_audio_out, video_path, filename, watermark)
     logger.info(f"✅ RESULT VIDEO: {result_video_path}")
 
     return result_video_path
@@ -1103,6 +1186,7 @@ def process(
     filename,
     start,
     end,
+    watermark,
     output_style="vertical",
     content_profile="interview",
 ):
@@ -1114,6 +1198,7 @@ def process(
     result_video_path = generate_video(
         normalized_video_path,
         filename,
+        watermark,
         output_style=output_style,
         content_profile=content_profile,
     )

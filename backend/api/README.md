@@ -145,6 +145,43 @@ curl -X POST http://localhost:8000/api/v1/videos/upload/auth \
 3. Guarda metadata en tabla `video` (PostgreSQL) con status `"uploaded"`
 4. Retorna URL S3 completa y metadatos del video
 
+### Subir Audio a un Video (Autenticado)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/audios/{video_id}/audio \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "file=@audio.mp3"
+```
+
+**Respuesta**: `audio_id`, `storage_path`, `bucket`, `object_key`, etc.
+
+### Obtener URL de Audio
+
+```bash
+curl http://localhost:8000/api/v1/audios/{audio_id}/url
+```
+
+### Listar Mis Audios
+
+```bash
+curl http://localhost:8000/api/v1/audios/my-audios \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+### Eliminar Audio
+
+```bash
+curl -X DELETE http://localhost:8000/api/v1/audios/{audio_id} \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+### Eliminar Todos Mis Audios
+
+```bash
+curl -X DELETE http://localhost:8000/api/v1/audios \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
 ## Documentación Interactiva
 
 - Swagger UI: http://localhost:8000/docs

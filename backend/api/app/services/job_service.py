@@ -113,10 +113,14 @@ class JobService:
         allow_reuse: bool,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
-        job_type: JobType = JobType.REFRAME
+        job_type: JobType = JobType.REFRAME,
+        watermark: str | None
     ) -> JobReframeResponse:
         
         self._validate_time_range(start_sec, end_sec)
+
+        if watermark is None:
+            watermark = "Hacelo Corto"
 
         existing_job = None
         if allow_reuse:
@@ -158,6 +162,7 @@ class JobService:
                     end_sec=end_sec,
                     output_style=output_style,
                     content_profile=content_profile,
+                    watermark=watermark
                 )
             except Exception as e:
                 existing_job.status = JobStatus.FAILED
@@ -195,6 +200,7 @@ class JobService:
                 end_sec=end_sec,
                 output_style=output_style,
                 content_profile=content_profile,
+                watermark=watermark
             )
         except Exception as e:
             job.status = JobStatus.FAILED
@@ -222,13 +228,16 @@ class JobService:
         allow_reuse: bool,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
-        job_type: JobType = JobType.AUTO_REFRAME    
+        job_type: JobType = JobType.AUTO_REFRAME,
+        watermark: str | None
     ) -> JobReframeResponse:    
         
         if not clips_count or clips_count < 1:
             raise JobParameterException("clips_count must be at least 1")
         if clip_duration_sec is not None and clip_duration_sec < 5:
-            raise JobParameterException("clip_duration_sec must be at least 5 seconds") 
+            raise JobParameterException("clip_duration_sec must be at least 5 seconds")
+        if watermark is None:
+            watermark = "Hacelo Corto"
         
         job = Job(
             user_id=user_id,
@@ -250,6 +259,7 @@ class JobService:
                 clip_duration_sec=clip_duration_sec,
                 output_style=output_style,
                 content_profile=content_profile,
+                watermark=watermark
             )
         except Exception as e:
             job.status = JobStatus.FAILED
@@ -629,6 +639,8 @@ class JobService:
         color_filter: bool | None = None,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
+        watermark: str | None = None,
+        
     ) -> JobReframeResponse:
         
         video = self._get_user_video(video_id, user_id)
@@ -646,6 +658,7 @@ class JobService:
             output_style=output_style,
             content_profile=content_profile,
             job_type=job_type,
+            watermark=watermark
         )
 
 
@@ -658,6 +671,7 @@ class JobService:
         clip_duration_sec: int | None,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
+        watermark: str | None = None
     ) -> JobReframeResponse:
         
         video = self._get_user_video(video_id, user_id)
@@ -673,6 +687,7 @@ class JobService:
             output_style=output_style,
             content_profile=content_profile,
             job_type=JobType.AUTO_REFRAME,
+            watermark=watermark
         )
 
 
@@ -684,6 +699,7 @@ class JobService:
         clip_duration_sec: int | None,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
+        watermark: str | None = None
     ) -> JobAutoReframeResponse:
         
         video = self._get_user_video(video_id, user_id)
@@ -705,6 +721,7 @@ class JobService:
                 allow_reuse=False,
                 output_style=output_style,
                 content_profile=resolved_profile,
+                watermark=watermark
             )
             created_jobs.append(
                 JobAutoReframeItem(
