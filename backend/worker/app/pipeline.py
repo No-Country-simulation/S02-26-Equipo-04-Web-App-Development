@@ -48,7 +48,7 @@ DEBUG = os.getenv("WORKER_PIPELINE_DEBUG", "false").strip().lower() in {
 }
 
 # output routes and dirs
-OUTPUT_DIR = Path("tmp")
+OUTPUT_DIR = Path(os.getenv("WORKER_OUTPUT_DIR", "/tmp/worker"))
 NORMALIZED_VIDEO = OUTPUT_DIR / "normalized"
 PROCESSED_VIDEO = OUTPUT_DIR / "processed"
 RESULT_VIDEO = OUTPUT_DIR / "result"

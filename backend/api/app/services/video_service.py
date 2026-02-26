@@ -26,13 +26,14 @@ from app.utils.exceptions import (
     NotFoundException,
     ForbiddenException,
     VideoDBException,
-    VideoValidationException
+    VideoValidationException,
 )
 
 MAX_FILENAME_LENGTH = 255
 FILENAME_REGEX = r"^[\w\-. ]+$"  # letras, números, _, -, ., espacio
 
 logger = setup_logging()
+
 
 class VideoService:
     """Servicio de videos - Maneja validación, almacenamiento y metadata"""
@@ -50,11 +51,9 @@ class VideoService:
         "video/webm",
     }
 
-
     def __init__(self, db: Session, storage_service: StorageService):
         self.db = db
         self.storage = storage_service
-        
 
     def _validate_file(self, file: UploadFile) -> int:
         """
@@ -83,9 +82,18 @@ class VideoService:
         # Validar MIME type
         if file.content_type:
             if file.content_type not in self.ALLOWED_MIME_TYPES:
-                raise VideoValidationException(
-                    f"Tipo de archivo no válido. MIME type: {file.content_type}"
-                )
+                if (
+                    file.content_type == "application/octet-stream"
+                    and ext in self.ALLOWED_EXTENSIONS
+                ):
+                    logger.info(
+                        "MIME type generico application/octet-stream aceptado por extension valida '%s'",
+                        ext,
+                    )
+                else:
+                    raise VideoValidationException(
+                        f"Tipo de archivo no válido. MIME type: {file.content_type}"
+                    )
 
         # Obtener tamaño
         try:
@@ -110,7 +118,6 @@ class VideoService:
 
         return size_bytes
 
-
     def _get_user_video(self, video_id: UUID, user_id: UUID) -> Video:
         video = self.db.query(Video).filter(Video.id == video_id).first()
         if not video:
@@ -118,7 +125,6 @@ class VideoService:
         if video.user_id != user_id:
             raise ForbiddenException("No tienes permisos para acceder a este video")
         return video
-
 
     def _to_user_video_item(self, video: Video) -> UserVideoItem:
         return UserVideoItem(
@@ -129,17 +135,21 @@ class VideoService:
             preview_url=self._build_preview_url(video),
         )
 
-
     def _build_preview_url(self, video: Video, expires_in: int = 3600) -> str | None:
         if not video.storage_path:
             return None
         try:
-            return self.storage.get_video_public_url(video.storage_path, expires_in=expires_in)
-        
+            return self.storage.get_video_public_url(
+                video.storage_path, expires_in=expires_in
+            )
+
         except Exception as exc:
-            logger.warning(f"Error generando URL de preview para video {video.id}: {exc}")
-            raise VideoValidationException("No se pudo generar la URL de preview", str(exc))
-        
+            logger.warning(
+                f"Error generando URL de preview para video {video.id}: {exc}"
+            )
+            raise VideoValidationException(
+                "No se pudo generar la URL de preview", str(exc)
+            )
 
     def get_user_video(self, video_id: UUID, user_id: UUID) -> UserVideoDetailResponse:
         video = self._get_user_video(video_id, user_id)
@@ -153,7 +163,6 @@ class VideoService:
             preview_url=self._build_preview_url(video),
         )
 
-
     def update_user_video(
         self, video_id: UUID, user_id: UUID, payload: UpdateVideoRequest
     ) -> UserVideoItem:
@@ -165,7 +174,7 @@ class VideoService:
         - No modifica el objeto físico en MinIO.
         """
         video = self._get_user_video(video_id, user_id)
-        
+
         base_name = payload.filename.strip()
 
         # 1️⃣ No vacío
@@ -180,9 +189,7 @@ class VideoService:
 
         # 3️⃣ Caracteres permitidos
         if not re.match(FILENAME_REGEX, base_name):
-            raise VideoValidationException(
-                "El nombre contiene caracteres inválidos"
-            )
+            raise VideoValidationException("El nombre contiene caracteres inválidos")
 
         # 4️⃣ Conservar extensión original
         original_ext = Path(video.original_filename).suffix
@@ -201,13 +208,14 @@ class VideoService:
 
         return self._to_user_video_item(video)
 
-
     def delete_user_video(self, video_id: UUID, user_id: UUID) -> None:
         video = self._get_user_video(video_id, user_id)
 
         if not video.storage_path:
-            raise BadRequestException("El video no tiene una ruta de almacenamiento válida")
-        
+            raise BadRequestException(
+                "El video no tiene una ruta de almacenamiento válida"
+            )
+
         self.storage.delete_video_from_storage(video.storage_path)
 
         try:
@@ -216,7 +224,6 @@ class VideoService:
         except Exception as exc:
             self.db.rollback()
             raise VideoDBException("Error eliminando video", str(exc))
-
 
     def upload_video_authenticated(
         self, file: UploadFile, user_id: UUID
@@ -238,15 +245,17 @@ class VideoService:
         """
         size_bytes = self._validate_file(file)
 
-        storage_path, bucket, object_key = self.storage.upload_fileobj_to_minio(file.file, file.filename)
+        storage_path, bucket, object_key = self.storage.upload_fileobj_to_minio(
+            file.file, file.filename
+        )
 
         # Crear registro en DB/commit
         try:
             video = Video(
-                user_id = user_id,
-                original_filename = file.filename,
-                storage_path = storage_path,
-                status = VideoStatus.PENDING_METADATA,
+                user_id=user_id,
+                original_filename=file.filename,
+                storage_path=storage_path,
+                status=VideoStatus.PENDING_METADATA,
             )
             self.db.add(video)
             self.db.commit()
@@ -257,7 +266,7 @@ class VideoService:
             except Exception:
                 pass
             raise VideoDBException("Error guardando video en DB", str(exc))
-        
+
         return VideoUploadResponse(
             video_id=video.id,
             bucket=bucket,
@@ -269,7 +278,6 @@ class VideoService:
             storage_path=video.storage_path,
             uploaded_at=video.created_at,
         )
-
 
     def get_video_url(self, video_id: UUID, expires_in: int = 3600) -> VideoURLResponse:
         """
@@ -296,7 +304,9 @@ class VideoService:
                 "El video no tiene una ruta de almacenamiento válida"
             )
 
-        url = self.storage.get_video_public_url(video.storage_path, expires_in=expires_in)
+        url = self.storage.get_video_public_url(
+            video.storage_path, expires_in=expires_in
+        )
 
         return VideoURLResponse(
             video_id=video.id,
@@ -304,7 +314,6 @@ class VideoService:
             expires_in_seconds=expires_in,
             filename=video.original_filename,
         )
-
 
     def list_user_videos(
         self,
