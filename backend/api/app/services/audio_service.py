@@ -1,10 +1,16 @@
 from uuid import UUID, uuid4
 from fastapi import UploadFile
+from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.audio import Audio
 from app.models.video import Video
-from app.schemas.audio import AudioUploadResponse, AudioURLResponse
+from app.schemas.audio import (
+    AudioUploadResponse,
+    AudioURLResponse,
+    UserAudioItem,
+    UserAudiosResponse,
+)
 from app.services.storage_service import StorageService
 from app.services.video_service import VideoService
 from app.utils.exceptions import (
@@ -217,4 +223,46 @@ class AudioService:
             url=url,
             expires_in_seconds=expires_in,
             filename=audio.original_filename
+        )
+
+    def _to_user_audio_item(self, audio: Audio) -> UserAudioItem:
+        return UserAudioItem(
+            audio_id=audio.id,
+            filename=audio.original_filename,
+            status=audio.status,
+            uploaded_at=audio.created_at,
+            video_id=audio.video_id,
+        )
+
+    def list_user_audios(
+        self,
+        user_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+        query: str | None = None,
+    ) -> UserAudiosResponse:
+        base_query = self.db.query(Audio).filter(Audio.user_id == user_id)
+
+        cleaned_query = (query or "").strip()
+        if cleaned_query:
+            like_term = f"%{cleaned_query}%"
+            base_query = base_query.filter(
+                (Audio.original_filename.ilike(like_term))
+                | (cast(Audio.id, String).ilike(like_term))
+            )
+
+        total = base_query.count()
+        rows = (
+            base_query.order_by(Audio.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        audios: list[UserAudioItem] = []
+        for audio in rows:
+            audios.append(self._to_user_audio_item(audio))
+
+        return UserAudiosResponse(
+            total=total, limit=limit, offset=offset, audios=audios
         )

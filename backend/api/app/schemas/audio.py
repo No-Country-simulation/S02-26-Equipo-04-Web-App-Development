@@ -21,3 +21,18 @@ class AudioURLResponse(BaseSchema):
     url: str
     expires_in_seconds: int
     filename: str
+
+
+class UserAudioItem(BaseSchema):
+    audio_id: UUID
+    filename: str
+    status: str | None = None
+    uploaded_at: datetime
+    video_id: UUID
+
+
+class UserAudiosResponse(BaseSchema):
+    total: int
+    limit: int
+    offset: int
+    audios: list[UserAudioItem]

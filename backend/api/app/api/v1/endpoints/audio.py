@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_active_user
 from app.services.dependencies import get_audio_service
 from app.models.user import User
-from app.schemas.audio import AudioUploadResponse, AudioURLResponse
+from app.schemas.audio import AudioUploadResponse, AudioURLResponse, UserAudiosResponse
 from app.services.audio_service import AudioService
 
 router = APIRouter(prefix="/videos", tags=["Audio"])
@@ -60,3 +60,24 @@ async def get_audio_url(
     ] = 3600
 ) -> AudioURLResponse:
     return service.get_audio_url(audio_id, expires_in)
+
+
+@router.get(
+    "/audio/my-audios",
+    response_model=UserAudiosResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Listar mis audios",
+    description="Devuelve los audios subidos por el usuario autenticado",
+)
+async def get_my_audios(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    service: AudioService = Depends(get_audio_service),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    q: Annotated[
+        str | None, Query(description="Busqueda por nombre de archivo o id de audio")
+    ] = None,
+) -> UserAudiosResponse:
+    return service.list_user_audios(
+        current_user.id, limit=limit, offset=offset, query=q
+    )
