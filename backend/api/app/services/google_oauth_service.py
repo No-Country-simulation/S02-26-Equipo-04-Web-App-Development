@@ -30,7 +30,7 @@ class GoogleOAuthService:
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
         "https://www.googleapis.com/auth/youtube.upload",  # Permiso para subir videos a YouTube
-        "https://www.googleapis.com/auth/youtube",  # Acceso completo a YouTube (opcional pero recomendado)
+        "https://www.googleapis.com/auth/youtube",  # Acceso completo a YouTube
     ]
 
     def __init__(self, db: Session):
