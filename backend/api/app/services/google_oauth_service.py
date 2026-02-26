@@ -53,7 +53,7 @@ class GoogleOAuthService:
             "scope": " ".join(self.SCOPES),
             "state": state,
             "access_type": "offline",  # Para refresh token
-            "prompt": "select_account",  # Forzar selección de cuenta
+            "prompt": "consent",  # Forzar pantalla de consentimiento (muestra nuevos permisos)
         }
 
         # Construir query string manualmente
