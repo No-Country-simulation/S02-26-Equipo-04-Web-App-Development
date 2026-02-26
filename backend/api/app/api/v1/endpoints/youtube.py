@@ -29,9 +29,9 @@ class YouTubePublishRequest(BaseModel):
     privacy: str = "private"  # "public", "private", "unlisted"
 
 
-@router.post("/publish/{video_id}", response_model=Dict[str, Any])
+@router.post("/publish/{job_id}", response_model=Dict[str, Any])
 async def publish_video_to_youtube(
-    video_id: str,
+    job_id: str,
     request: YouTubePublishRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -43,7 +43,7 @@ async def publish_video_to_youtube(
     mediante Google OAuth (GET /api/v1/auth/google/authorize).
     
     Args:
-        video_id: UUID del video en nuestra base de datos
+        job_id: UUID del job (video procesado) en nuestra base de datos
         request: Configuración de publicación (título, descripción, privacidad)
         current_user: Usuario autenticado (inyectado automáticamente)
         db: Sesión de base de datos (inyectada automáticamente)
@@ -53,47 +53,49 @@ async def publish_video_to_youtube(
     
     Raises:
         400: Usuario no tiene cuenta de YouTube conectada
-        403: Video no pertenece al usuario
-        404: Video no encontrado
+        403: Job no pertenece al usuario
+        404: Job no encontrado
         500: Error al subir a YouTube
     """
-    logger.info(f"📤 Solicitud de publicación en YouTube - video_id={video_id}, user_id={current_user.id}")
+    logger.info(f"📤 Solicitud de publicación en YouTube - job_id={job_id}, user_id={current_user.id}")
+    from app.models.job import Job
+    from app.models.enums import JobStatus
     
-    # 1. Buscar el video en la base de datos
+    # 1. Buscar el job en la base de datos
     try:
-        video_uuid = UUID(video_id)
+        job_uuid = UUID(job_id)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="video_id debe ser un UUID válido"
+            detail="job_id debe ser un UUID válido"
         )
     
-    video = db.query(Video).filter(Video.id == video_uuid).first()
+    job = db.query(Job).filter(Job.id == job_uuid).first()
     
-    if not video:
+    if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Video {video_id} no encontrado"
+            detail=f"Job {job_id} no encontrado"
         )
     
-    # 2. Verificar que el video pertenece al usuario actual
-    if video.user_id != current_user.id:
+    # 2. Verificar que el job pertenece al usuario actual
+    if job.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permiso para publicar este video"
         )
     
-    # 3. Verificar que el video está listo para publicar
-    if video.status not in [VideoStatus.COMPLETED, VideoStatus.READY]:
+    # 3. Verificar que el job está listo para publicar (completado)
+    if job.status != JobStatus.DONE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Video aún no está listo. Estado actual: {video.status}"
+            detail=f"El procesamiento del video aún no está listo. Estado actual: {job.status}"
         )
     
-    if not video.storage_path:
+    if not job.output_path:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Video no tiene ruta de almacenamiento"
+            detail="El job no tiene ruta de almacenamiento de salida"
         )
     
     # 4. Descargar video de MinIO a archivo temporal
@@ -101,20 +103,37 @@ async def publish_video_to_youtube(
     try:
         storage_service = StorageService()
         
-        logger.info(f"📥 Descargando video de MinIO: {video.storage_path}")
+        logger.info(f"📥 Descargando video de MinIO: {job.output_path}")
         
         # Crear archivo temporal
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
         temp_file_path = temp_file.name
         temp_file.close()
         
-        # Descargar desde MinIO usando el método correcto del StorageService
-        # El storage_path ya contiene el bucket y object name en formato: bucket/path/file.mp4
-        bucket_name = settings.MINIO_BUCKET_VIDEOS
-        object_name = video.storage_path
+        # Obtener el video al que pertenece el job para el título (Fallback)
+        video = db.query(Video).filter(Video.id == job.video_id).first()
         
-        # Usar boto3 client para descargar
-        storage_service.s3_client.download_file(
+        # Obtener bucket y key de la ruta s3://
+        try:
+            # Si job.output_path es una URL normal o s3
+            if "localhost:9000/" in job.output_path:
+                # Extraer de URL pública
+                # http://localhost:9000/videos/processed/...
+                parts = job.output_path.split("localhost:9000/")[1].split("?")[0].split("/", 1)
+                bucket_name = parts[0]
+                object_name = parts[1]
+            else:
+                bucket_name, object_name = storage_service._extract_bucket_and_key(job.output_path)
+        except Exception:
+            # Fallback a asunciones por defecto
+            bucket_name = settings.MINIO_BUCKET_VIDEOS
+            # Limpiar posible ruta de dominio local
+            object_name = job.output_path.split("?")[-1] if "?" in job.output_path else job.output_path
+            if object_name.startswith("http"):
+                object_name = object_name.split("/", 4)[-1].split("?")[0]
+        
+        # Usar boto3 client de la forma correcta
+        storage_service.client.download_file(
             Bucket=bucket_name,
             Key=object_name,
             Filename=temp_file_path
@@ -123,14 +142,13 @@ async def publish_video_to_youtube(
         logger.info(f"✅ Video descargado a: {temp_file_path}")
         
         # 5. Preparar metadata del video
-        title = request.title or video.original_filename or f"Video {video_id[:8]}"
+        original_title = video.original_filename if video else f"Clip {job_id[:8]}"
+        title = request.title or f"Clip de {original_title}"
         description = request.description or "Video generado con NoCountry Video Processor"
         privacy = request.privacy
         
-        # Tags basados en las dimensiones del video
-        tags = ["nocountry", "ai"]
-        if video.width and video.height and video.height > video.width:
-            tags.append("shorts")
+        # Tags básicos
+        tags = ["nocountry", "ai", "shorts"]
         
         # 6. Subir a YouTube
         youtube_service = YouTubeUploadService(db)
@@ -153,7 +171,7 @@ async def publish_video_to_youtube(
         return {
             "success": True,
             "message": "Video publicado en YouTube exitosamente",
-            "video_id": str(video.id),
+            "job_id": str(job.id),
             "youtube_video_id": result["video_id"],
             "youtube_url": result["video_url"],
             "title": result["title"],
