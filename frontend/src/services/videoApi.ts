@@ -34,6 +34,12 @@ export type AutoReframeResponse = {
   clip_duration_sec: number;
   used_video_duration_sec: number | null;
   jobs: AutoReframeJobItem[];
+  orchestrator_job_id?: string;
+};
+
+type AutoReframeResponseV2 = {
+  job_id: string;
+  total_jobs: number;
 };
 
 export type ReframeJobRequest = {
@@ -212,18 +218,13 @@ export const videoApi = {
     }
   ) {
     const body: Record<string, unknown> = {
+      clips_count: options?.clipsCount ?? 3,
+      clip_duration_sec: options?.clipDurationSec ?? 15,
       output_style: options?.outputStyle ?? "vertical",
       content_profile: options?.contentProfile ?? "auto"
     };
 
-    if (typeof options?.clipsCount === "number") {
-      body.clips_count = options.clipsCount;
-    }
-    if (typeof options?.clipDurationSec === "number") {
-      body.clip_duration_sec = options.clipDurationSec;
-    }
-
-    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}/auto`, {
+    const auto2Response = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}/auto2`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -232,7 +233,37 @@ export const videoApi = {
       body: JSON.stringify(body)
     });
 
-    return parseResponse<AutoReframeResponse>(response);
+    if (auto2Response.ok) {
+      const payload = await parseResponse<AutoReframeResponse | AutoReframeResponseV2>(auto2Response);
+
+      if ("jobs" in payload) {
+        return payload;
+      }
+
+      return {
+        video_id: videoId,
+        total_jobs: payload.total_jobs ?? 0,
+        clip_duration_sec: options?.clipDurationSec ?? 15,
+        used_video_duration_sec: null,
+        jobs: [],
+        orchestrator_job_id: payload.job_id
+      };
+    }
+
+    if (auto2Response.status !== 404) {
+      return parseResponse<AutoReframeResponse>(auto2Response);
+    }
+
+    const fallbackResponse = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}/auto`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    return parseResponse<AutoReframeResponse>(fallbackResponse);
   },
 
   async createReframeJob(videoId: string, token: string, payload: ReframeJobRequest) {

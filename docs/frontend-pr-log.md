@@ -112,3 +112,73 @@ Ejecutado en `frontend/`:
 - [x] Integracion de cambios frontend/backend de `feature/frontend-backend-timeline-library-flow`
 - [x] `npm run lint` OK
 - [x] Documentacion actualizada
+
+## Objetivo de la rama
+
+Ajustar el frontend a cambios recientes de backend en `develop`, priorizando estabilidad del flujo de timeline (crear clips y guardar nombre de video).
+
+Rama de trabajo: `feature/frontend-sync-upload-develop`.
+
+## Cambios realizados
+
+- Se alineo el timeline con la validacion actual de backend (duracion minima de 5s por clip) en `frontend/src/app/app/timeline/page.tsx` y `frontend/src/components/home/videoPrevewTimeLine/useVideoTrim.ts`.
+- Se reforzo el panel de ajustes en `frontend/src/components/home/VideoSettings.tsx` mostrando duracion estimada, minimo permitido y bloqueo del boton cuando el recorte no cumple reglas.
+- Se corrigio guardado de nombre en timeline para usar el `selectedVideoId` real y refrescar listado local luego de editar filename.
+- Se corrigio manejo de error en guardado de nombre para mostrar el mensaje real del backend en lugar de estado previo.
+- Se eliminaron warnings de lint pendientes en timeline/settings para mantener baseline limpia.
+- Se adapto la integracion de Home para el refactor de backend priorizando `POST /api/v1/jobs/reframe/{video_id}/auto2` con fallback automatico a `/auto` cuando `auto2` no existe.
+- Se normalizo la respuesta de `auto2` en frontend para no romper el flujo aunque no devuelva arreglo `jobs`.
+- Se agrego polling temporal de biblioteca tras generar jobs automaticos para hidratar clips cuando el backend procesa de forma asincronica y no retorna jobs individuales de inmediato.
+- Se envio `clips_count` y `clip_duration_sec` por defecto desde frontend al crear jobs automaticos para evitar `400` en `auto2` cuando backend exige esos parametros.
+- Se mejoro el mensaje de error en Home para mostrar detalle real de backend (ya no se tapa siempre con mensaje generico de archivo invalido).
+- Se ajusto Home para que la hidratacion de clips siga activa hasta completar la cantidad esperada de resultados, evitando que aparezca solo el primer clip si el resto termina mas tarde.
+- Se mejoro la grilla de `clips generados` en Home para que una sola tarjeta no se estire a pantalla completa (cards con ancho consistente desde el primer render).
+- Se removio la opcion lateral `Settings IA` del sidebar.
+- Se creo `frontend/src/app/app/export/page.tsx` como nueva vista de exportacion con resumen de estado, listado de clips listos, descarga directa y copia de link.
+- Se corrigio Home para que la lista de resultados combine `createdJobs` con clips ya visibles en biblioteca del mismo `video_id`, evitando que se muestre solo 1 clip hasta recargar cuando los 3 jobs llegan de forma asincronica.
+
+## Nota destacada
+
+- Dependencia backend detectada fuera del alcance de este PR frontend: si el worker usa un volumen/path sin permisos de escritura para temporales, el pipeline puede fallar con `PermissionError` y dejar jobs sin completar.
+- Seguimiento recomendado para PR backend: parametrizar y validar el path temporal por entorno (ej. `WORKER_OUTPUT_DIR`) y verificar permisos del volumen en deploy.
+
+## Commits realizados
+
+- `fix(frontend): align timeline clip creation with backend constraints`
+- `fix(frontend): support auto2 job orchestration and async clip hydration`
+- `fix(frontend): send auto2 defaults and surface backend 400 details`
+- `docs(frontend): log timeline compatibility updates on develop sync`
+- `docs(frontend): update worklog with auto2 integration fixes`
+- `docs(frontend): record upload and worker stability fixes`
+- `feat(frontend): polish home clips grid and add export center view`
+- `docs(frontend): update worklog with home hydration and export page`
+- `fix(frontend): sync home clips with library hydration fallback`
+- `docs(frontend): log home clip sync fix without manual refresh`
+
+## Archivos clave
+
+- `frontend/src/app/app/timeline/page.tsx`
+- `frontend/src/components/home/VideoSettings.tsx`
+- `frontend/src/components/home/videoPrevewTimeLine/useVideoTrim.ts`
+- `frontend/src/components/home/GeneratedClipsSection.tsx`
+- `frontend/src/components/layout/Sidebar.tsx`
+- `frontend/src/app/app/export/page.tsx`
+- `frontend/src/app/app/page.tsx`
+- `docs/frontend-pr-log.md`
+
+## Validaciones locales
+
+Ejecutado en `frontend/`:
+
+- `npm run lint` -> OK
+- `npm run test -- --run` -> OK
+- `npm run build` -> OK
+
+## Checklist antes de PR a develop
+
+- [x] Rama creada desde `develop`
+- [x] Commits convencionales y atomicos
+- [x] `npm run lint` OK
+- [x] `npm run test` OK
+- [x] `npm run build` OK
+- [x] Documentacion actualizada

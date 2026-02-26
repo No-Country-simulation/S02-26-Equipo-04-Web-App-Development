@@ -43,11 +43,15 @@ function mapJobStatusToClipStatus(status: string): Clip["status"] {
 
 function mapJobsToClips(
   jobs: AutoReframeJobItem[],
-  jobStatusMap: Record<string, { status: string; outputPath: string | null }>
+  jobStatusMap: Record<string, { status: string; outputPath: string | null }>,
+  fallbackClips: UserClipItem[]
 ): Clip[] {
-  return jobs.map((job, index) => {
+  const fallbackByJobId = new Map(fallbackClips.map((clip) => [clip.job_id, clip]));
+
+  const mappedFromJobs = jobs.map((job, index) => {
     const statusInfo = jobStatusMap[job.job_id];
-    const status = statusInfo?.status ?? job.status;
+    const fallbackClip = fallbackByJobId.get(job.job_id);
+    const status = statusInfo?.status ?? fallbackClip?.status ?? job.status;
 
     return {
       id: job.job_id,
@@ -55,9 +59,23 @@ function mapJobsToClips(
       duration: toTimeLabel(Math.max(job.end_sec - job.start_sec, 0)),
       preset: "Auto Reframe",
       status: mapJobStatusToClipStatus(status),
-      previewUrl: statusInfo?.outputPath ?? null
+      previewUrl: statusInfo?.outputPath ?? fallbackClip?.output_path ?? null
     };
   });
+
+  const knownIds = new Set(jobs.map((job) => job.job_id));
+  const mappedFromLibraryOnly = fallbackClips
+    .filter((clip) => !knownIds.has(clip.job_id))
+    .map((clip, index) => ({
+      id: clip.job_id,
+      title: `Clip ${mappedFromJobs.length + index + 1}`,
+      duration: "00:15",
+      preset: "Auto Reframe",
+      status: mapJobStatusToClipStatus(clip.status),
+      previewUrl: clip.output_path
+    }));
+
+  return [...mappedFromJobs, ...mappedFromLibraryOnly];
 }
 
 function mapUserClipsToCards(clips: UserClipItem[]): Clip[] {
@@ -79,7 +97,7 @@ function isTerminalStatus(status: string) {
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof VideoApiError) {
     if (error.status === 400) {
-      return "El archivo de video es invalido o no cumple los requisitos.";
+      return error.message || "El archivo de video es invalido o no cumple los requisitos.";
     }
 
     if (error.status === 401) {
@@ -112,6 +130,7 @@ export default function AppHomePage() {
   const [jobStatusMap, setJobStatusMap] = useState<Record<string, { status: string; outputPath: string | null }>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [isHydratingClips, setIsHydratingClips] = useState(false);
   const [outputStyle, setOutputStyle] = useState<ClipOutputStyle>("vertical");
   const [contentProfile, setContentProfile] = useState<ClipContentProfile>("auto");
   const [fallbackClips, setFallbackClips] = useState<UserClipItem[]>([]);
@@ -119,7 +138,7 @@ export default function AppHomePage() {
   const hasVideo = Boolean(uploadedVideo);
   const visibleClips = useMemo(() => {
     if (createdJobs.length > 0) {
-      return mapJobsToClips(createdJobs, jobStatusMap);
+      return mapJobsToClips(createdJobs, jobStatusMap, fallbackClips);
     }
     return mapUserClipsToCards(fallbackClips);
   }, [createdJobs, jobStatusMap, fallbackClips]);
@@ -297,35 +316,66 @@ export default function AppHomePage() {
   };
 
   useEffect(() => {
-    if (!token || !uploadedVideo || createdJobs.length > 0 || isUploading || isCreatingJobs) {
+    if (!token || !uploadedVideo) {
+      setIsHydratingClips(false);
+      return;
+    }
+
+    const shouldHydrateFromLibrary =
+      !isUploading &&
+      !isCreatingJobs &&
+      (createdJobs.length === 0 || (autoJobCount > 0 && createdJobs.length < autoJobCount));
+
+    if (!shouldHydrateFromLibrary) {
+      setIsHydratingClips(false);
       return;
     }
 
     let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 20;
 
     const hydrateFromLibrary = async () => {
       try {
+        attempts += 1;
         const data = await videoApi.getMyClips(token, { limit: 40, offset: 0 });
         if (cancelled) {
           return;
         }
 
         const related = data.clips.filter((clip) => clip.video_id === uploadedVideo.video_id);
-        if (related.length > 0) {
-          setFallbackClips(related);
-          setAutoJobCount((prev) => (prev > 0 ? prev : related.length));
+        setFallbackClips(related);
+        setAutoJobCount((prev) => (prev > 0 ? prev : related.length));
+
+        const expectedClips = autoJobCount > 0 ? autoJobCount : null;
+        const reachedExpectedCount = expectedClips !== null && related.length >= expectedClips;
+        if (reachedExpectedCount) {
+          setIsHydratingClips(false);
+          window.clearInterval(intervalId);
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          setIsHydratingClips(false);
+          window.clearInterval(intervalId);
         }
       } catch {
         // Silencioso: este hydrate es best-effort para evitar estados vacios en Home.
       }
     };
 
+    setIsHydratingClips(true);
+    const intervalId = window.setInterval(() => {
+      void hydrateFromLibrary();
+    }, 5000);
     void hydrateFromLibrary();
 
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+      setIsHydratingClips(false);
     };
-  }, [token, uploadedVideo, createdJobs.length, isUploading, isCreatingJobs]);
+  }, [token, uploadedVideo, createdJobs.length, isUploading, isCreatingJobs, autoJobCount]);
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -439,7 +489,7 @@ export default function AppHomePage() {
       <Panel className="mt-5">
         <GeneratedClipsSection
           clips={visibleClips}
-          showLoading={isUploading || (isCreatingJobs && createdJobs.length === 0)}
+          showLoading={isUploading || (isCreatingJobs && createdJobs.length === 0) || (isHydratingClips && visibleClips.length === 0)}
           isRefreshingStatuses={isPollingStatuses}
         />
       </Panel>

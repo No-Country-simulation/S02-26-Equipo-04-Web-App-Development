@@ -1,4 +1,4 @@
-import { Film, Home, Settings2, Upload, Waypoints, X } from "lucide-react";
+import { Film, Home, Upload, Waypoints, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -6,8 +6,7 @@ const items = [
   { icon: Home, label: "Panel", href: "/app" },
   { icon: Waypoints, label: "Timeline editor", href: "/app/timeline" },
   { icon: Film, label: "Biblioteca clips", href: "/app/library" },
-  { icon: Upload, label: "Exportacion", href: "/app/export" },
-  { icon: Settings2, label: "Settings IA", href: "/app/settings" }
+  { icon: Upload, label: "Exportacion", href: "/app/export" }
 ];
 
 interface SidebarProps {

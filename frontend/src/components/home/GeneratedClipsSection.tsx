@@ -29,9 +29,9 @@ export function GeneratedClipsSection({ clips, showLoading, isRefreshingStatuses
       <h3 className="mt-1 font-display text-2xl text-white sm:text-3xl">Lista de resultados</h3>
 
       {showLoading ? (
-        <div className="mt-5 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))]">
+        <div className="mt-5 grid justify-center gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3].map((id) => (
-            <div key={id} className="rounded-2xl border border-white/10 bg-night-900/45 p-4">
+            <div key={id} className="w-full max-w-sm rounded-2xl border border-white/10 bg-night-900/45 p-4">
               <Skeleton className="aspect-[9/16] w-full rounded-xl" />
               <Skeleton className="mt-3 h-5 w-2/3" />
               <Skeleton className="mt-2 h-4 w-1/2" />
@@ -43,11 +43,11 @@ export function GeneratedClipsSection({ clips, showLoading, isRefreshingStatuses
           Todavia no hay clips generados. Subi un video para empezar.
         </div>
       ) : (
-        <div className="mt-5 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))]">
+        <div className="mt-5 grid justify-center gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {clips.map((clip) => (
             <article
               key={clip.id}
-              className="rounded-2xl border border-white/15 bg-gradient-to-b from-night-900/70 to-night-800/45 p-4 transition hover:-translate-y-0.5 hover:border-neon-cyan/35"
+              className="w-full max-w-sm rounded-2xl border border-white/15 bg-gradient-to-b from-night-900/70 to-night-800/45 p-4 transition hover:-translate-y-0.5 hover:border-neon-cyan/35"
             >
               {clip.previewUrl ? (
                 <div className="overflow-hidden rounded-xl border border-neon-cyan/30 bg-black">
