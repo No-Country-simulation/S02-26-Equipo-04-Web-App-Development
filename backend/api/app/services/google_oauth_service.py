@@ -4,6 +4,7 @@ import secrets
 import logging
 from typing import Dict, Any
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 from sqlalchemy.orm import Session
 import httpx
 
@@ -56,8 +57,8 @@ class GoogleOAuthService:
             "prompt": "consent",  # Forzar pantalla de consentimiento (muestra nuevos permisos)
         }
 
-        # Construir query string manualmente
-        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        # Usar urlencode para construir query string correctamente
+        query_string = urlencode(params)
         authorization_url = f"{self.GOOGLE_AUTH_URL}?{query_string}"
 
         return GoogleAuthURL(authorization_url=authorization_url, state=state)
