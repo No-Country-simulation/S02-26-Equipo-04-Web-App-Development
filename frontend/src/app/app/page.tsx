@@ -43,11 +43,15 @@ function mapJobStatusToClipStatus(status: string): Clip["status"] {
 
 function mapJobsToClips(
   jobs: AutoReframeJobItem[],
-  jobStatusMap: Record<string, { status: string; outputPath: string | null }>
+  jobStatusMap: Record<string, { status: string; outputPath: string | null }>,
+  fallbackClips: UserClipItem[]
 ): Clip[] {
-  return jobs.map((job, index) => {
+  const fallbackByJobId = new Map(fallbackClips.map((clip) => [clip.job_id, clip]));
+
+  const mappedFromJobs = jobs.map((job, index) => {
     const statusInfo = jobStatusMap[job.job_id];
-    const status = statusInfo?.status ?? job.status;
+    const fallbackClip = fallbackByJobId.get(job.job_id);
+    const status = statusInfo?.status ?? fallbackClip?.status ?? job.status;
 
     return {
       id: job.job_id,
@@ -55,9 +59,23 @@ function mapJobsToClips(
       duration: toTimeLabel(Math.max(job.end_sec - job.start_sec, 0)),
       preset: "Auto Reframe",
       status: mapJobStatusToClipStatus(status),
-      previewUrl: statusInfo?.outputPath ?? null
+      previewUrl: statusInfo?.outputPath ?? fallbackClip?.output_path ?? null
     };
   });
+
+  const knownIds = new Set(jobs.map((job) => job.job_id));
+  const mappedFromLibraryOnly = fallbackClips
+    .filter((clip) => !knownIds.has(clip.job_id))
+    .map((clip, index) => ({
+      id: clip.job_id,
+      title: `Clip ${mappedFromJobs.length + index + 1}`,
+      duration: "00:15",
+      preset: "Auto Reframe",
+      status: mapJobStatusToClipStatus(clip.status),
+      previewUrl: clip.output_path
+    }));
+
+  return [...mappedFromJobs, ...mappedFromLibraryOnly];
 }
 
 function mapUserClipsToCards(clips: UserClipItem[]): Clip[] {
@@ -120,7 +138,7 @@ export default function AppHomePage() {
   const hasVideo = Boolean(uploadedVideo);
   const visibleClips = useMemo(() => {
     if (createdJobs.length > 0) {
-      return mapJobsToClips(createdJobs, jobStatusMap);
+      return mapJobsToClips(createdJobs, jobStatusMap, fallbackClips);
     }
     return mapUserClipsToCards(fallbackClips);
   }, [createdJobs, jobStatusMap, fallbackClips]);
@@ -298,7 +316,17 @@ export default function AppHomePage() {
   };
 
   useEffect(() => {
-    if (!token || !uploadedVideo || createdJobs.length > 0 || isUploading || isCreatingJobs) {
+    if (!token || !uploadedVideo) {
+      setIsHydratingClips(false);
+      return;
+    }
+
+    const shouldHydrateFromLibrary =
+      !isUploading &&
+      !isCreatingJobs &&
+      (createdJobs.length === 0 || (autoJobCount > 0 && createdJobs.length < autoJobCount));
+
+    if (!shouldHydrateFromLibrary) {
       setIsHydratingClips(false);
       return;
     }
