@@ -22,3 +22,13 @@ pydantic-settings==2.1.0
 
 # Util
 python-dateutil==2.8.2
+
+# Audio y procesamiento
+numpy>=1.25.0
+
+# Manejadas desde DockerFile
+## Transcripción Whisper local
+#openai-whisper==20250625
+## PyTorch para CPU (compatible con la versión de Whisper)
+#torch==2.1.0
+#torchaudio==2.1.0

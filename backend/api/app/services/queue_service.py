@@ -17,6 +17,7 @@ class QueueService:
         start_sec: int,
         end_sec: int,
         watermark: str,
+        subtitles: bool,
         output_style: str = "vertical",
         content_profile: str = "interview",
     ):
@@ -30,7 +31,8 @@ class QueueService:
             "output_style": output_style,
             "content_profile": content_profile,
             "type": JobType.REFRAME.value,
-            "watermark": watermark
+            "watermark": watermark,
+            "subtitles": subtitles
         }
         self.redis.push_to_queue("reframe_queue", payload)
 

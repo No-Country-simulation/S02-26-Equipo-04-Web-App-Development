@@ -163,13 +163,20 @@ class StorageService:
         s3_client = self._get_s3_client()
         self._ensure_bucket_exists(s3_client, bucket)
 
-        logger.info(f"💾 Subiendo video a MinIO desde '{local_path}'")
+        # Detectar ContentType
+        if filename.lower().endswith(".mp4"):
+            content_type = "video/mp4"
+        elif filename.lower().endswith(".srt"):
+            content_type = "text/plain"
+        else:
+            content_type = "application/octet-stream"
+
+        logger.info(f"💾 Subiendo archivo {filename} a MinIO con ContentType {content_type}")
 
         try:
             with open(local_path, "rb") as f:
                 s3_client.upload_fileobj(
-                    f, bucket, object_key, ExtraArgs={"ContentType": "video/mp4"}
-                )
+                    f, bucket, object_key, ExtraArgs={"ContentType": content_type})
         except ClientError as exc:
             raise MinIOStorageException("Error subiendo archivo a MinIO", str(exc))
         except Exception as exc:
