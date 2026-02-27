@@ -94,12 +94,17 @@ export default function ShareClipPage() {
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <Panel className="border-neon-mint/25 bg-gradient-to-r from-night-900 via-night-800/80 to-night-900 p-5 sm:p-6">
-        <p className="text-xs uppercase tracking-[0.25em] text-neon-mint/75">compartir clip</p>
-        <h1 className="mt-2 font-display text-2xl text-white sm:text-3xl">Publicacion por red social</h1>
-        <p className="mt-2 text-sm text-white/70">
-          Desde esta pantalla podras conectar la subida individual de un clip para cada red. Por ahora dejamos el flujo preparado.
-        </p>
+      <Panel className="relative overflow-hidden border-neon-mint/25 bg-gradient-to-r from-night-900 via-night-800/80 to-night-900 p-5 sm:p-6">
+        <div className="pointer-events-none absolute -right-14 -top-20 h-52 w-52 animate-drift rounded-full bg-neon-cyan/12 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-10 h-52 w-52 animate-drift rounded-full bg-neon-violet/12 blur-3xl [animation-delay:400ms]" />
+
+        <div className="relative animate-fade-up">
+          <p className="text-xs uppercase tracking-[0.25em] text-neon-mint/75">compartir clip</p>
+          <h1 className="mt-2 font-display text-2xl text-white sm:text-3xl">Publicacion por red social</h1>
+          <p className="mt-2 text-sm text-white/70">
+            Desde esta pantalla podras conectar la subida individual de un clip para cada red. Por ahora dejamos el flujo preparado.
+          </p>
+        </div>
 
         {isLoading ? <p className="mt-4 text-sm text-white/70">Cargando clip...</p> : null}
 
@@ -109,7 +114,7 @@ export default function ShareClipPage() {
 
         {!isLoading && !error && clip ? (
           <div className="mt-5 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-            <div className="rounded-2xl border border-white/10 bg-night-900/70 p-4">
+            <div className="animate-fade-up rounded-2xl border border-white/10 bg-night-900/70 p-4 [animation-delay:90ms]">
               {clip.output_path ? (
                 <video
                   controls
@@ -131,11 +136,15 @@ export default function ShareClipPage() {
             </div>
 
             <div className="space-y-3">
-              {socialTargets.map((target) => {
+              {socialTargets.map((target, index) => {
                 const Icon = target.icon;
                 const isLinked = Boolean(linkedTargets[target.id]);
                 return (
-                  <div key={target.id} className="rounded-xl border border-white/12 bg-white/5 p-3">
+                  <div
+                    key={target.id}
+                    className="animate-fade-up rounded-xl border border-white/12 bg-white/5 p-3 transition duration-300 hover:border-neon-cyan/30 hover:bg-white/7"
+                    style={{ animationDelay: `${160 + index * 60}ms` }}
+                  >
                     <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                       <div>
                         <p className="inline-flex items-center gap-2 text-sm font-semibold text-white">
@@ -178,10 +187,14 @@ export default function ShareClipPage() {
                 );
               })}
 
-              {info ? <p className="rounded-xl border border-neon-cyan/35 bg-neon-cyan/10 px-3 py-2 text-xs text-neon-cyan">{info}</p> : null}
+              {info ? (
+                <p className="animate-fade-up rounded-xl border border-neon-cyan/35 bg-neon-cyan/10 px-3 py-2 text-xs text-neon-cyan [animation-delay:260ms]">
+                  {info}
+                </p>
+              ) : null}
               <Link
                 href="/app/library"
-                className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-white/80 transition hover:border-white/40 hover:text-white"
+                className="animate-fade-up inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-white/80 transition hover:border-white/40 hover:text-white [animation-delay:320ms]"
               >
                 Volver a biblioteca
               </Link>
