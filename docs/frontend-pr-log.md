@@ -15,10 +15,12 @@ Ajustar la vista de compartir clips para preparar vinculacion futura de redes so
 - Se mejoro el layout responsive de compartir: el preview de video deja de crecer en exceso en tablet y la columna de redes queda mejor distribuida en desktop sin huecos visuales.
 - Se incorporo `YouTube` al listado de plataformas objetivo para futuros endpoints de publicacion.
 - Se corrigio el 404 de favicon agregando `frontend/src/app/icon.svg` y metadata de iconos en `frontend/src/app/layout.tsx`.
+- Se aplicaron animaciones coherentes con el resto del dashboard en la pantalla de compartir (`animate-fade-up`, `animate-drift`, stagger por tarjeta y hover refinado) para mejorar continuidad visual.
 
 ### Commits de esta rama (frontend)
 
 - `feat(frontend): polish share UI and stage social account linking`
+- `feat(frontend): add motion polish to clip share experience`
 - `docs(frontend): update worklog for share social linking branch`
 
 ### Validaciones locales
