@@ -6,11 +6,12 @@ Toda la lógica de negocio de publicación vive aquí;
 el controlador solo delega y devuelve respuestas HTTP.
 """
 
+import asyncio
 import json
 import logging
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 from uuid import UUID
 
@@ -100,7 +101,7 @@ class YouTubeUploadService:
 
         # 3. Descargar video de MinIO a archivo temporal
         #    (YouTube API requiere archivo local para MediaFileUpload)
-        temp_path = self._download_to_temp(video_storage_path)
+        temp_path = await self._download_to_temp(video_storage_path)
 
         try:
             # 4. Preparar metadata
@@ -118,7 +119,7 @@ class YouTubeUploadService:
                 privacy_status=privacy,
             )
 
-            logger.info("✅ Video publicado en YouTube: %s", result["video_url"])
+            logger.info(" Video publicado en YouTube: %s", result["video_url"])
 
             return {
                 "success": True,
@@ -154,9 +155,9 @@ class YouTubeUploadService:
             "is_expired": oauth_token.is_expired(),
         }
 
-    # ==================================================================
+   
     #  Métodos privados — lógica interna
-    # ==================================================================
+
 
     def _get_validated_job(self, job_id: UUID, user_id: UUID) -> Job:
         """Busca el Job, valida pertenencia y estado DONE."""
@@ -208,12 +209,15 @@ class YouTubeUploadService:
 
         raise BadRequestException(f"Formato de output_path no reconocido: {raw}")
 
-    def _download_to_temp(self, storage_path: str) -> str:
+    async def _download_to_temp(self, storage_path: str) -> str:
         """
         Descarga un archivo de MinIO a un temporal local.
 
         Necesario porque la YouTube API (``MediaFileUpload``) requiere
         un path a un archivo en disco; no acepta URLs externas.
+
+        Usa ``asyncio.to_thread`` para no bloquear el event loop
+        durante la descarga (boto3 es síncrono).
         """
         bucket, key = self.storage._extract_bucket_and_key(storage_path)
 
@@ -224,13 +228,13 @@ class YouTubeUploadService:
         logger.info("📥 Descargando video de MinIO: bucket=%s key=%s", bucket, key)
 
         try:
-            self.storage.client.download_file(
+            await asyncio.to_thread(
+                self.storage.client.download_file,
                 Bucket=bucket,
                 Key=key,
                 Filename=temp_path,
             )
         except Exception as exc:
-            # Limpiar en caso de fallo
             self._cleanup_temp(temp_path)
             raise BadRequestException(
                 f"Error descargando video de MinIO: {exc}"
@@ -318,13 +322,18 @@ class YouTubeUploadService:
             media_body=media,
         )
 
-        # Upload con progreso
-        response = None
-        while response is None:
-            status_obj, response = insert_request.next_chunk()
-            if status_obj:
-                progress = int(status_obj.progress() * 100)
-                logger.info("📊 Upload progress: %d%%", progress)
+        # Upload con progreso — envuelto en asyncio.to_thread porque
+        # next_chunk() es bloqueante y puede tardar minutos.
+        def _do_upload():
+            resp = None
+            while resp is None:
+                status_obj, resp = insert_request.next_chunk()
+                if status_obj:
+                    progress = int(status_obj.progress() * 100)
+                    logger.info("📊 Upload progress: %d%%", progress)
+            return resp
+
+        response = await asyncio.to_thread(_do_upload)
 
         video_id = response.get("id")
 
@@ -403,8 +412,8 @@ class YouTubeUploadService:
 
             # Persistir token renovado
             oauth_token.access_token = new_access_token
-            oauth_token.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
-            oauth_token.last_refreshed_at = datetime.utcnow()
+            oauth_token.expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+            oauth_token.last_refreshed_at = datetime.now(timezone.utc)
             self.db.commit()
 
             logger.info("✅ Token renovado exitosamente")
