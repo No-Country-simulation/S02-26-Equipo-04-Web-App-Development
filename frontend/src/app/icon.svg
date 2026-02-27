@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hacelo Corto">
+  <defs>
+    <linearGradient id="g1" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#89B4FA" />
+      <stop offset="0.55" stop-color="#89DCEB" />
+      <stop offset="1" stop-color="#CBA6F7" />
+    </linearGradient>
+    <linearGradient id="g2" x1="58" y1="6" x2="6" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F5C2E7" />
+      <stop offset="0.55" stop-color="#89DCEB" />
+      <stop offset="1" stop-color="#A6E3A1" />
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="url(#g1)" stroke-width="5" />
+  <path d="M29 23 L29 41 L43 32 Z" fill="url(#g2)" />
+  <path d="M19 45 L45 19" stroke="url(#g1)" stroke-width="4" stroke-linecap="round" />
+  <circle cx="19" cy="45" r="3.5" fill="#1E1E2E" stroke="url(#g2)" stroke-width="2" />
+  <circle cx="45" cy="19" r="3.5" fill="#1E1E2E" stroke="url(#g2)" stroke-width="2" />
+</svg>

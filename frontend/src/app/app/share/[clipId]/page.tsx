@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/Button";
 import { Panel } from "@/src/components/ui/Panel";
 import { videoApi, type UserClipItem, VideoApiError } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
-import { Facebook, Instagram, MessageCircle, Music2, Share2 } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Music2, Share2, Youtube } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type ComponentType, useEffect, useState } from "react";
@@ -19,6 +19,7 @@ const socialTargets: SocialTarget[] = [
   { id: "instagram", label: "Instagram", icon: Instagram },
   { id: "tiktok", label: "TikTok", icon: Music2 },
   { id: "facebook", label: "Facebook", icon: Facebook },
+  { id: "youtube", label: "YouTube", icon: Youtube },
   { id: "x", label: "X", icon: Share2 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle }
 ];
@@ -42,6 +43,7 @@ export default function ShareClipPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [linkedTargets, setLinkedTargets] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!token) {
@@ -106,12 +108,17 @@ export default function ShareClipPage() {
         ) : null}
 
         {!isLoading && !error && clip ? (
-          <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="mt-5 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
             <div className="rounded-2xl border border-white/10 bg-night-900/70 p-4">
               {clip.output_path ? (
-                <video controls preload="metadata" className="aspect-[9/13] w-full rounded-xl border border-white/10 object-cover" src={clip.output_path} />
+                <video
+                  controls
+                  preload="metadata"
+                  className="mx-auto aspect-[9/13] w-full max-w-[320px] rounded-xl border border-white/10 object-cover sm:max-w-[380px] lg:max-w-none"
+                  src={clip.output_path}
+                />
               ) : (
-                <div className="grid aspect-[9/13] place-items-center rounded-xl border border-white/10 bg-night-800/80 text-sm text-white/65">
+                <div className="mx-auto grid aspect-[9/13] w-full max-w-[320px] place-items-center rounded-xl border border-white/10 bg-night-800/80 text-sm text-white/65 sm:max-w-[380px] lg:max-w-none">
                   El clip todavia no tiene preview disponible.
                 </div>
               )}
@@ -126,19 +133,46 @@ export default function ShareClipPage() {
             <div className="space-y-3">
               {socialTargets.map((target) => {
                 const Icon = target.icon;
+                const isLinked = Boolean(linkedTargets[target.id]);
                 return (
                   <div key={target.id} className="rounded-xl border border-white/12 bg-white/5 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-white">
-                        <Icon size={16} className="text-neon-mint" />
-                        {target.label}
-                      </p>
-                      <Button
-                        className="w-auto px-3 py-2 text-xs"
-                        onClick={() => setInfo(`Flujo de subida a ${target.label} preparado. Integramos API en el siguiente paso.`)}
-                      >
-                        Subir
-                      </Button>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <div>
+                        <p className="inline-flex items-center gap-2 text-sm font-semibold text-white">
+                          <Icon size={16} className="text-neon-mint" />
+                          {target.label}
+                        </p>
+                        <p className="mt-1 text-xs text-white/65">{isLinked ? "Cuenta vinculada" : "Cuenta pendiente de vincular"}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:min-w-[260px]">
+                        <Button
+                          className="h-9 px-3 py-2 text-xs"
+                          variant={isLinked ? "neutral" : "violet"}
+                          onClick={() => {
+                            if (isLinked) {
+                              setInfo(`Tu cuenta de ${target.label} ya esta vinculada en este entorno de demo.`);
+                              return;
+                            }
+
+                            setLinkedTargets((previous) => ({
+                              ...previous,
+                              [target.id]: true
+                            }));
+                            setInfo(
+                              `Marcamos ${target.label} como vinculada. Cuando backend exponga endpoints, este boton abrira OAuth real para conectar la cuenta.`
+                            );
+                          }}
+                        >
+                          {isLinked ? "Vinculada" : "Vincular cuenta"}
+                        </Button>
+                        <Button
+                          className="h-9 px-3 py-2 text-xs"
+                          disabled={!isLinked}
+                          onClick={() => setInfo(`Publicacion en ${target.label} preparada. En cuanto tengamos endpoint, esta accion publicara el clip.`)}
+                        >
+                          Publicar clip
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
