@@ -225,7 +225,7 @@ class YouTubeUploadService:
         temp_path = temp_file.name
         temp_file.close()
 
-        logger.info("📥 Descargando video de MinIO: bucket=%s key=%s", bucket, key)
+        logger.info(" Descargando video de MinIO: bucket=%s key=%s", bucket, key)
 
         try:
             await asyncio.to_thread(
