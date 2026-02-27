@@ -8,6 +8,7 @@ from app.services.storage_service import StorageService
 from app.services.queue_service import QueueService
 from app.services.video_service import VideoService
 from app.services.audio_service import AudioService
+from app.services.youtube_upload_service import YouTubeUploadService
 
 
 def get_storage_service() -> StorageService:
@@ -36,4 +37,10 @@ def get_job_service(
     storage: StorageService = Depends(get_storage_service),
 ) -> JobService:
     return JobService(db, queue, storage)
+
+def get_youtube_service(
+    db: Session = Depends(get_db),
+    storage: StorageService = Depends(get_storage_service),
+) -> YouTubeUploadService:
+    return YouTubeUploadService(db, storage)
 

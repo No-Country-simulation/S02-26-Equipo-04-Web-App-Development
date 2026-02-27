@@ -1,264 +1,411 @@
-"""Servicio para subir videos a YouTube usando YouTube Data API v3"""
+"""
+Servicio para publicar videos procesados en YouTube.
 
+Usa YouTube Data API v3 con OAuth2.
+Toda la lógica de negocio de publicación vive aquí;
+el controlador solo delega y devuelve respuestas HTTP.
+"""
+
+import json
 import logging
 import os
-from typing import Dict, Any, Optional
+import tempfile
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from typing import Any, Dict
+from uuid import UUID
+
 import httpx
-from fastapi import HTTPException, status
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.oauth2.credentials import Credentials
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.job import Job, JobStatus
 from app.models.oauth_token import OAuthToken
-from app.models.user import User
+from app.services.storage_service import StorageService
+from app.utils.exceptions import (
+    BadRequestException,
+    NotFoundException,
+)
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Constantes
+# ---------------------------------------------------------------------------
+APP_NAME = "Hacelo Corto"
+YOUTUBE_CATEGORY_PEOPLE_BLOGS = "22"
 
 
 class YouTubeUploadService:
     """
-    Servicio para manejar la subida de videos a YouTube.
-    
-    Implementa:
-    - Renovación automática de tokens expirados
-    - Upload en partes (resumable upload para videos grandes)
-    - Manejo de cuotas y rate limits de YouTube
+    Servicio para manejar la publicación de clips procesados en YouTube.
+
+    Responsabilidades:
+    - Validar que el Job exista y pertenezca al usuario.
+    - Extraer la ruta del video desde ``job.output_path`` (JSON).
+    - Descargar el video de MinIO a un archivo temporal (requerido por
+      ``MediaFileUpload`` de la YouTube API).
+    - Subir el video a YouTube con metadata configurada.
+    - Renovar tokens OAuth expirados de forma transparente.
     """
-    
-    YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
-    YOUTUBE_UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
+
     GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-    
-    def __init__(self, db: Session):
-        self.db = db
-    
-    async def upload_video(
+
+    def __init__(
         self,
-        user_id: str,
-        video_file_path: str,
-        title: str,
-        description: str = "",
-        tags: list[str] = None,
-        category_id: str = "22",  # 22 = People & Blogs
-        privacy_status: str = "private",  # "public", "private", "unlisted"
+        db: Session,
+        storage_service: StorageService,
+    ) -> None:
+        self.db = db
+        self.storage = storage_service
+
+    # ------------------------------------------------------------------
+    #  Método principal — orquesta toda la publicación
+    # ------------------------------------------------------------------
+    async def publish_job_to_youtube(
+        self,
+        *,
+        job_id: UUID,
+        user_id: UUID,
+        title: str | None = None,
+        description: str | None = None,
+        privacy: str = "private",
     ) -> Dict[str, Any]:
         """
-        Sube un video a YouTube usando la API oficial de Google.
-        
+        Publica el video procesado de un Job en YouTube.
+
         Args:
-            user_id: ID del usuario que sube el video
-            video_file_path: Ruta del archivo de video
-            title: Título del video (máx 100 caracteres)
-            description: Descripción del video (máx 5000 caracteres)
-            tags: Lista de tags/palabras clave (máx 500 caracteres total)
-            category_id: ID de categoría de YouTube
-            privacy_status: "public", "private", o "unlisted"
-            
+            job_id: ID del Job que contiene el clip procesado.
+            user_id: ID del usuario autenticado (para validar pertenencia).
+            title: Título del video en YouTube (se toma del nombre original
+                   si no se provee).
+            description: Descripción del video en YouTube.
+            privacy: ``"public"``, ``"private"`` o ``"unlisted"``.
+
         Returns:
-            Dict con información del video subido (id, url, etc.)
-            
+            Diccionario con la información del video publicado.
+
         Raises:
-            HTTPException: Si el usuario no tiene tokens o hay error en YouTube
+            NotFoundException: Si el Job no existe.
+            BadRequestException: Si el Job no pertenece al usuario, no está
+                terminado, o el usuario no tiene YouTube conectado.
         """
-        # 1. Verificar que el archivo existe
-        if not os.path.exists(video_file_path):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Archivo de video no encontrado: {video_file_path}"
+        # 1. Buscar y validar el Job
+        job = self._get_validated_job(job_id, user_id)
+
+        # 2. Extraer ruta del video desde output_path (JSON)
+        video_storage_path = self._extract_video_path(job)
+
+        # 3. Descargar video de MinIO a archivo temporal
+        #    (YouTube API requiere archivo local para MediaFileUpload)
+        temp_path = self._download_to_temp(video_storage_path)
+
+        try:
+            # 4. Preparar metadata
+            resolved_title = title or job.video.original_filename or f"Clip {str(job_id)[:8]}"
+            resolved_description = description or f"Video generado con {APP_NAME}"
+            tags = self._build_tags(job)
+
+            # 5. Subir a YouTube
+            result = await self._upload_to_youtube(
+                user_id=user_id,
+                video_file_path=temp_path,
+                title=resolved_title,
+                description=resolved_description,
+                tags=tags,
+                privacy_status=privacy,
             )
-        
-        # 2. Obtener y verificar token de YouTube
+
+            logger.info("✅ Video publicado en YouTube: %s", result["video_url"])
+
+            return {
+                "success": True,
+                "message": "Video publicado en YouTube exitosamente",
+                "job_id": str(job_id),
+                "youtube_video_id": result["video_id"],
+                "youtube_url": result["video_url"],
+                "title": result["title"],
+                "privacy": result["privacy_status"],
+                "thumbnail_url": result.get("thumbnail_url"),
+            }
+        finally:
+            # 6. Garantizar limpieza del archivo temporal
+            self._cleanup_temp(temp_path)
+
+    # ------------------------------------------------------------------
+    #  Consultar estado de conexión YouTube
+    # ------------------------------------------------------------------
+    def get_connection_status(self, user_id: UUID) -> Dict[str, Any]:
+        """Devuelve si el usuario tiene su cuenta de YouTube conectada."""
+        oauth_token = self._find_youtube_token(user_id)
+
+        if not oauth_token:
+            return {"connected": False, "message": "Usuario no tiene cuenta de YouTube conectada"}
+
+        return {
+            "connected": True,
+            "provider_username": oauth_token.provider_username,
+            "provider_user_id": oauth_token.provider_user_id,
+            "token_expires_at": (
+                oauth_token.expires_at.isoformat() if oauth_token.expires_at else None
+            ),
+            "is_expired": oauth_token.is_expired(),
+        }
+
+    # ==================================================================
+    #  Métodos privados — lógica interna
+    # ==================================================================
+
+    def _get_validated_job(self, job_id: UUID, user_id: UUID) -> Job:
+        """Busca el Job, valida pertenencia y estado DONE."""
+        job = self.db.query(Job).filter(Job.id == job_id).first()
+
+        if not job:
+            raise NotFoundException(f"Job {job_id} no encontrado")
+
+        if job.user_id != user_id:
+            raise BadRequestException("No tenés permiso para publicar este clip")
+
+        if job.status != JobStatus.DONE:
+            raise BadRequestException(
+                f"El clip aún no está listo. Estado actual: {job.status.value}"
+            )
+
+        if job.output_path is None:
+            raise BadRequestException("El Job no tiene un video de salida")
+
+        return job
+
+    def _extract_video_path(self, job: Job) -> str:
+        """
+        Extrae la ruta S3 del video desde ``job.output_path``.
+
+        ``output_path`` puede ser:
+        - Un JSON ``{"video": "s3://...", "subtitles": "s3://..."}``
+        - Un string directo ``"s3://..."`` (compatibilidad hacia atrás)
+        """
+        raw = job.output_path
+
+        # Intentar parsear como JSON
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(parsed, dict):
+                video_path = parsed.get("video")
+                if video_path:
+                    return video_path
+                # Si no tiene clave "video", podría ser otro formato
+                raise BadRequestException(
+                    "output_path JSON no contiene la clave 'video'"
+                )
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Fallback: output_path es un string directo (formato legacy)
+        if isinstance(raw, str) and raw.startswith("s3://"):
+            return raw
+
+        raise BadRequestException(f"Formato de output_path no reconocido: {raw}")
+
+    def _download_to_temp(self, storage_path: str) -> str:
+        """
+        Descarga un archivo de MinIO a un temporal local.
+
+        Necesario porque la YouTube API (``MediaFileUpload``) requiere
+        un path a un archivo en disco; no acepta URLs externas.
+        """
+        bucket, key = self.storage._extract_bucket_and_key(storage_path)
+
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        temp_path = temp_file.name
+        temp_file.close()
+
+        logger.info("📥 Descargando video de MinIO: bucket=%s key=%s", bucket, key)
+
+        try:
+            self.storage.client.download_file(
+                Bucket=bucket,
+                Key=key,
+                Filename=temp_path,
+            )
+        except Exception as exc:
+            # Limpiar en caso de fallo
+            self._cleanup_temp(temp_path)
+            raise BadRequestException(
+                f"Error descargando video de MinIO: {exc}"
+            )
+
+        logger.info("✅ Video descargado a: %s", temp_path)
+        return temp_path
+
+    @staticmethod
+    def _build_tags(job: Job) -> list[str]:
+        """Genera tags basados en las características del video."""
+        tags = ["hacelocorto", "ai", "shorts"]
+        video = job.video
+        if video and video.width and video.height and video.height > video.width:
+            tags.append("vertical")
+        return tags
+
+    @staticmethod
+    def _cleanup_temp(path: str) -> None:
+        """Elimina un archivo temporal de forma segura."""
+        try:
+            if path and os.path.exists(path):
+                os.unlink(path)
+                logger.info("🗑️ Archivo temporal eliminado: %s", path)
+        except OSError as exc:
+            logger.warning("⚠️ No se pudo eliminar archivo temporal: %s", exc)
+
+    # ------------------------------------------------------------------
+    #  YouTube API — upload
+    # ------------------------------------------------------------------
+    async def _upload_to_youtube(
+        self,
+        *,
+        user_id: UUID,
+        video_file_path: str,
+        title: str,
+        description: str,
+        tags: list[str],
+        privacy_status: str,
+        category_id: str = YOUTUBE_CATEGORY_PEOPLE_BLOGS,
+    ) -> Dict[str, Any]:
+        """Sube un archivo de video a YouTube usando la API oficial."""
+
         access_token = await self._get_valid_access_token(user_id)
-        
-        # 3. Crear credenciales de Google
+
         credentials = Credentials(
             token=access_token,
             token_uri="https://oauth2.googleapis.com/token",
             client_id=settings.GOOGLE_CLIENT_ID,
             client_secret=settings.GOOGLE_CLIENT_SECRET,
         )
-        
-        # 4. Construir cliente de YouTube API
+
         youtube = build("youtube", "v3", credentials=credentials)
-        
-        # 5. Preparar metadata del video
-        body = {
+
+        body: Dict[str, Any] = {
             "snippet": {
-                "title": title[:100],  # YouTube limita a 100 caracteres
-                "description": description[:5000],  # Límite 5000 caracteres
-                "tags": tags or [],
+                "title": title[:100],
+                "description": description[:5000],
+                "tags": tags,
                 "categoryId": category_id,
             },
             "status": {
                 "privacyStatus": privacy_status,
                 "selfDeclaredMadeForKids": False,
-            }
+            },
         }
-        
-        logger.info(f"📤 Subiendo video '{title}' a YouTube para user_id={user_id}")
-        logger.info(f"📁 Archivo: {video_file_path} ({os.path.getsize(video_file_path)} bytes)")
-        
-        try:
-            # 6. Preparar media upload (con resumable upload para videos grandes)
-            media = MediaFileUpload(
-                video_file_path,
-                mimetype="video/*",
-                resumable=True,
-                chunksize=1024 * 1024  # 1MB chunks
-            )
-            
-            # 7. Ejecutar upload
-            insert_request = youtube.videos().insert(
-                part=",".join(body.keys()),
-                body=body,
-                media_body=media
-            )
-            
-            # Upload con progreso (para resumable uploads)
-            response = None
-            while response is None:
-                status_obj, response = insert_request.next_chunk()
-                if status_obj:
-                    progress = int(status_obj.progress() * 100)
-                    logger.info(f"📊 Upload progress: {progress}%")
-            
-            # 8. Extraer información del video subido
-            video_id = response.get("id")
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            
-            logger.info(f"✅ Video subido exitosamente a YouTube!")
-            logger.info(f"🔗 URL: {video_url}")
-            logger.info(f"🆔 Video ID: {video_id}")
-            
-            return {
-                "video_id": video_id,
-                "video_url": video_url,
-                "title": response["snippet"]["title"],
-                "description": response["snippet"]["description"],
-                "privacy_status": response["status"]["privacyStatus"],
-                "published_at": response.get("snippet", {}).get("publishedAt"),
-                "thumbnail_url": response.get("snippet", {}).get("thumbnails", {}).get("default", {}).get("url"),
-            }
-            
-        except Exception as e:
-            logger.error(f"❌ Error al subir video a YouTube: {str(e)}")
-            logger.error(f"📄 Error type: {type(e).__name__}")
-            
-            # Manejo específico de errores de YouTube
-            error_message = str(e)
-            if "quota" in error_message.lower():
-                detail = "Cuota de YouTube API excedida. Intenta más tarde."
-            elif "authentication" in error_message.lower():
-                detail = "Error de autenticación con YouTube. Reconecta tu cuenta."
-            elif "permission" in error_message.lower():
-                detail = "Sin permisos suficientes. Verifica los scopes de YouTube."
-            else:
-                detail = f"Error al subir video: {error_message}"
-            
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=detail
-            )
-    
-    async def _get_valid_access_token(self, user_id: str) -> str:
-        """
-        Obtiene un access token válido para YouTube.
-        Si está expirado, lo renueva automáticamente.
-        
-        Args:
-            user_id: ID del usuario
-            
-        Returns:
-            Access token válido
-            
-        Raises:
-            HTTPException: Si el usuario no tiene tokens conectados
-        """
-        # Buscar token de YouTube del usuario
-        oauth_token = (
+
+        logger.info("📤 Subiendo '%s' a YouTube (user_id=%s)", title, user_id)
+        logger.info(
+            "📁 Archivo: %s (%d bytes)",
+            video_file_path,
+            os.path.getsize(video_file_path),
+        )
+
+        media = MediaFileUpload(
+            video_file_path,
+            mimetype="video/*",
+            resumable=True,
+            chunksize=1024 * 1024,  # 1 MB chunks
+        )
+
+        insert_request = youtube.videos().insert(
+            part=",".join(body.keys()),
+            body=body,
+            media_body=media,
+        )
+
+        # Upload con progreso
+        response = None
+        while response is None:
+            status_obj, response = insert_request.next_chunk()
+            if status_obj:
+                progress = int(status_obj.progress() * 100)
+                logger.info("📊 Upload progress: %d%%", progress)
+
+        video_id = response.get("id")
+
+        return {
+            "video_id": video_id,
+            "video_url": f"https://www.youtube.com/watch?v={video_id}",
+            "title": response["snippet"]["title"],
+            "privacy_status": response["status"]["privacyStatus"],
+            "thumbnail_url": (
+                response.get("snippet", {})
+                .get("thumbnails", {})
+                .get("default", {})
+                .get("url")
+            ),
+        }
+
+    # ------------------------------------------------------------------
+    #  OAuth — gestión de tokens
+    # ------------------------------------------------------------------
+    def _find_youtube_token(self, user_id: UUID) -> OAuthToken | None:
+        """Busca el token OAuth de YouTube del usuario."""
+        return (
             self.db.query(OAuthToken)
             .filter(
                 OAuthToken.user_id == user_id,
-                OAuthToken.provider == "youtube"
+                OAuthToken.provider == "youtube",
             )
             .first()
         )
-        
+
+    async def _get_valid_access_token(self, user_id: UUID) -> str:
+        """
+        Obtiene un access token válido para YouTube.
+        Si está expirado, lo renueva automáticamente.
+        """
+        oauth_token = self._find_youtube_token(user_id)
+
         if not oauth_token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Usuario no tiene cuenta de YouTube conectada. Debe hacer login con Google primero."
+            raise BadRequestException(
+                "Usuario no tiene cuenta de YouTube conectada. "
+                "Debe hacer login con Google primero."
             )
-        
-        # Si el token no está expirado, devolverlo
+
         if not oauth_token.is_expired():
             return oauth_token.access_token
-        
-        # Token expirado - renovar con refresh_token
-        logger.info(f"🔄 Token expirado, renovando para user_id={user_id}")
-        
+
+        logger.info("🔄 Token expirado, renovando para user_id=%s", user_id)
+
         if not oauth_token.refresh_token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No hay refresh token. Usuario debe reconectar su cuenta de YouTube."
+            raise BadRequestException(
+                "No hay refresh token. El usuario debe reconectar su cuenta de YouTube."
             )
-        
-        # Renovar token
-        new_access_token = await self._refresh_access_token(oauth_token)
-        return new_access_token
-    
+
+        return await self._refresh_access_token(oauth_token)
+
     async def _refresh_access_token(self, oauth_token: OAuthToken) -> str:
-        """
-        Renueva el access token usando el refresh token.
-        
-        Args:
-            oauth_token: Token OAuth a renovar
-            
-        Returns:
-            Nuevo access token
-            
-        Raises:
-            HTTPException: Si falla la renovación
-        """
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    self.GOOGLE_TOKEN_URL,
-                    data={
-                        "client_id": settings.GOOGLE_CLIENT_ID,
-                        "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                        "refresh_token": oauth_token.refresh_token,
-                        "grant_type": "refresh_token",
-                    }
-                )
-                
-                if response.status_code != 200:
-                    error_detail = response.text
-                    logger.error(f"❌ Error renovando token: {error_detail}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Error al renovar token de YouTube"
-                    )
-                
-                token_data = response.json()
-                new_access_token = token_data["access_token"]
-                expires_in = token_data.get("expires_in", 3600)
-                
-                # Actualizar token en DB
-                oauth_token.access_token = new_access_token
-                oauth_token.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
-                oauth_token.last_refreshed_at = datetime.utcnow()
-                self.db.commit()
-                
-                logger.info(f"✅ Token renovado exitosamente")
-                return new_access_token
-                
-        except httpx.HTTPError as e:
-            logger.error(f"❌ HTTP error renovando token: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error de conexión al renovar token"
+        """Renueva el access token usando el refresh token."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                self.GOOGLE_TOKEN_URL,
+                data={
+                    "client_id": settings.GOOGLE_CLIENT_ID,
+                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                    "refresh_token": oauth_token.refresh_token,
+                    "grant_type": "refresh_token",
+                },
             )
+
+            if response.status_code != 200:
+                logger.error("❌ Error renovando token: %s", response.text)
+                raise BadRequestException("Error al renovar token de YouTube")
+
+            token_data = response.json()
+            new_access_token = token_data["access_token"]
+            expires_in = token_data.get("expires_in", 3600)
+
+            # Persistir token renovado
+            oauth_token.access_token = new_access_token
+            oauth_token.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            oauth_token.last_refreshed_at = datetime.utcnow()
+            self.db.commit()
+
+            logger.info("✅ Token renovado exitosamente")
+            return new_access_token

@@ -8,6 +8,7 @@ from app.schemas.profile import ProfileCreate, ProfileUpdate, ProfilePublic, Pro
 from app.schemas.token import Token, TokenPayload
 from app.schemas.response import APIException, ErrorResponse, ErrorDetail
 from app.schemas.oauth import GoogleAuthURL, GoogleUserInfo, GoogleCallbackRequest
+from app.schemas.youtube import YouTubePublishRequest, YouTubePublishResponse, YouTubeConnectionStatus
 
 __all__ = [
     "UserCreate",
@@ -26,4 +27,7 @@ __all__ = [
     "GoogleAuthURL",
     "GoogleUserInfo",
     "GoogleCallbackRequest",
+    "YouTubePublishRequest",
+    "YouTubePublishResponse",
+    "YouTubeConnectionStatus",
 ]
