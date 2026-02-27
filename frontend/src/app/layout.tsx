@@ -4,7 +4,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Hacelo Corto",
-  description: "Landing publica del equipo frontend"
+  description: "Landing publica del equipo frontend",
+  icons: {
+    icon: "/icon.svg"
+  }
 };
 
 type RootLayoutProps = {

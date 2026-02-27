@@ -2,25 +2,26 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feat/frontend-google-login`
+Rama de trabajo actual: `feature/frontend-share-social-linking`
 
 ### Objetivo
 
-Conectar el flujo de login/registro del frontend con Google OAuth del backend y cerrar el circuito de callback para iniciar sesion real.
+Ajustar la vista de compartir clips para preparar vinculacion futura de redes sociales, mejorar responsive en tablet/desktop y dejar la experiencia lista para integrar endpoints de publicacion.
 
 ### Cambios implementados en curso
 
-- Se activaron los botones de Google en `frontend/src/app/auth/login/page.tsx` y `frontend/src/app/auth/register/page.tsx` para pedir la URL de OAuth al backend, guardar `state` en `sessionStorage` y redirigir al proveedor.
-- Se agregaron metodos en `frontend/src/services/authApi.ts` para `getGoogleAuthUrl` y `googleCallback`.
-- Se incorporo `completeGoogleAuth` en `frontend/src/store/useAuthStore.ts` para cerrar sesion local de forma consistente con login/register por email.
-- Se creo la pantalla `frontend/src/app/auth/callback/page.tsx` para validar `code/state`, ejecutar el callback contra backend y redirigir a `/app` al autenticar.
-- Se corrigio la pantalla de callback para evitar falsos negativos de `state invalido` en desarrollo (doble ejecucion de efectos por `reactStrictMode`) procesando cada `code` una sola vez y limpiando `sessionStorage` al finalizar autenticacion.
-- Se ajusto la ruta `auth/callback` para produccion (Next 16): se separo en componente cliente + `Suspense` en `page.tsx`, evitando el error de build por `useSearchParams()` fuera de boundary.
+- Se actualizaron acciones por red en `frontend/src/app/app/share/[clipId]/page.tsx` con estado de vinculacion local por plataforma (`Vincular cuenta` / `Vinculada`) para dejar listo el punto de integracion con OAuth/backend.
+- Se agrego accion `Publicar clip` condicionada a cuenta vinculada como placeholder funcional del flujo futuro centralizado de publicacion.
+- Se mejoro el layout responsive de compartir: el preview de video deja de crecer en exceso en tablet y la columna de redes queda mejor distribuida en desktop sin huecos visuales.
+- Se incorporo `YouTube` al listado de plataformas objetivo para futuros endpoints de publicacion.
+- Se corrigio el 404 de favicon agregando `frontend/src/app/icon.svg` y metadata de iconos en `frontend/src/app/layout.tsx`.
+- Se aplicaron animaciones coherentes con el resto del dashboard en la pantalla de compartir (`animate-fade-up`, `animate-drift`, stagger por tarjeta y hover refinado) para mejorar continuidad visual.
 
 ### Commits de esta rama (frontend)
 
-- `feat(frontend): integrate google oauth login and callback flow`
-- `docs(worklog): update frontend log and add backend handoff notes`
+- `feat(frontend): polish share UI and stage social account linking`
+- `feat(frontend): add motion polish to clip share experience`
+- `docs(frontend): update worklog for share social linking branch`
 
 ### Validaciones locales
 
