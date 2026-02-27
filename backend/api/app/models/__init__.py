@@ -7,4 +7,8 @@ from app.models.user import User
 from app.models.profile import Profile
 from app.models.enums import UserRole
 
-__all__ = ["User", "Profile", "UserRole"]
+from app.models.video import Video
+from app.models.job import Job
+from app.models.audio import Audio
+
+__all__ = ["User", "Profile", "UserRole", "Video", "Job", "Audio"]
