@@ -216,14 +216,22 @@ class VideoService:
                 "El video no tiene una ruta de almacenamiento válida"
             )
 
-        self.storage.delete_video_from_storage(video.storage_path)
-
         try:
             self.db.delete(video)
             self.db.commit()
         except Exception as exc:
             self.db.rollback()
             raise VideoDBException("Error eliminando video", str(exc))
+        
+        # Luego eliminar de MinIO
+        if video.storage_path:
+            try:
+                self.storage.delete_video_from_storage(video.storage_path)
+            except Exception:
+                logger.warning(
+                    f"Audio {video.id} removed from DB but still exists in storage"
+                )
+        
 
     def upload_video_authenticated(
         self, file: UploadFile, user_id: UUID

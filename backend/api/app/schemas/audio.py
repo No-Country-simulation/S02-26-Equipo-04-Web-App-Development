@@ -10,7 +10,6 @@ class AudioUploadResponse(BaseSchema):
     filename: str
     content_type: str | None
     size_bytes: int
-    video_id: UUID
     user_id: UUID | None
     storage_path: str
     uploaded_at: datetime
@@ -28,7 +27,6 @@ class UserAudioItem(BaseSchema):
     filename: str
     status: str | None = None
     uploaded_at: datetime
-    video_id: UUID
 
 
 class UserAudiosResponse(BaseSchema):

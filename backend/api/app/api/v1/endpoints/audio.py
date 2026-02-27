@@ -14,7 +14,7 @@ router = APIRouter(prefix="/audios", tags=["Audio"])
 
 
 @router.post(
-    "/{video_id}/audio",
+    "/audio",
     response_model=AudioUploadResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Subir audio a un video (autenticado)",
@@ -26,13 +26,12 @@ router = APIRouter(prefix="/audios", tags=["Audio"])
         404: {"description": "Video no encontrado"}
     }
 )
-async def upload_audio_to_video(
-    video_id: UUID,
+async def upload_audio(
     file: Annotated[UploadFile, File(...)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     service: AudioService = Depends(get_audio_service),
 ) -> AudioUploadResponse:
-    return service.upload_audio_to_video(file, video_id, current_user.id)
+    return service.upload_audio(file, current_user.id)
 
 
 @router.get(
@@ -59,7 +58,7 @@ async def get_audio_url(
         )
     ] = 3600
 ) -> AudioURLResponse:
-    return service.get_audio_url(audio_id, expires_in)
+    return service.get_audio_public_url(audio_id, expires_in)
 
 
 @router.get(
@@ -100,22 +99,4 @@ async def delete_audio(
     service: AudioService = Depends(get_audio_service),
 ) -> Response:
     service.delete_audio(audio_id, current_user.id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.delete(
-    "",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Eliminar todos mis audios",
-    description="Elimina todos los audios del usuario autenticado",
-    responses={
-        204: {"description": "Audios eliminados exitosamente"},
-        401: {"description": "No autenticado"}
-    }
-)
-async def delete_all_audios(
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    service: AudioService = Depends(get_audio_service),
-) -> Response:
-    service.delete_all_user_audios(current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
