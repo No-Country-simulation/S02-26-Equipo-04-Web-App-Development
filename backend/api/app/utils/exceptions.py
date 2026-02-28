@@ -67,6 +67,13 @@ class VideoProcessingException(AppException):
             message = f"{message}: {original_error}"
         super().__init__(message, status_code=500)
         
+class VideoConflictException(AppException):
+    """Excepción de validaciones al crear Video"""
+    def __init__(self, message: str = "Error creando video", original_error: str | None = None):
+        if original_error:
+            message = f"{message}: {original_error}"
+        super().__init__(message, status_code=500)
+        
 # ============ JOB EXCEPTIONS ============
 
 class JobParameterException(BadRequestException):

@@ -12,8 +12,16 @@ from app.models.enums import VideoStatus
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.services.storage_service import StorageService
+
+from app.services.job_service import JobService
+from app.models.enums import JobStatus, JobType
+from app.models.job import Job
+
 from app.models.video import Video
+
+
 from app.schemas.video import (
+    VideoFromJobResponse,
     UpdateVideoRequest,
     UserVideoDetailResponse,
     VideoUploadResponse,
@@ -27,6 +35,7 @@ from app.utils.exceptions import (
     ForbiddenException,
     VideoDBException,
     VideoValidationException,
+    VideoConflictException
 )
 
 MAX_FILENAME_LENGTH = 255
@@ -51,9 +60,11 @@ class VideoService:
         "video/webm",
     }
 
+
     def __init__(self, db: Session, storage_service: StorageService):
         self.db = db
         self.storage = storage_service
+
 
     def _validate_file(self, file: UploadFile) -> int:
         """
@@ -118,6 +129,7 @@ class VideoService:
 
         return size_bytes
 
+
     def _get_user_video(self, video_id: UUID, user_id: UUID) -> Video:
         video = self.db.query(Video).filter(Video.id == video_id).first()
         if not video:
@@ -125,6 +137,7 @@ class VideoService:
         if video.user_id != user_id:
             raise ForbiddenException("No tienes permisos para acceder a este video")
         return video
+
 
     def _to_user_video_item(self, video: Video) -> UserVideoItem:
         return UserVideoItem(
@@ -134,6 +147,7 @@ class VideoService:
             uploaded_at=video.created_at,
             preview_url=self._build_preview_url(video),
         )
+
 
     def _build_preview_url(self, video: Video, expires_in: int = 3600) -> str | None:
         if not video.storage_path:
@@ -151,87 +165,56 @@ class VideoService:
                 "No se pudo generar la URL de preview", str(exc)
             )
 
-    def get_user_video(self, video_id: UUID, user_id: UUID) -> UserVideoDetailResponse:
-        video = self._get_user_video(video_id, user_id)
-        return UserVideoDetailResponse(
-            video_id=video.id,
-            filename=video.original_filename,
-            status=video.status,
-            uploaded_at=video.created_at,
-            updated_at=video.updated_at,
-            storage_path=video.storage_path,
-            preview_url=self._build_preview_url(video),
-        )
 
-    def update_user_video(
-        self, video_id: UUID, user_id: UUID, payload: UpdateVideoRequest
-    ) -> UserVideoItem:
+    def create_video_from_job(self, job: Job, user_id: UUID) -> VideoFromJobResponse:
         """
-        Actualiza el nombre visible del video preservando la extensión original.
-
-        - El usuario solo envía el nombre base (sin extensión).
-        - La extensión original se conserva automáticamente.
-        - No modifica el objeto físico en MinIO.
+        Crea un video en base al output de un Job
         """
-        video = self._get_user_video(video_id, user_id)
 
-        base_name = payload.filename.strip()
+        if not job.user_id == user_id:
+            raise ForbiddenException("job_id no corresponde al Usuario")
+        if job.status != JobStatus.DONE:
+            raise VideoConflictException("Job debe tener status DONE para crear un Video")
+        if job.job_type == JobType.AUTO_REFRAME:
+            raise VideoConflictException("Job AUTO_REFRAME tiene multiples videos, usar un Job type REFRAME")
 
-        # 1️⃣ No vacío
-        if not base_name:
-            raise VideoValidationException("El nombre de archivo no puede estar vacío")
 
-        # 2️⃣ Longitud máxima
-        if len(base_name) > MAX_FILENAME_LENGTH:
-            raise VideoValidationException(
-                f"El nombre no puede superar los {MAX_FILENAME_LENGTH} caracteres"
-            )
+        storage_path = (job.output_path or {}).get("video")
+        if not storage_path:
+            raise VideoConflictException("Job output video not found")
+        
+        if not self.storage.exists(storage_path):
+            raise VideoConflictException("Job output video missing in storage")
+        bucket, object_key = self.storage._extract_bucket_and_key(storage_path)
+        
+        filename = job.video.original_filename
+        if not filename:
+            raise VideoConflictException("Video has no original filename")
 
-        # 3️⃣ Caracteres permitidos
-        if not re.match(FILENAME_REGEX, base_name):
-            raise VideoValidationException("El nombre contiene caracteres inválidos")
-
-        # 4️⃣ Conservar extensión original
-        original_ext = Path(video.original_filename).suffix
-        new_filename = f"{base_name}{original_ext}"
-
+        
         try:
-            video.original_filename = new_filename
+            video = Video(
+                user_id=user_id,
+                original_filename=filename,
+                storage_path=storage_path,
+                status=VideoStatus.AVAILABLE,
+            )
+            self.db.add(video)
             self.db.commit()
             self.db.refresh(video)
         except Exception as exc:
-            self.db.rollback()
-            raise VideoDBException(
-                "Error cambiando el nombre del archivo",
-                str(exc),
-            )
+            raise VideoDBException("Error guardando Video desde Job en DB", str(exc))
 
-        return self._to_user_video_item(video)
+        return VideoFromJobResponse(
+            video_id=video.id,
+            bucket=bucket,
+            object_key=object_key,
+            filename=filename,
+            user_id=user_id,
+            storage_path=video.storage_path,
+            uploaded_at=video.created_at,
+        )
 
-    def delete_user_video(self, video_id: UUID, user_id: UUID) -> None:
-        video = self._get_user_video(video_id, user_id)
-
-        if not video.storage_path:
-            raise BadRequestException(
-                "El video no tiene una ruta de almacenamiento válida"
-            )
-
-        try:
-            self.db.delete(video)
-            self.db.commit()
-        except Exception as exc:
-            self.db.rollback()
-            raise VideoDBException("Error eliminando video", str(exc))
-        
-        # Luego eliminar de MinIO
-        if video.storage_path:
-            try:
-                self.storage.delete_video_from_storage(video.storage_path)
-            except Exception:
-                logger.warning(
-                    f"Audio {video.id} removed from DB but still exists in storage"
-                )
-        
 
     def upload_video_authenticated(
         self, file: UploadFile, user_id: UUID
@@ -287,6 +270,7 @@ class VideoService:
             uploaded_at=video.created_at,
         )
 
+
     def get_video_url(self, video_id: UUID, expires_in: int = 3600) -> VideoURLResponse:
         """
         Genera una URL presignada para descargar el video.
@@ -323,6 +307,7 @@ class VideoService:
             filename=video.original_filename,
         )
 
+
     def list_user_videos(
         self,
         user_id: UUID,
@@ -355,3 +340,87 @@ class VideoService:
         return UserVideosResponse(
             total=total, limit=limit, offset=offset, videos=videos
         )
+
+
+    def get_user_video(self, video_id: UUID, user_id: UUID) -> UserVideoDetailResponse:
+        video = self._get_user_video(video_id, user_id)
+        return UserVideoDetailResponse(
+            video_id=video.id,
+            filename=video.original_filename,
+            status=video.status,
+            uploaded_at=video.created_at,
+            updated_at=video.updated_at,
+            storage_path=video.storage_path,
+            preview_url=self._build_preview_url(video),
+        )
+
+
+    def update_user_video(
+        self, video_id: UUID, user_id: UUID, payload: UpdateVideoRequest
+    ) -> UserVideoItem:
+        """
+        Actualiza el nombre visible del video preservando la extensión original.
+
+        - El usuario solo envía el nombre base (sin extensión).
+        - La extensión original se conserva automáticamente.
+        - No modifica el objeto físico en MinIO.
+        """
+        video = self._get_user_video(video_id, user_id)
+
+        base_name = payload.filename.strip()
+
+        # 1️⃣ No vacío
+        if not base_name:
+            raise VideoValidationException("El nombre de archivo no puede estar vacío")
+
+        # 2️⃣ Longitud máxima
+        if len(base_name) > MAX_FILENAME_LENGTH:
+            raise VideoValidationException(
+                f"El nombre no puede superar los {MAX_FILENAME_LENGTH} caracteres"
+            )
+
+        # 3️⃣ Caracteres permitidos
+        if not re.match(FILENAME_REGEX, base_name):
+            raise VideoValidationException("El nombre contiene caracteres inválidos")
+
+        # 4️⃣ Conservar extensión original
+        original_ext = Path(video.original_filename).suffix
+        new_filename = f"{base_name}{original_ext}"
+
+        try:
+            video.original_filename = new_filename
+            self.db.commit()
+            self.db.refresh(video)
+        except Exception as exc:
+            self.db.rollback()
+            raise VideoDBException(
+                "Error cambiando el nombre del archivo",
+                str(exc),
+            )
+
+        return self._to_user_video_item(video)
+
+
+    def delete_user_video(self, video_id: UUID, user_id: UUID) -> None:
+        video = self._get_user_video(video_id, user_id)
+
+        if not video.storage_path:
+            raise BadRequestException(
+                "El video no tiene una ruta de almacenamiento válida"
+            )
+
+        try:
+            self.db.delete(video)
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise VideoDBException("Error eliminando video", str(exc))
+        
+        # Luego eliminar de MinIO
+        if video.storage_path:
+            try:
+                self.storage.delete_video_from_storage(video.storage_path)
+            except Exception:
+                logger.warning(
+                    f"Audio {video.id} removed from DB but still exists in storage"
+                )

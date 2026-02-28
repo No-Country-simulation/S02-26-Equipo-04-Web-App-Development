@@ -4,6 +4,15 @@ from pydantic import Field
 from app.schemas.base import BaseSchema
 
 
+class VideoFromJobResponse(BaseSchema):
+    video_id: UUID
+    bucket: str
+    object_key: str
+    filename: str
+    user_id: UUID | None
+    storage_path: str
+    uploaded_at: datetime
+
 class VideoUploadResponse(BaseSchema):
     video_id: UUID
     bucket: str

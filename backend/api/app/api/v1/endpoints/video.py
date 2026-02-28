@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends, File, UploadFile, Query, Response, statu
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_active_user
-from app.services.dependencies import get_video_service
+from app.services.dependencies import get_video_service, get_job_service
 from app.models.user import User
 from app.schemas.video import (
+    VideoFromJobResponse,
     UpdateVideoRequest,
     UserVideoDetailResponse,
     UserVideoItem,
@@ -16,6 +17,7 @@ from app.schemas.video import (
     VideoURLResponse,
 )
 from app.services.video_service import VideoService
+from app.services.job_service import JobService
 
 router = APIRouter(prefix="/videos", tags=["Videos"])
 
@@ -39,6 +41,29 @@ async def upload_video(
 ) -> VideoUploadResponse:
     """Sube un video con autenticación (asociado a usuario)"""
     return service.upload_video_authenticated(file, current_user.id)
+
+
+@router.post(
+    "/from-job/{job_id}",
+    response_model=VideoFromJobResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear Video desde resultado de un Job (autenticado)",
+    description="Crea un Video desde el output de un Job",
+    responses={
+        201: {"description": "Video creado exitosamente"},
+        400: {"description": "Job inválido"},
+        401: {"description": "No autenticado"},
+    },
+)
+async def video_from_job(
+    job_id: UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    job_service: JobService = Depends(get_job_service),
+    video_service: VideoService = Depends(get_video_service),
+) -> VideoFromJobResponse:
+    """Sube un video con autenticación (asociado a usuario)"""
+    job = job_service.get_by_id(job_id)
+    return video_service.create_video_from_job(job, current_user.id)
 
 
 @router.get(

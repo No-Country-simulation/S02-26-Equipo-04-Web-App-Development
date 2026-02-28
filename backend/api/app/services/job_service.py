@@ -921,7 +921,7 @@ class JobService:
             logger.error(f"❌ Could not persist state for job {job_id}: {exc}")
             return False      
         
-    def get_by_id(self, job_id: UUID) -> Job | None:
+    def get_by_id(self, job_id: UUID) -> Job:
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise NotFoundException("Job not found")
