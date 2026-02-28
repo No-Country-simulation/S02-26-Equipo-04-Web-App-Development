@@ -100,6 +100,24 @@ class StorageService:
         return parts[0], parts[1]
         
         
+    def exists(self, storage_path: str) -> bool:
+        bucket, key = self._extract_bucket_and_key(storage_path)
+    
+        s3_client = self._get_s3_client()
+    
+        try:
+            s3_client.head_object(Bucket=bucket, Key=key)
+            return True
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code")
+    
+            if error_code in ("404", "NoSuchKey"):
+                return False
+    
+            raise MinIOStorageException(
+                "Error verificando existencia del objeto", str(exc)
+            )
+    
 
     def get_video_url(self, storage_path: str, expires_in: int = 3600) -> str:
 
