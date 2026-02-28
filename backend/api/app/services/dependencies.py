@@ -26,10 +26,9 @@ def get_video_service(
 
 def get_audio_service(
     db: Session = Depends(get_db),
-    storage: StorageService = Depends(get_storage_service),
-    video: VideoService = Depends(get_video_service),
+    storage: StorageService = Depends(get_storage_service)
 ) -> AudioService:
-    return AudioService(db, storage, video)
+    return AudioService(db, storage)
 
 def get_job_service(
     db: Session = Depends(get_db),

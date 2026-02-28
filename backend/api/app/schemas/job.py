@@ -1,6 +1,6 @@
 from uuid import UUID
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Any
 from pydantic import Field
 from app.schemas.base import BaseSchema
 from app.models.job import JobStatus, JobType
@@ -9,7 +9,7 @@ from app.models.job import JobStatus, JobType
 class JobStatusResponse(BaseSchema):
     job_id: UUID
     status: JobStatus
-    output_path: str | None = None
+    output_path: dict[str, Any] | None = None
 
 
 # ============ REFRAME ============
@@ -87,6 +87,9 @@ class JobAutoReframeRequest(BaseSchema):
         max_length=12,
         description="Opcional: aplicar marca de agua (texto)",
     )
+    subtitles: bool | None = Field(
+        description="Opcional: crear archivo de Subtitulos"
+    )
 
 
 class JobAutoReframeItem(BaseSchema):
@@ -121,7 +124,7 @@ class UserClipItem(BaseSchema):
     job_id: UUID
     video_id: UUID
     status: JobStatus
-    output_path: str | None = None
+    output_path: dict[str, Any] | None = None
     source_filename: str
     created_at: datetime
 

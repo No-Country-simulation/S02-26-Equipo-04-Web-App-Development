@@ -4,7 +4,7 @@ from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.audio import Audio
-from app.models.video import Video
+from app.core.logging import setup_logging
 from app.schemas.audio import (
     AudioUploadResponse,
     AudioURLResponse,
@@ -19,6 +19,8 @@ from app.utils.exceptions import (
     AudioDBException,
     NotFoundException
 )
+
+logger = setup_logging()
 
 
 class AudioService:
@@ -40,10 +42,10 @@ class AudioService:
         "audio/opus"
     }
     
-    def __init__(self, db: Session, storage_service: StorageService, video_service: VideoService):
+    def __init__(self, db: Session, storage_service: StorageService):
         self.db = db
         self.storage = storage_service
-        self.video = video_service
+
 
     def _validate_file(self, file: UploadFile) -> int:
         """
@@ -97,10 +99,10 @@ class AudioService:
         
         return size_bytes
     
+
     def _create_audio_record(
         self,
         original_filename: str,
-        video_id: UUID,
         user_id: UUID | None,
         storage_path: str 
     ) -> Audio:
@@ -109,7 +111,6 @@ class AudioService:
         
         Args:
             original_filename: Nombre original del archivo
-            video_id: ID del video asociado
             user_id: ID del usuario autenticado
             
         Returns:
@@ -123,7 +124,6 @@ class AudioService:
         try:
             audio = Audio(
                 user_id=user_id,
-                video_id=video_id,
                 original_filename=original_filename,
                 storage_path=storage_path,
                 status="uploaded"
@@ -136,35 +136,27 @@ class AudioService:
             self.db.rollback()
             raise AudioDBException(f"Error creando registro de audio: {str(exc)}")
     
-    
-    def upload_audio_to_video(
+ 
+    def upload_audio(
         self,
         file: UploadFile,
-        video_id: UUID,
         user_id: UUID
     ) -> AudioUploadResponse:
         """
-        Sube un audio asociado a un video.
+        Sube un audio.
         
         Args:
             file: Archivo de audio subido
-            video_id: ID del video al que pertenece el audio
             user_id: ID del usuario autenticado
             
         Returns:
             AudioUploadResponse con información del audio subido
             
         Raises:
-            NotFoundException: Si el video no existe
             AudioValidationException: Si el archivo no es válido
             MinIOStorageException: Si falla la subida a MinIO
             AppException: Si falla guardar en base de datos
         """
-        
-          # Verificar que el video existe
-        video = self.video.get_user_video(video_id, user_id)
-        if not video:
-            raise NotFoundException(f"Video con ID '{video_id}' no encontrado para el usuario")
         
         # Validar archivo
         size_bytes = self._validate_file(file)
@@ -172,9 +164,8 @@ class AudioService:
         storage_path, bucket, object_key = self.storage.upload_fileobj_to_minio(file.file, file.filename)
         
         
-        
         # Crear registro en DB
-        audio = self._create_audio_record(file.filename, video_id, user_id, storage_path)
+        audio = self._create_audio_record(file.filename, user_id, storage_path)
  
         
         return AudioUploadResponse(
@@ -184,13 +175,13 @@ class AudioService:
             filename=file.filename,
             content_type=file.content_type,
             size_bytes=size_bytes,
-            video_id=video_id,
             user_id=user_id,
             storage_path=audio.storage_path,
             uploaded_at=audio.created_at  
         )
     
-    def get_audio_url(self, audio_id: UUID, expires_in: int = 3600) -> AudioURLResponse:
+
+    def get_audio_public_url(self, audio_id: UUID, expires_in: int = 3600) -> AudioURLResponse:
         """
         Genera una URL presignada para descargar el audio.
         
@@ -225,14 +216,15 @@ class AudioService:
             filename=audio.original_filename
         )
 
+
     def _to_user_audio_item(self, audio: Audio) -> UserAudioItem:
         return UserAudioItem(
             audio_id=audio.id,
             filename=audio.original_filename,
             status=audio.status,
-            uploaded_at=audio.created_at,
-            video_id=audio.video_id,
+            uploaded_at=audio.created_at
         )
+
 
     def list_user_audios(
         self,
@@ -255,9 +247,7 @@ class AudioService:
         
         # Mensaje cuando no hay audios
         if total == 0:
-            import logging
-            logger_instance = logging.getLogger(__name__)
-            logger_instance.info(f"No hay audios almacenados para el usuario {user_id}")
+            logger.info(f"No hay audios almacenados para el usuario {user_id}")
         
         rows = (
             base_query.order_by(Audio.created_at.desc())
@@ -273,6 +263,7 @@ class AudioService:
         return UserAudiosResponse(
             total=total, limit=limit, offset=offset, audios=audios
         )
+
 
     def delete_audio(self, audio_id: UUID, user_id: UUID) -> None:
         """
@@ -303,47 +294,19 @@ class AudioService:
                 "El audio no tiene una ruta de almacenamiento válida"
             )
         
-        # Primero eliminar de MinIO
-        self.storage.delete_video_from_storage(audio.storage_path)
-        
-        # Luego eliminar de base de datos
+        # Primero eliminar de base de datos
         try:
             self.db.delete(audio)
             self.db.commit()
         except Exception as exc:
             self.db.rollback()
             raise AudioDBException(f"Error eliminando audio: {str(exc)}")
-
-    def delete_all_user_audios(self, user_id: UUID) -> None:
-        """
-        Elimina todos los audios de un usuario.
         
-        Args:
-            user_id: ID del usuario propietario
-            
-        Raises:
-            AudioDBException: Si falla la eliminación
-        """
-        # Obtener todos los audios del usuario
-        audios = self.db.query(Audio).filter(Audio.user_id == user_id).all()
-        
-        if not audios:
-            return  # Nada que eliminar
-        
-        # Eliminar de MinIO y luego de BD
-        try:
-            for audio in audios:
-                if audio.storage_path:
-                    try:
-                        self.storage.delete_video_from_storage(audio.storage_path)
-                    except Exception as e:
-                        # Log pero continuar con el siguiente
-                        import logging
-                        logging.warning(f"No se pudo eliminar archivo de MinIO: {audio.storage_path}. Error: {e}")
-                
-                self.db.delete(audio)
-            
-            self.db.commit()
-        except Exception as exc:
-            self.db.rollback()
-            raise AudioDBException(f"Error eliminando audios: {str(exc)}")
+        # Luego eliminar de MinIO
+        if audio.storage_path:
+            try:
+                self.storage.delete_video_from_storage(audio.storage_path)
+            except Exception:
+                logger.warning(
+                    f"Audio {audio.id} removed from DB but still exists in storage"
+                )
