@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 import hashlib
 from worker.app.pipeline import process
+from worker.app.pipeline import process_add_audio
 
 # imports del nodo1 /api
 from app.models.job import Job
@@ -173,6 +174,10 @@ def handle_job(payload, job_service, queue_service, storage_service):
     if job.job_type == JobType.REFRAME:
         handle_reframe(job, payload, job_service, storage_service)
         return
+    
+    if job.job_type == JobType.ADD_AUDIO:
+        handle_add_audio(job, payload, job_service, storage_service)
+        return
 
     if job.job_type == JobType.CANCEL:
         handle_cancel(job, job_service)
@@ -185,16 +190,40 @@ def handle_cancel(job, job_service):
     logger.info(f"⚙️  Processing CANCEL job {job.id}")
     # TODO cancel(job.video_id)
 
+def handle_add_audio_pipeline(job, payload, filename, video_url):
+
+    logger.info(f"⚙️  Processing ADD_AUDIO job {job.id}")
+
+    audio_storage_path = payload["audio_storage_path"]
+    audio_offset_sec = payload["audio_offset_sec"]
+    audio_start_sec = payload["audio_start_sec"]
+    audio_end_sec = payload["audio_end_sec"]
+    audio_volume = payload["audio_volume"]
+
+    audio_url = storage_service.get_video_url(audio_storage_path)
+
+    video_local_path = process_add_audio(
+    video_url,
+    filename,
+    audio_url,
+    audio_offset_sec,
+    audio_start_sec,
+    audio_end_sec,
+    audio_volume
+    )
+    return video_local_path
+        
 
 def handle_reframe_pipeline(job, payload, filename, video_url):
     # ejecutar pipeline
     try:
-        # recuperar datos del payload
+
+        logger.info(f"⚙️  Processing REFRAME job {job.id}")
+
         start_sec = payload.get("start_sec")
         end_sec = payload.get("end_sec")
         output_style = payload.get("output_style", "vertical")
         content_profile = payload.get("content_profile", "interview")
-        logger.info(f"⚙️  Processing REFRAME job {job.id}")
         watermark = payload.get("watermark")
         subtitles = payload.get("subtitles")
 
@@ -224,7 +253,7 @@ def _get_video_from_job(job, job_service, storage_service):
 
         filename = video.original_filename
         if not filename:
-            logger.warning(f"❌ Video {job.video_id} has no filename")
+            logger.sg(f"❌ Video {job.video_id} has no filename")
             job_service.update_status(job.id, JobStatus.FAILED, "No filename")
             return None
         
@@ -245,6 +274,59 @@ def _get_video_from_job(job, job_service, storage_service):
         )
         return
 
+
+def handle_add_audio(job, payload, job_service, storage_service):
+    logger.info(f"⚙️  Processing ADD_AUDIO job {job.id}")
+
+    result = _get_video_from_job(job, job_service, storage_service)
+    if not result:
+        return
+    video, filename, video_url = result
+    
+    try:
+        video_local_path = handle_add_audio_pipeline(job, payload, filename, video_url)
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during pipeline execution: {e}")
+        job_service.update_status(job.id, JobStatus.FAILED, str(e))
+        return
+    
+    try:
+        output_filename = f"{job.id}.mp4"
+        storage_path, bucket, key = storage_service.upload_local_video_to_minio(video_local_path, output_filename)
+        logger.info(f"✅ Video uploaded to MinIO")
+        
+        public_storage_path = storage_service.get_video_public_url(
+                storage_path, expires_in=300
+            )
+        logger.info(f"✅ Public MiniIO url: {public_storage_path}")
+
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during upload to MinIO: {e}")
+        job_service.update_status(
+            job.id,
+            JobStatus.FAILED,
+            error_message=str(e),
+        )
+        return
+    
+    # update db
+    try:
+        job_service.update_status(
+            job.id,
+            status=JobStatus.DONE,
+            error_message=None,
+            video_path=storage_path
+        )
+        # clear /tmp service...?
+        logger.info(f"✅ Job {job.id} completed successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Job {job.id} failed during DB update: {e}")
+        job_service.update_status(
+            job.id,
+            status=JobStatus.FAILED,
+            error_message=str(e),
+        )
 
 def handle_auto_reframe(job, payload, job_service, storage_service):
     logger.info(f"⚙️  Processing AUTO-REFRAME job {job.id}")

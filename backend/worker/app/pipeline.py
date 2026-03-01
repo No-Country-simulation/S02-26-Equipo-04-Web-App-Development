@@ -455,8 +455,8 @@ def init_stream_encoder(output_path, actual_w, actual_h, fps):
 def normalize_video_segment(
     video_path,
     filename,
-    start_sec,
-    end_sec,
+    start_sec=0,
+    end_sec=None,
     target_fps=TARGET_FPS,
     target_max_width=TARGET_MAX_W,
 ):
@@ -498,6 +498,16 @@ def normalize_video_segment(
     logger.info("🎬 VIDEO NORMALIZATION...")
 
     probe = ffmpeg.probe(video_path)
+
+    if end_sec is None:
+        duration = float(
+            probe.get("format", {}).get("duration")
+            or vstream.get("duration", 0)
+        )
+        if duration is None:
+            raise ValueError("Could not determine video duration. ")
+        end_sec = duration
+
     vstream = next(s for s in probe["streams"] if s["codec_type"] == "video")
 
     codec = vstream.get("codec_name")
@@ -1202,6 +1212,72 @@ def stream_processing(
     return output_path, srt_path
 
 
+def generate_add_audio_video(
+    normalized_video_path,
+    filename,
+    audio_url,
+    audio_offset,
+    audio_start_sec,
+    audio_end_sec,
+    audio_volume
+):
+    
+    output_name = f"result_{_mp4_filename(filename)}"
+    output_path = str(RESULT_VIDEO / output_name)
+
+    try:
+        video_in = ffmpeg.input(normalized_video_path)
+
+        # cortar el segmento del audio
+        audio_in = ffmpeg.input(
+            audio_url,
+            ss=audio_start_sec,
+            to=audio_end_sec
+        )
+
+        # aplicar volumen
+        audio_filtered = audio_in.audio.filter("volume", audio_volume)
+
+        # offset
+        if audio_offset and audio_offset > 0:
+            delay_ms = int(audio_offset * 1000)
+            audio_filtered = audio_filtered.filter("adelay", f"{delay_ms}|{delay_ms}")
+
+        # audio original del video
+        original_audio = video_in.audio
+
+        # mezclar audios
+        mixed_audio = ffmpeg.filter(
+            [original_audio, audio_filtered],
+            "amix",
+            inputs=2,
+            duration="first",
+            dropout_transition=0
+        )
+
+        (
+            ffmpeg
+            .output(
+                video_in.video,
+                mixed_audio,
+                output_path,
+                vcodec="copy",
+                acodec="aac"
+            )
+            .overwrite_output()
+            .global_args("-loglevel", "error")
+            .run()
+        )
+
+        logger.info("🔊 Audio added successfully")
+
+    except ffmpeg.Error as e:
+        logger.error(f"FFmpeg error: {e.stderr.decode() if e.stderr else e}")
+        raise
+
+    return output_path
+    
+
 def generate_video(
     video_path, filename, watermark, subtitles, output_style="vertical", content_profile="interview"
 ):
@@ -1265,3 +1341,28 @@ def process(
     )
     logger.info(f"🎉 GENERATED")
     return result_video_path, result_srt_path
+
+
+def process_add_audio(
+    video_path,
+    filename,
+    audio_url,
+    audio_offset,
+    audio_start_sec,
+    audio_end_sec,
+    audio_volume
+):
+
+    normalized_video_path = normalize_video_segment(video_path, filename)
+
+    result_video_path = generate_add_audio_video(
+        normalized_video_path,
+        filename,
+        audio_url,
+        audio_offset,
+        audio_start_sec,
+        audio_end_sec,
+        audio_volume
+    )
+    logger.info(f"🎉 GENERATED")
+    return result_video_path
