@@ -144,3 +144,26 @@ Rama de trabajo origen: `feature/frontend-sync-upload-develop`.
 - `backend/api/app/services/video_service.py`
 - `backend/worker/app/pipeline.py`
 - `docs/backend-pr-log.md`
+
+## Objetivo de la rama
+
+Agregar soporte de `PATCH` para CRUD de jobs (renombrado de clip por `job_id`) sin afectar el flujo actual de generacion.
+
+Rama de trabajo: `feature/backend-jobs-patch-crud`.
+
+## Cambios implementados
+
+- Se agrego endpoint `PATCH /api/v1/jobs/{job_id}` en `backend/api/app/api/v1/endpoints/job.py` para actualizar metadata de clip propio.
+- Se extendio `JobService` con `update_user_clip(...)` y validaciones de nombre para `display_name`.
+- Se incluyo `display_name` en respuestas de clips (`my-clips` y `clip detail`) para que frontend pueda mostrar nombre por clip y no por video.
+- Se agrego columna nullable `display_name` en tabla `jobs` mediante migracion Alembic.
+
+## Migracion
+
+- Nueva revision: `9f8b7d3c2a11_add_display_name_to_jobs.py`
+- Cambio: `jobs.display_name VARCHAR(255) NULL`
+
+## Resultado
+
+- Ya existe soporte backend para renombrar un clip por `job_id` (independiente del `video_id`).
+- Se evita el efecto colateral de cambiar nombre del video fuente y propagarlo a todos los clips cuando se requiera naming por clip.
