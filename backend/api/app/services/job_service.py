@@ -9,6 +9,7 @@ from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 from app.models.job import Job, JobStatus, JobType
 from app.models.video import Video
+from app.models.audio import Audio
 
 from app.schemas.job import (
     JobReframeResponse,
@@ -19,6 +20,7 @@ from app.schemas.job import (
     UserClipDetailResponse,
     UserClipsResponse,
     UserClipItem,
+    JobAddAudioResponse
 )
 
 from app.services.queue_service import QueueService
@@ -36,6 +38,7 @@ MIN_VIDEO_DURATION_SECS = 5
 
 class JobService:
     """Servicio de Jobs - Persiste un Job, luego envia mensaje a Redis"""
+
 
     def __init__(self, db: Session, queue: QueueService, storage_service: StorageService):
         self.db = db
@@ -121,6 +124,7 @@ class JobService:
             output_path=self._resolve_output_urls(job.output_path),
         )
 
+
     def _get_user_video(self, video_id: UUID, user_id: UUID) -> Video:
         video = (
             self.db.query(Video)
@@ -132,10 +136,25 @@ class JobService:
             raise NotFoundException("Video not found")
 
         return video
+    
+
+    def _get_user_audio(self, audio_id: UUID, user_id: UUID) -> Audio:
+        audio = (
+            self.db.query(Audio)
+            .filter(Audio.id == audio_id, Audio.user_id == user_id)
+            .first()
+        )
+
+        if not audio:
+            raise NotFoundException("Audio not found")
+
+        return audio
+
 
     def _validate_time_range(self, start_sec: int, end_sec: int) -> None:
         if start_sec < 0 or start_sec > end_sec or end_sec <= 0 or (end_sec - start_sec) < MIN_VIDEO_DURATION_SECS:
             raise JobParameterException()
+
 
     def _create_reframe_job(
         self,
@@ -175,7 +194,7 @@ class JobService:
 
         if existing_job and existing_job.status == JobStatus.RUNNING:
             logger.info(
-                f"Existing job {existing_job.id} is already {existing_job.status}"
+                f"Existing job {existing_job.id} found for video {video.id} with status {existing_job.status}"
             )
             return JobReframeResponse(
                 job_id=existing_job.id,
@@ -258,6 +277,7 @@ class JobService:
             created_at=job.created_at,
         )
 
+
     def _create_auto_reframe_job(
         self,
         *,
@@ -318,6 +338,7 @@ class JobService:
             total_jobs=clips_count or 0,
             created_at=job.created_at,
         )
+
 
     def _build_auto_clip_ranges(
         self,
@@ -446,6 +467,7 @@ class JobService:
 
         return (ranges, duration, resolved_profile)
 
+
     def _sports_context_window(
         self,
         *,
@@ -475,6 +497,7 @@ class JobService:
 
         return (start, end)
 
+
     def _resolve_auto_clips_count(
         self, duration: int | None, requested: int | None
     ) -> int:
@@ -490,6 +513,7 @@ class JobService:
             return 4
         return 5
 
+
     def _profile_duration_policy(
         self, profile: Literal["interview", "sports", "music"]
     ) -> tuple[int, int, int]:
@@ -498,6 +522,7 @@ class JobService:
         if profile == "music":
             return (12, 32, 20)
         return (8, 20, 14)
+
 
     def _resolve_content_profile(
         self,
@@ -541,6 +566,7 @@ class JobService:
             return "music"
         return "interview"
 
+
     def _extract_scene_change_timestamps(
         self, source_url: str, duration_sec: int
     ) -> list[int]:
@@ -572,6 +598,7 @@ class JobService:
             logger.warning(f"No se pudo detectar cambios de escena: {exc}")
             return []
 
+
     def _distributed_starts(self, max_start: int, clips_count: int) -> list[int]:
         if clips_count <= 1:
             return [max_start // 2]
@@ -584,6 +611,7 @@ class JobService:
             for i in range(clips_count)
         ]
 
+
     def _get_source_url(self, video: Video) -> str | None:
         if not video.storage_path:
             return None
@@ -595,6 +623,7 @@ class JobService:
             logger.warning(f"No se pudo generar URL temporal para analisis: {exc}")
             return None
 
+
     def _resolve_video_duration(self, video: Video) -> int | None:
         if video.duration_seconds and video.duration_seconds > 0:
             return int(video.duration_seconds)
@@ -602,6 +631,7 @@ class JobService:
         if not source_url:
             return None
         return self._probe_duration_seconds(source_url)
+
 
     def _probe_duration_seconds(self, source_url: str) -> int | None:
         try:
@@ -623,6 +653,7 @@ class JobService:
         except Exception as exc:
             logger.warning(f"No se pudo obtener duracion con ffprobe: {exc}")
             return None
+
 
     def _extract_nonsilent_segments(
         self, source_url: str, duration_sec: int
@@ -669,6 +700,7 @@ class JobService:
             logger.warning(f"No se pudo analizar silencios para highlights: {exc}")
             return []
 
+
     def reframe_video(
         self,
         video_id: UUID,
@@ -704,6 +736,7 @@ class JobService:
             watermark=watermark,
             subtitles=subtitles
         )
+
 
     def auto_reframe_video2(
         self,
@@ -921,8 +954,124 @@ class JobService:
             logger.error(f"❌ Could not persist state for job {job_id}: {exc}")
             return False      
         
+
     def get_by_id(self, job_id: UUID) -> Job:
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise NotFoundException("Job not found")
         return job
+
+
+    def add_audio_to_video(
+        self,
+        user_id: UUID,
+        video_id: UUID,
+        audio_id: UUID,
+        audio_offset_sec: int,
+        audio_start_sec: int,
+        audio_end_sec: int,
+        audio_volume: float) -> JobAddAudioResponse:
+        
+        self._validate_time_range(audio_start_sec, audio_end_sec)
+
+        video = self._get_user_video(video_id, user_id)
+
+        audio = self._get_user_audio(audio_id, user_id)
+
+        existing_job = None
+        existing_job = (
+            self.db.query(Job)
+            .filter(
+                Job.video_id == video.id,
+                Job.user_id == user_id,
+                Job.status.in_(
+                    [JobStatus.PENDING, JobStatus.RUNNING, JobStatus.FAILED]
+                ),
+            )
+            .first()
+        )
+
+        if existing_job and existing_job.status == JobStatus.RUNNING:
+            logger.info(
+                f"Existing job {existing_job.id} found for video {video.id} with status {existing_job.status}"
+            )
+            return JobAddAudioResponse(
+                job_id=existing_job.id,
+                job_type=existing_job.job_type,
+                status=existing_job.status,
+                filename=video.original_filename,
+                audio_filename=audio.original_filename,
+                audio_volume=audio_volume,
+                created_at=existing_job.created_at
+            )
+
+        if existing_job:
+            logger.info(
+                f"Existing job {existing_job.id} found for video {video.id} with status {existing_job.status}, reusing it"
+            )
+            try:
+                self.queue.publish_add_audio_job(
+                    job_id=str(existing_job.id),
+                    job_type=str(existing_job.job_type),
+                    video_id=str(video.id),
+                    user_id=str(user_id),
+                    audio_storage_path=audio.storage_path,
+                    audio_offset_sec=audio_offset_sec,
+                    audio_start_sec=audio_start_sec,
+                    audio_end_sec=audio_end_sec,
+                    audio_volume=audio_volume
+                )
+            except Exception as e:
+                existing_job.status = JobStatus.FAILED
+                existing_job.error_message = "Error enviando job a la cola"
+                self.db.commit()
+                raise e
+
+            return JobAddAudioResponse(
+                job_id=existing_job.id,
+                job_type=existing_job.job_type,
+                status=existing_job.status,
+                filename=video.original_filename,
+                audio_filename=audio.original_filename,
+                audio_volume=audio_volume,
+                created_at=existing_job.created_at
+            )
+
+        job = Job(
+            user_id=user_id,
+            video_id=video.id,
+            job_type=JobType.ADD_AUDIO,
+            status=JobStatus.PENDING,
+        )
+
+        self.db.add(job)
+        self.db.commit()
+        self.db.refresh(job)
+
+        try:
+            self.queue.publish_add_audio_job(
+                job_id=str(job.id),
+                job_type=str(job.job_type),
+                video_id=str(video.id),
+                user_id=str(user_id),
+                audio_storage_path=audio.storage_path,
+                audio_offset_sec=audio_offset_sec,
+                audio_start_sec=audio_start_sec,
+                audio_end_sec=audio_end_sec,
+                audio_volume=audio_volume
+            )
+        except Exception as e:
+            job.status = JobStatus.FAILED
+            job.error_message = "Error enviando job a la cola"
+            self.db.commit()
+            raise e
+
+        return JobAddAudioResponse(
+                job_id=job.id,
+                job_type=job.job_type,
+                status=job.status,
+                filename=video.original_filename,
+                audio_filename=audio.original_filename,
+                audio_volume=audio_volume,
+                created_at=job.created_at
+            )
