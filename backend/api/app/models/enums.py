@@ -35,6 +35,7 @@ class JobType(str, enum.Enum):
     """ 
     REFRAME = "REFRAME"
     AUTO_REFRAME = "AUTO_REFRAME"
+    ADD_AUDIO = "ADD_AUDIO"
 
 
 class JobStatus(str, enum.Enum):

@@ -11,7 +11,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copiar requirements y instalar dependencias Python
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir torch==2.1.0+cpu torchaudio==2.1.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir openai-whisper==20250625 numpy>=1.25.0 && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copiar código de la aplicación

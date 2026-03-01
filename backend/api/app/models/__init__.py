@@ -11,4 +11,13 @@ from app.models.video import Video
 from app.models.job import Job
 from app.models.audio import Audio
 
-__all__ = ["User", "Profile", "OAuthToken", "UserRole", "UserRole", "Video", "Job", "Audio"]
+__all__ = [
+    "User",
+    "Profile",
+    "OAuthToken",
+    "UserRole",
+    "UserRole",
+    "Video",
+    "Job",
+    "Audio"
+]

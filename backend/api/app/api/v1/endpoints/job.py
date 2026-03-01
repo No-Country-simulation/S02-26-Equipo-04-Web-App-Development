@@ -12,6 +12,8 @@ from app.schemas.job import (
     JobReframeResponse,
     JobStatusResponse,
     JobReframeRequest,
+    JobAddAudioRequest,
+    JobAddAudioResponse,
     JobAutoReframeRequest,
     JobAutoReframeResponse,
     JobAutoReframeResponse2,
@@ -115,6 +117,40 @@ async def auto_reframe_video(
         clip_duration_sec=body.clip_duration_sec,
         output_style=body.output_style,
         content_profile=body.content_profile,
+    )
+
+
+@router.post(
+    "/add-audio/{video_id}",
+    response_model=JobAddAudioResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Agregar Audio a un Video",
+    description="Agregar Audio a un Video",
+    responses={
+        201: {"description": "Jobs creado"},
+        401: {"description": "No autenticado"},
+        404: {"description": "Video no encontrado"},
+    },
+)
+async def add_audio(
+    video_id: Annotated[UUID, Path(description="ID del Video")],
+    body: JobAddAudioRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[JobService, Depends(get_job_service)],
+) -> JobAddAudioResponse:
+    """Agrega un Audio a un Video"""
+    return service.add_audio_to_video(
+        video_id=video_id,
+        user_id=current_user.id,
+        audio_id=body.audio_id,
+        audio_offset_sec=body.audio_offset_sec, #el audio empieza en el segundo 5 del video
+        audio_start_sec=body.audio_start_sec,
+        audio_end_sec=body.audio_end_sec,
+        audio_volume=body.audio_volume,
+        #mix_original_audio=body.mix_original_audio,
+        #fade_in_sec=body.fade_in_sec,
+        #fade_out_sec=body.fade_in_sec,
+        #allow_loop=body.allow_loop #si audio es mas corto que el video, loop
     )
 
 

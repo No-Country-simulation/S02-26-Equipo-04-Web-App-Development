@@ -9,6 +9,36 @@ class QueueService:
     def __init__(self, redis_client):
         self.redis = redis_client
 
+
+    def publish_add_audio_job(
+        self,
+        job_id: str,
+        job_type: str,
+        video_id: str,
+        user_id: str,
+        audio_storage_path: str,
+        audio_offset_sec: int,
+        audio_start_sec: int,
+        audio_end_sec: int,
+        audio_volume: str,
+    ):
+        payload = {
+            "job_id": job_id,
+            "job_type": job_type,
+            "video_id": video_id,
+            "user_id": user_id,
+            "audio_storage_path": audio_storage_path,
+            "audio_offset_sec": audio_offset_sec,
+            "audio_start_sec": audio_start_sec,
+            "audio_end_sec": audio_end_sec,
+            "audio_volume": audio_volume
+        }
+
+        self.redis.push_to_queue("reframe_queue", payload)
+
+        logger.info(f"👷 Job: {job_id} sent to Worker via Redis")
+        
+        
     def publish_reframe_job(
         self,
         job_id: str,

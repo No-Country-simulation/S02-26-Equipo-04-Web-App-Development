@@ -7,6 +7,7 @@ from app.database.base import SessionLocal
 from app.models.user import User
 from app.models.video import Video
 from app.models.job import Job
+from app.models.audio import Audio
 from app.database.base import engine  # el engine que usás en SessionLocal
 from sqlalchemy import inspect
 import sys
@@ -59,6 +60,23 @@ else:
         print(f"📁 Seconds:     {video.duration_seconds}")
         print(f"📅 Creado:     {video.created_at}")
         print("-" * 60)
+
+
+
+audios = db.query(Audio).all()
+
+print(f"\n📊 Total: {len(audios)} audio(s)\n")
+
+if not audios:
+    print("❌ No hay audios registrados\n")
+else:
+    for audio in audios:
+        print(f"🎥 Audio ID:   {audio.id}")
+        print(f"📁 File:     {audio.original_filename}")
+        print(f"📁 Seconds:     {audio.duration_seconds}")
+        print(f"📅 Creado:     {audio.created_at}")
+        print("-" * 60)
+
 
 
 jobs = db.query(Job).all()
