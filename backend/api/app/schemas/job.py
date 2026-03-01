@@ -106,15 +106,20 @@ class JobAutoReframeResponse2(BaseSchema):
     filename: str
     total_jobs: int
     created_at: datetime
-    
+
 
 class UserClipItem(BaseSchema):
     job_id: UUID
     video_id: UUID
     status: JobStatus
     output_path: str | None = None
+    display_name: str | None = None
     source_filename: str
     created_at: datetime
+
+
+class UpdateJobRequest(BaseSchema):
+    display_name: str = Field(min_length=1, max_length=255)
 
 
 class UserClipsResponse(BaseSchema):

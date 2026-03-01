@@ -16,6 +16,7 @@ from app.schemas.job import (
     JobAutoReframeResponse,
     JobAutoReframeResponse2,
     JobAutoReframeItem,
+    UpdateJobRequest,
     UserClipDetailResponse,
     UserClipsResponse,
     UserClipItem,
@@ -26,6 +27,7 @@ from app.services.storage_service import StorageService
 from app.core.logging import setup_logging
 from app.utils.exceptions import (
     JobParameterException,
+    JobDBException,
     NotFoundException,
     VideoDBException,
 )
@@ -33,11 +35,16 @@ from app.utils.exceptions import (
 logger = setup_logging()
 
 MIN_VIDEO_DURATION_SECS = 5
+MAX_CLIP_DISPLAY_NAME_LENGTH = 255
+CLIP_NAME_REGEX = r"^[\w\-. ]+$"
+
 
 class JobService:
     """Servicio de Jobs - Persiste un Job, luego envia mensaje a Redis"""
 
-    def __init__(self, db: Session, queue: QueueService, storage_service: StorageService):
+    def __init__(
+        self, db: Session, queue: QueueService, storage_service: StorageService
+    ):
         self.db = db
         self.queue = queue
         self.storage = storage_service
@@ -66,9 +73,7 @@ class JobService:
             return output_path
 
         try:
-            return self.storage.get_video_public_url(
-                storage_path, expires_in=3600
-            )
+            return self.storage.get_video_public_url(storage_path, expires_in=3600)
         except Exception as exc:
             logger.warning(f"No se pudo regenerar URL de salida para clip: {exc}")
             return output_path
@@ -100,7 +105,12 @@ class JobService:
         return video
 
     def _validate_time_range(self, start_sec: int, end_sec: int) -> None:
-        if start_sec < 0 or start_sec > end_sec or end_sec <= 0 or (end_sec - start_sec) < MIN_VIDEO_DURATION_SECS:
+        if (
+            start_sec < 0
+            or start_sec > end_sec
+            or end_sec <= 0
+            or (end_sec - start_sec) < MIN_VIDEO_DURATION_SECS
+        ):
             raise JobParameterException()
 
     def _create_reframe_job(
@@ -113,9 +123,9 @@ class JobService:
         allow_reuse: bool,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
-        job_type: JobType = JobType.REFRAME
+        job_type: JobType = JobType.REFRAME,
     ) -> JobReframeResponse:
-        
+
         self._validate_time_range(start_sec, end_sec)
 
         existing_job = None
@@ -222,14 +232,14 @@ class JobService:
         allow_reuse: bool,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
-        job_type: JobType = JobType.AUTO_REFRAME    
-    ) -> JobReframeResponse:    
-        
+        job_type: JobType = JobType.AUTO_REFRAME,
+    ) -> JobReframeResponse:
+
         if not clips_count or clips_count < 1:
             raise JobParameterException("clips_count must be at least 1")
         if clip_duration_sec is not None and clip_duration_sec < 5:
-            raise JobParameterException("clip_duration_sec must be at least 5 seconds") 
-        
+            raise JobParameterException("clip_duration_sec must be at least 5 seconds")
+
         job = Job(
             user_id=user_id,
             video_id=video.id,
@@ -535,9 +545,7 @@ class JobService:
         if not video.storage_path:
             return None
         try:
-            return self.storage.get_video_url(
-                video.storage_path, expires_in=600
-            )
+            return self.storage.get_video_url(video.storage_path, expires_in=600)
         except Exception as exc:
             logger.warning(f"No se pudo generar URL temporal para analisis: {exc}")
             return None
@@ -630,7 +638,7 @@ class JobService:
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
     ) -> JobReframeResponse:
-        
+
         video = self._get_user_video(video_id, user_id)
 
         self._validate_time_range(start_sec, end_sec)
@@ -648,7 +656,6 @@ class JobService:
             job_type=job_type,
         )
 
-
     def auto_reframe_video2(
         self,
         video_id: UUID,
@@ -658,11 +665,13 @@ class JobService:
         clip_duration_sec: int | None,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
-    ) -> JobReframeResponse:
-        
+    ) -> JobAutoReframeResponse2:
+
         video = self._get_user_video(video_id, user_id)
 
-        logger.info(f"AUTO_REFRAME for video: {video_id}, job_type: {JobType.AUTO_REFRAME}")
+        logger.info(
+            f"AUTO_REFRAME for video: {video_id}, job_type: {JobType.AUTO_REFRAME}"
+        )
 
         return self._create_auto_reframe_job(
             video=video,
@@ -675,7 +684,6 @@ class JobService:
             job_type=JobType.AUTO_REFRAME,
         )
 
-
     def auto_reframe_video(
         self,
         video_id: UUID,
@@ -685,9 +693,9 @@ class JobService:
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
     ) -> JobAutoReframeResponse:
-        
+
         video = self._get_user_video(video_id, user_id)
-        
+
         clip_ranges, used_duration, resolved_profile = self._build_auto_clip_ranges(
             video,
             clips_count,
@@ -731,6 +739,58 @@ class JobService:
             jobs=created_jobs,
         )
 
+    def _get_user_clip_job(self, job_id: UUID, user_id: UUID) -> tuple[Job, Video]:
+        row = (
+            self.db.query(Job, Video)
+            .join(Video, Video.id == Job.video_id)
+            .filter(
+                Job.id == job_id,
+                Job.user_id == user_id,
+                Job.job_type == JobType.REFRAME,
+            )
+            .first()
+        )
+
+        if not row:
+            raise NotFoundException("Clip no encontrado")
+
+        return row
+
+    def update_user_clip(
+        self, job_id: UUID, user_id: UUID, payload: UpdateJobRequest
+    ) -> UserClipItem:
+        job, video = self._get_user_clip_job(job_id, user_id)
+
+        display_name = payload.display_name.strip()
+        if not display_name:
+            raise JobParameterException("El nombre del clip no puede estar vacio")
+
+        if len(display_name) > MAX_CLIP_DISPLAY_NAME_LENGTH:
+            raise JobParameterException(
+                f"El nombre no puede superar los {MAX_CLIP_DISPLAY_NAME_LENGTH} caracteres"
+            )
+
+        if not re.match(CLIP_NAME_REGEX, display_name):
+            raise JobParameterException("El nombre contiene caracteres invalidos")
+
+        try:
+            job.display_name = display_name
+            self.db.commit()
+            self.db.refresh(job)
+        except Exception as exc:
+            self.db.rollback()
+            raise JobDBException("Error actualizando el nombre del clip", str(exc))
+
+        return UserClipItem(
+            job_id=job.id,
+            video_id=job.video_id,
+            status=job.status,
+            output_path=self._resolve_output_url(job.output_path),
+            display_name=job.display_name,
+            source_filename=video.original_filename,
+            created_at=job.created_at,
+        )
+
     def list_user_clips(
         self, user_id: UUID, limit: int = 20, offset: int = 0, query: str | None = None
     ) -> UserClipsResponse:
@@ -763,6 +823,7 @@ class JobService:
                 video_id=job.video_id,
                 status=job.status,
                 output_path=self._resolve_output_url(job.output_path),
+                display_name=job.display_name,
                 source_filename=video.original_filename,
                 created_at=job.created_at,
             )
@@ -772,26 +833,13 @@ class JobService:
         return UserClipsResponse(total=total, limit=limit, offset=offset, clips=clips)
 
     def get_user_clip(self, job_id: UUID, user_id: UUID) -> UserClipDetailResponse:
-        row = (
-            self.db.query(Job, Video)
-            .join(Video, Video.id == Job.video_id)
-            .filter(
-                Job.id == job_id,
-                Job.user_id == user_id,
-                Job.job_type == JobType.REFRAME,
-            )
-            .first()
-        )
-
-        if not row:
-            raise NotFoundException("Clip no encontrado")
-
-        job, video = row
+        job, video = self._get_user_clip_job(job_id, user_id)
         clip = UserClipItem(
             job_id=job.id,
             video_id=job.video_id,
             status=job.status,
             output_path=self._resolve_output_url(job.output_path),
+            display_name=job.display_name,
             source_filename=video.original_filename,
             created_at=job.created_at,
         )
@@ -822,13 +870,13 @@ class JobService:
         except Exception as exc:
             self.db.rollback()
             raise VideoDBException("Error eliminando clip", str(exc))
-        
+
     def update_status(
         self,
         job_id: UUID,
         status: JobStatus,
         error_message: str | None = None,
-        output_path: str | None = None
+        output_path: str | None = None,
     ) -> bool:
         try:
             job = self.db.query(Job).filter(Job.id == job_id).first()
@@ -851,7 +899,7 @@ class JobService:
             self.db.rollback()
             logger.error(f"❌ Could not persist state for job {job_id}: {exc}")
             return False
-        
+
     def get_by_id(self, job_id: UUID) -> Job | None:
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:

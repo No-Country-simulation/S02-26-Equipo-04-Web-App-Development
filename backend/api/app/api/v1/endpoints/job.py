@@ -15,6 +15,8 @@ from app.schemas.job import (
     JobAutoReframeRequest,
     JobAutoReframeResponse,
     JobAutoReframeResponse2,
+    UpdateJobRequest,
+    UserClipItem,
     UserClipsResponse,
 )
 
@@ -52,7 +54,7 @@ async def reframe_video(
         face_tracking=body.face_tracking,
         color_filter=body.color_filter,
         output_style=body.output_style,
-        content_profile=body.content_profile
+        content_profile=body.content_profile,
     )
 
 
@@ -84,7 +86,6 @@ async def auto_reframe_video2(
         output_style=body.output_style,
         content_profile=body.content_profile,
     )
-
 
 
 @router.post(
@@ -168,6 +169,22 @@ async def get_my_clip_by_id(
     service: Annotated[JobService, Depends(get_job_service)],
 ) -> UserClipDetailResponse:
     return service.get_user_clip(job_id, current_user.id)
+
+
+@router.patch(
+    "/{job_id}",
+    response_model=UserClipItem,
+    status_code=status.HTTP_200_OK,
+    summary="Actualizar metadata de clip propio",
+    description="Permite renombrar un clip generado (job reframe) del usuario autenticado",
+)
+async def update_my_clip(
+    job_id: Annotated[UUID, Path(description="ID del clip/job")],
+    body: UpdateJobRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    service: Annotated[JobService, Depends(get_job_service)],
+) -> UserClipItem:
+    return service.update_user_clip(job_id, current_user.id, body)
 
 
 @router.delete(
