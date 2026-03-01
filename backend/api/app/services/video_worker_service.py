@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from uuid import UUID, uuid4
 from app.core.config import settings
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
@@ -15,9 +15,7 @@ from app.services.queue_service import QueueService
 from app.services.storage_service import StorageService
 from app.core.logging import setup_logging
 from app.utils.exceptions import (
-    JobParameterException,
     NotFoundException,
-    VideoDBException,
 )
 
 logger = setup_logging()
@@ -399,7 +397,8 @@ class VideoWorkerService:
         status: JobStatus,
         error_message: str | None = None,
         video_path: Optional[str] = None,
-        subtitles_path: Optional[str] = None
+        subtitles_path: Optional[str] = None,
+        child_jobs: Optional[List[str]] = None
     ) -> bool:
         try:
             job = self.db.query(Job).filter(Job.id == job_id).first()
@@ -407,15 +406,19 @@ class VideoWorkerService:
                 logger.warning(f"❌ Job {job_id} not found in DB for status update")
                 return False
 
-            # Crear output_path como dict JSON solo con lo que exista
-            output_path = {k: v for k, v in {
-                "video": video_path,
-                "subtitles": subtitles_path
-            }.items() if v is not None}
+            existing = job.output_path or {}
+
+            existing.update({
+                k: v for k, v in {
+                    "video": video_path,
+                    "subtitles": subtitles_path,
+                    "jobs": child_jobs
+                }.items() if v is not None
+            })
 
             job.status = status
             job.error_message = error_message or None
-            job.output_path = output_path or None
+            job.output_path = existing
 
             self.db.commit()
             return True

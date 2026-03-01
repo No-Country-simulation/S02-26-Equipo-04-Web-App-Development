@@ -15,7 +15,7 @@ class JobStatusResponse(BaseSchema):
 # ============ REFRAME ============
 class JobReframeRequest(BaseSchema):
     start_sec: int = Field(
-        gt=0,
+        ge=0,
         description="Inicio de recorte en Segundo"
     )
     end_sec: int = Field(
@@ -155,7 +155,7 @@ class JobAddAudioRequest(BaseSchema):
     audio_id: UUID
     audio_offset_sec: int = Field(
         ge=0,
-        description="Segundo del video donde empieza el audio"
+        description="Segundos del video donde empieza el audio"
     )
 
     audio_start_sec: int = Field(
