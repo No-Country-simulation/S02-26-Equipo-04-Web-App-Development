@@ -30,6 +30,8 @@ services:
       - MINIO_PUBLIC_ENDPOINT=localhost:9000
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - WORKER_PIPELINE_DEBUG=false
+      - WORKER_SOURCE_CACHE_DIR=/app/tmp/source_cache
+      - WORKER_SOURCE_CACHE_TTL_SECONDS=1800
     depends_on:
       - redis
       - minio
@@ -37,7 +39,6 @@ services:
     volumes:
       - ./api/app:/app/app
       - ./worker:/app/worker
-      - ./tmp:/app/tmp
 
   redis:
     image: redis:7

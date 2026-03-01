@@ -10,6 +10,7 @@ import subprocess
 import numpy as np
 from pathlib import Path
 from datetime import timedelta
+import logging
 from fileinput import filename
 
 """
@@ -95,8 +96,9 @@ if face_cascade.empty():
     raise RuntimeError("Failed to load face cascade classifier")
 
 # logger
-logger = logging.getLogger("pipeline")
+logger = logging.getLogger(__name__) 
 logger.propagate = True
+
 
 
 # ========================================================================
@@ -214,7 +216,10 @@ class CameraDirector:
 
         if detected_x is None:
             # No subject detected → hold position
-            logger.info(f"🔔 NO SUBJECT DETECTED, CURRENT POSITION: {self.current_x}")
+
+            # Debug only...
+            #logger.info(f"🔔 NO SUBJECT DETECTED, CURRENT POSITION: {self.current_x}")
+            
             return self.current_x
 
         # Eso hace que:

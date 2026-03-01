@@ -92,35 +92,6 @@ async def auto_reframe_video2(
 
 
 @router.post(
-    "/reframe/{video_id}/auto",
-    response_model=JobAutoReframeResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Generar clips automáticos",
-    description="Genera varios jobs REFRAME para clips automáticos de un video",
-    responses={
-        201: {"description": "Jobs automáticos creados"},
-        401: {"description": "No autenticado"},
-        404: {"description": "Video no encontrado"},
-    },
-)
-async def auto_reframe_video(
-    video_id: Annotated[UUID, Path(description="ID del Video")],
-    body: JobAutoReframeRequest,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    service: Annotated[JobService, Depends(get_job_service)],
-) -> JobAutoReframeResponse:
-    """Crea N jobs automáticos con segmentos sugeridos para shorts"""
-    return service.auto_reframe_video(
-        video_id=video_id,
-        user_id=current_user.id,
-        clips_count=body.clips_count,
-        clip_duration_sec=body.clip_duration_sec,
-        output_style=body.output_style,
-        content_profile=body.content_profile,
-    )
-
-
-@router.post(
     "/add-audio/{video_id}",
     response_model=JobAddAudioResponse,
     status_code=status.HTTP_201_CREATED,
