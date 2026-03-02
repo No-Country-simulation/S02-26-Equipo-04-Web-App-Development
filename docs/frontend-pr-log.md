@@ -22,6 +22,8 @@ Alinear el frontend con los cambios recientes de backend: dejar de usar el endpo
 - Se reforzo la visualizacion de avance en `frontend/src/components/home/ProjectStatusPanel.tsx` con barra segmentada por estados (listo/error/pendiente) y colores diferenciados.
 - Se rediseño la card de audio en `frontend/src/app/app/library/page.tsx` para que tenga look catppuccin (gradientes violeta/rosa, onda visual y reproductor de preview mas integrado al estilo actual).
 - Se integro `POST /api/v1/videos/from-job/{job_id}` en `frontend/src/app/app/library/page.tsx` para importar clips como videos reeditables desde la biblioteca.
+- Se movio el flujo de mezcla a una nueva ruta dedicada `frontend/src/app/app/audio_editor/page.tsx` (selector de video + audio, parametros y visual de pistas), y Timeline ahora solo enlaza al nuevo editor.
+- Se agrego acceso directo desde biblioteca de clips a `Audio editor` con query params (`videoId`, `clipId`) para abrir el video correcto.
 
 ### Commits de esta rama (frontend)
 
@@ -29,6 +31,7 @@ Alinear el frontend con los cambios recientes de backend: dejar de usar el endpo
 - `docs(frontend): log auto2 and audio frontend refresh`
 - `feat(frontend): add timeline audio-mix workflow and segmented clip progress`
 - `feat(frontend): add import-from-job action in clips library`
+- `feat(frontend): move audio workflow into dedicated audio editor route`
 
 ### Validaciones locales
 
