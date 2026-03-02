@@ -16,6 +16,7 @@ Dejar trazabilidad backend para el refresh de frontend sobre `auto2`, subtitulos
 - Se movio en frontend el uso de `add-audio` hacia una pantalla dedicada `Audio editor` (sin cambios adicionales de backend requeridos).
 - Se aplico fix local en `backend/api/app/services/job_service.py` para eliminar clips cuando `output_path` llega como JSON (`video` + `subtitles`) y evitar fallos al borrar assets.
 - Ajuste de frontend: se validan limites de duracion antes de llamar `add-audio` para no enviar segmentos que excedan el largo del video destino.
+- Se consumen desde frontend los endpoints ya disponibles de YouTube (`GET /api/v1/youtube/status`, `POST /api/v1/youtube/publish/{job_id}`) para pasar de modo demo a flujo real de publicacion.
 
 ### Commits de esta rama (backend)
 
