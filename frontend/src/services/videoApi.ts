@@ -29,6 +29,32 @@ export type VideoFromJobResponse = {
   uploaded_at: string;
 };
 
+export type YoutubePublishRequest = {
+  title?: string;
+  description?: string;
+  privacy?: "public" | "private" | "unlisted";
+};
+
+export type YoutubePublishResponse = {
+  success: boolean;
+  message: string;
+  job_id: string;
+  youtube_video_id: string;
+  youtube_url: string;
+  title: string;
+  privacy: string;
+  thumbnail_url: string | null;
+};
+
+export type YoutubeConnectionStatus = {
+  connected: boolean;
+  message: string | null;
+  provider_username: string | null;
+  provider_user_id: string | null;
+  token_expires_at: string | null;
+  is_expired: boolean | null;
+};
+
 export type AudioUploadResponse = {
   audio_id: string;
   bucket: string;
@@ -370,6 +396,30 @@ export const videoApi = {
     });
 
     return parseResponse<VideoFromJobResponse>(response);
+  },
+
+  async getYoutubeStatus(token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/youtube/status`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<YoutubeConnectionStatus>(response);
+  },
+
+  async publishToYoutube(jobId: string, token: string, payload: YoutubePublishRequest) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/youtube/publish/${jobId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    return parseResponse<YoutubePublishResponse>(response);
   },
 
   async createAutoReframeJobs(

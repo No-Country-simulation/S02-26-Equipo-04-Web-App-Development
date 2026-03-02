@@ -2,7 +2,8 @@
 
 import { Button } from "@/src/components/ui/Button";
 import { Panel } from "@/src/components/ui/Panel";
-import { videoApi, type UserClipItem, VideoApiError } from "@/src/services/videoApi";
+import { authApi } from "@/src/services/authApi";
+import { videoApi, type UserClipItem, type YoutubeConnectionStatus, VideoApiError } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { Facebook, Instagram, MessageCircle, Music2, Share2, Youtube } from "lucide-react";
 import Link from "next/link";
@@ -10,7 +11,7 @@ import { useParams } from "next/navigation";
 import { type ComponentType, useEffect, useState } from "react";
 
 type SocialTarget = {
-  id: string;
+  id: "instagram" | "tiktok" | "facebook" | "youtube" | "x" | "whatsapp";
   label: string;
   icon: ComponentType<{ size?: number; className?: string }>;
 };
@@ -43,7 +44,13 @@ export default function ShareClipPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [linkedTargets, setLinkedTargets] = useState<Record<string, boolean>>({});
+  const [youtubeStatus, setYoutubeStatus] = useState<YoutubeConnectionStatus | null>(null);
+  const [isLoadingYoutubeStatus, setIsLoadingYoutubeStatus] = useState(false);
+  const [isPublishingYoutube, setIsPublishingYoutube] = useState(false);
+  const [youtubeTitle, setYoutubeTitle] = useState("");
+  const [youtubeDescription, setYoutubeDescription] = useState("");
+  const [youtubePrivacy, setYoutubePrivacy] = useState<"public" | "private" | "unlisted">("private");
+  const canPublishClip = clip ? ["done", "completed"].includes(clip.status.toLowerCase()) : false;
 
   useEffect(() => {
     if (!token) {
@@ -85,12 +92,76 @@ export default function ShareClipPage() {
       }
     };
 
+    const loadYoutubeStatus = async () => {
+      setIsLoadingYoutubeStatus(true);
+      try {
+        const response = await videoApi.getYoutubeStatus(token);
+        if (!cancelled) {
+          setYoutubeStatus(response);
+        }
+      } catch {
+        if (!cancelled) {
+          setYoutubeStatus(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingYoutubeStatus(false);
+        }
+      }
+    };
+
     void loadClip();
+    void loadYoutubeStatus();
 
     return () => {
       cancelled = true;
     };
   }, [clipId, token]);
+
+  useEffect(() => {
+    if (!clip) {
+      return;
+    }
+
+    setYoutubeTitle(`Clip ${clip.job_id.slice(0, 8)} - Hacelo Corto`);
+    setYoutubeDescription(`Clip generado desde ${clip.source_filename}`);
+  }, [clip]);
+
+  const handleConnectYoutube = async () => {
+    setInfo(null);
+    try {
+      const oauth = await authApi.getGoogleAuthUrl();
+      window.sessionStorage.setItem("google_oauth_state", oauth.state);
+      window.location.href = oauth.authorization_url;
+    } catch {
+      setError("No pudimos iniciar la conexion con YouTube via Google OAuth.");
+    }
+  };
+
+  const handlePublishYoutube = async () => {
+    if (!token || !clip) {
+      setError("No hay sesion activa o clip seleccionado para publicar.");
+      return;
+    }
+
+    setIsPublishingYoutube(true);
+    setError(null);
+    setInfo(null);
+
+    try {
+      const response = await videoApi.publishToYoutube(clip.job_id, token, {
+        title: youtubeTitle.trim() || undefined,
+        description: youtubeDescription.trim() || undefined,
+        privacy: youtubePrivacy
+      });
+
+      setInfo(`Publicado en YouTube: ${response.youtube_url}`);
+    } catch (publishError) {
+      setError(normalizeVideoError(publishError, "No pudimos publicar el clip en YouTube."));
+    } finally {
+      setIsPublishingYoutube(false);
+    }
+  };
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -138,7 +209,8 @@ export default function ShareClipPage() {
             <div className="space-y-3">
               {socialTargets.map((target, index) => {
                 const Icon = target.icon;
-                const isLinked = Boolean(linkedTargets[target.id]);
+                const isYoutube = target.id === "youtube";
+                const isYoutubeConnected = Boolean(youtubeStatus?.connected);
                 return (
                   <div
                     key={target.id}
@@ -151,38 +223,74 @@ export default function ShareClipPage() {
                           <Icon size={16} className="text-neon-mint" />
                           {target.label}
                         </p>
-                        <p className="mt-1 text-xs text-white/65">{isLinked ? "Cuenta vinculada" : "Cuenta pendiente de vincular"}</p>
+                        <p className="mt-1 text-xs text-white/65">
+                          {isYoutube
+                            ? isLoadingYoutubeStatus
+                              ? "Validando conexion con YouTube..."
+                              : isYoutubeConnected
+                                ? `Cuenta vinculada${youtubeStatus?.provider_username ? ` (${youtubeStatus.provider_username})` : ""}`
+                                : "Cuenta pendiente de vincular"
+                            : "Integracion en roadmap. Disponible proximamente."}
+                        </p>
                       </div>
                       <div className="grid grid-cols-2 gap-2 sm:min-w-[260px]">
                         <Button
                           className="h-9 px-3 py-2 text-xs"
-                          variant={isLinked ? "neutral" : "violet"}
-                          onClick={() => {
-                            if (isLinked) {
-                              setInfo(`Tu cuenta de ${target.label} ya esta vinculada en este entorno de demo.`);
-                              return;
-                            }
-
-                            setLinkedTargets((previous) => ({
-                              ...previous,
-                              [target.id]: true
-                            }));
-                            setInfo(
-                              `Marcamos ${target.label} como vinculada. Cuando backend exponga endpoints, este boton abrira OAuth real para conectar la cuenta.`
-                            );
-                          }}
+                          variant={isYoutubeConnected ? "neutral" : "violet"}
+                          disabled={!isYoutube || isLoadingYoutubeStatus}
+                          onClick={isYoutube ? () => void handleConnectYoutube() : undefined}
                         >
-                          {isLinked ? "Vinculada" : "Vincular cuenta"}
+                          {isYoutubeConnected ? "Reconectar" : "Conectar"}
                         </Button>
                         <Button
                           className="h-9 px-3 py-2 text-xs"
-                          disabled={!isLinked}
-                          onClick={() => setInfo(`Publicacion en ${target.label} preparada. En cuanto tengamos endpoint, esta accion publicara el clip.`)}
+                          disabled={!isYoutube || !isYoutubeConnected || isPublishingYoutube || !canPublishClip}
+                          onClick={isYoutube ? () => void handlePublishYoutube() : undefined}
                         >
-                          Publicar clip
+                          {isPublishingYoutube ? "Publicando..." : "Publicar clip"}
                         </Button>
                       </div>
                     </div>
+
+                    {isYoutube && !canPublishClip ? (
+                      <p className="mt-2 text-xs text-amber-200">Este clip debe estar en estado DONE para poder publicarse en YouTube.</p>
+                    ) : null}
+
+                    {isYoutube ? (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <label className="text-xs text-white/75 sm:col-span-2">
+                          Titulo
+                          <input
+                            value={youtubeTitle}
+                            onChange={(event) => setYoutubeTitle(event.target.value.slice(0, 100))}
+                            maxLength={100}
+                            className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-cyan/50"
+                          />
+                        </label>
+                        <label className="text-xs text-white/75 sm:col-span-2">
+                          Descripcion
+                          <textarea
+                            value={youtubeDescription}
+                            onChange={(event) => setYoutubeDescription(event.target.value.slice(0, 5000))}
+                            maxLength={5000}
+                            rows={3}
+                            className="mt-1 w-full resize-y rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-cyan/50"
+                          />
+                        </label>
+                        <label className="text-xs text-white/75 sm:col-span-2">
+                          Privacidad
+                          <select
+                            value={youtubePrivacy}
+                            onChange={(event) => setYoutubePrivacy(event.target.value as "public" | "private" | "unlisted")}
+                            className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-cyan/50"
+                          >
+                            <option value="private">private</option>
+                            <option value="unlisted">unlisted</option>
+                            <option value="public">public</option>
+                          </select>
+                        </label>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
