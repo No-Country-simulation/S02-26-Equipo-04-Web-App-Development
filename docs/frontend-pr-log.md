@@ -2,7 +2,7 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feat/frontend-auto2-audio-progress`
+Rama de trabajo actual: `feat/frontend-auto2-audio-progress-clean`
 
 ### Objetivo
 
