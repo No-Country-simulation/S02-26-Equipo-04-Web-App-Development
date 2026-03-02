@@ -42,13 +42,11 @@ export default function LibraryPage() {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
   const [draftFilename, setDraftFilename] = useState("");
   const [isSavingVideo, setIsSavingVideo] = useState(false);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
-  const [importingClipId, setImportingClipId] = useState<string | null>(null);
   const [deletingAudioId, setDeletingAudioId] = useState<string | null>(null);
   const [audioUrlMap, setAudioUrlMap] = useState<Record<string, string>>({});
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
@@ -65,7 +63,6 @@ export default function LibraryPage() {
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
-      setInfo(null);
       try {
         if (view === "clips") {
           const response = await videoApi.getMyClips(token, {
@@ -218,27 +215,6 @@ export default function LibraryPage() {
     }
   };
 
-  const handleImportClipAsVideo = async (clip: UserClipItem) => {
-    if (!token || importingClipId) {
-      return;
-    }
-
-    setImportingClipId(clip.job_id);
-    setError(null);
-    setInfo(null);
-
-    try {
-      const imported = await videoApi.createVideoFromJob(clip.job_id, token);
-      setInfo(`Clip ${clip.job_id.slice(0, 8)} importado como video ${imported.video_id.slice(0, 8)}.`);
-      setView("videos");
-      setPage(1);
-    } catch (importError) {
-      setError(importError instanceof Error ? importError.message : "No pudimos importar el clip como video.");
-    } finally {
-      setImportingClipId(null);
-    }
-  };
-
   const handleResolveAudioUrl = async (audioId: string) => {
     if (!token || loadingAudioId) {
       return;
@@ -382,12 +358,6 @@ export default function LibraryPage() {
         </Panel>
       ) : null}
 
-      {info ? (
-        <Panel className="mt-5">
-          <p className="rounded-xl border border-neon-mint/35 bg-neon-mint/10 px-3 py-2 text-sm text-neon-mint">{info}</p>
-        </Panel>
-      ) : null}
-
       {isLoading ? (
         <Panel className="mt-5">
           <p className="text-sm text-white/70">Cargando elementos de biblioteca...</p>
@@ -476,7 +446,7 @@ export default function LibraryPage() {
                 href={`/app/timeline?videoId=${clip.video_id}&clipId=${clip.job_id}`}
                 className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan"
               >
-                <PencilLine size={12} /> Editar
+                <PencilLine size={12} /> Abrir Timeline
               </Link>
               <Link
                 href={`/app/share/${clip.job_id}`}
@@ -491,14 +461,6 @@ export default function LibraryPage() {
                 onClick={() => void handleDeleteClip(clip)}
               >
                 <Trash2 size={12} /> {deletingClipId === clip.job_id ? "Eliminando..." : "Eliminar"}
-              </button>
-              <button
-                type="button"
-                className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-neon-violet/45 bg-neon-violet/15 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-violet transition hover:bg-neon-violet/20 disabled:opacity-40"
-                disabled={importingClipId === clip.job_id}
-                onClick={() => void handleImportClipAsVideo(clip)}
-              >
-                <Download size={12} /> {importingClipId === clip.job_id ? "Importando..." : "Importar a Videos"}
               </button>
               <Link
                 href={`/app/audio_editor?videoId=${clip.video_id}&clipId=${clip.job_id}`}

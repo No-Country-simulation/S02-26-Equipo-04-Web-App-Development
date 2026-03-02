@@ -25,6 +25,7 @@ Alinear el frontend con los cambios recientes de backend: dejar de usar el endpo
 - Se movio el flujo de mezcla a una nueva ruta dedicada `frontend/src/app/app/audio_editor/page.tsx` (selector de video + audio, parametros y visual de pistas), y Timeline ahora solo enlaza al nuevo editor.
 - Se agrego acceso directo desde biblioteca de clips a `Audio editor` con query params (`videoId`, `clipId`) para abrir el video correcto.
 - Fix UX: se acotaron pistas y campos del `Audio editor` a la duracion real del video/audio para evitar que el track se desborde visualmente o exceda el largo maximo permitido.
+- Ajuste de biblioteca: se removio `Importar a Videos` en cards de clips y se priorizo navegacion directa a `Timeline` + `Audio editor`.
 
 ### Commits de esta rama (frontend)
 
