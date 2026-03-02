@@ -65,6 +65,11 @@ export function ProjectStatusPanel({
             ? 45
             : 0;
 
+  const trackedTotal = Math.max(jobsCreated, clipsDone + clipsFailed + clipsPending);
+  const donePct = trackedTotal > 0 ? Math.round((clipsDone / trackedTotal) * 100) : 0;
+  const failedPct = trackedTotal > 0 ? Math.round((clipsFailed / trackedTotal) * 100) : 0;
+  const pendingPct = Math.max(0, 100 - donePct - failedPct);
+
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
@@ -82,12 +87,27 @@ export function ProjectStatusPanel({
           <span className="text-white/80">Progreso</span>
           <span className="text-white">{progress}%</span>
         </div>
-        <div className="mt-2 h-2 rounded-full bg-night-950/90">
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-night-950/90">
           <div
             className="h-full rounded-full bg-gradient-to-r from-neon-cyan to-neon-violet transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
+
+        {trackedTotal > 0 ? (
+          <>
+            <div className="mt-3 h-2 overflow-hidden rounded-full border border-white/10 bg-night-950/90">
+              <div className="flex h-full w-full">
+                <div className="h-full bg-emerald-400/85" style={{ width: `${donePct}%` }} />
+                <div className="h-full bg-rose-400/85" style={{ width: `${failedPct}%` }} />
+                <div className="h-full bg-sky-400/70" style={{ width: `${pendingPct}%` }} />
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] text-white/65">
+              Verde: listos · Rojo: con error · Celeste: pendientes
+            </p>
+          </>
+        ) : null}
       </div>
 
       <ul className="mt-4 space-y-2 text-sm text-white/80">

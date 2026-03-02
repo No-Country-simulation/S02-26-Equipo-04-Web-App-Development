@@ -3,10 +3,10 @@
 import { VideoSettings } from "@/src/components/home/VideoSettings";
 import { VideoPreview } from "@/src/components/home/videoPrevewTimeLine/VideoPreview";
 import { Panel } from "@/src/components/ui/Panel";
-import { videoApi, type UserClipItem, type UserVideoItem, VideoApiError } from "@/src/services/videoApi";
+import { videoApi, type UserAudioItem, type UserClipItem, type UserVideoItem, VideoApiError } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useVideoSettingsStore } from "@/src/store/useVideoSettingsStore";
-import { Search } from "lucide-react";
+import { Music2, Search } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -23,6 +23,16 @@ function normalizeVideoError(error: unknown, fallbackMessage: string) {
   }
 
   return fallbackMessage;
+}
+
+function isTerminalStatus(status: string) {
+  const normalized = status.toLowerCase();
+  return normalized === "done" || normalized === "completed" || normalized === "failed" || normalized === "error";
+}
+
+function isDoneStatus(status: string) {
+  const normalized = status.toLowerCase();
+  return normalized === "done" || normalized === "completed";
 }
   
 export default function TimelinePage() {
@@ -47,6 +57,21 @@ export default function TimelinePage() {
   const [submitErrorSettings, setSubmitErrorSettings] = useState<string | null>(null);
   const [submitInfoSettings, setSubmitInfoSettings] = useState<string | null>(null);
   const [draftFilename, setDraftFilename] = useState("");
+  const [audios, setAudios] = useState<UserAudioItem[]>([]);
+  const [isLoadingAudios, setIsLoadingAudios] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [selectedAudioId, setSelectedAudioId] = useState<string | null>(null);
+  const [selectedAudioUrl, setSelectedAudioUrl] = useState<string | null>(null);
+  const [audioOffsetSec, setAudioOffsetSec] = useState(0);
+  const [audioStartSec, setAudioStartSec] = useState(0);
+  const [audioEndSec, setAudioEndSec] = useState(15);
+  const [audioVolume, setAudioVolume] = useState(1);
+  const [isSubmittingAudio, setIsSubmittingAudio] = useState(false);
+  const [audioSubmitInfo, setAudioSubmitInfo] = useState<string | null>(null);
+  const [audioSubmitError, setAudioSubmitError] = useState<string | null>(null);
+  const [audioJobId, setAudioJobId] = useState<string | null>(null);
+  const [isPollingAudioJob, setIsPollingAudioJob] = useState(false);
+  const [mixedVideoUrl, setMixedVideoUrl] = useState<string | null>(null);
 
 
   const saveRaname =  async()=>{
@@ -162,6 +187,130 @@ export default function TimelinePage() {
     };
   }, [token, page, preferredClipId, preferredVideoId, query]);
 
+  useEffect(() => {
+    if (!token) {
+      setAudios([]);
+      setSelectedAudioId(null);
+      setSelectedAudioUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAudios = async () => {
+      setIsLoadingAudios(true);
+      setAudioError(null);
+      try {
+        const response = await videoApi.getMyAudios(token, { limit: 50, offset: 0 });
+        if (cancelled) {
+          return;
+        }
+
+        setAudios(response.audios);
+        setSelectedAudioId((prev) => {
+          if (prev && response.audios.some((audio) => audio.audio_id === prev)) {
+            return prev;
+          }
+          return response.audios[0]?.audio_id ?? null;
+        });
+      } catch (loadError) {
+        if (!cancelled) {
+          setAudioError(normalizeVideoError(loadError, "No pudimos cargar tus audios."));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAudios(false);
+        }
+      }
+    };
+
+    void loadAudios();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !selectedAudioId) {
+      setSelectedAudioUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveAudioUrl = async () => {
+      try {
+        const response = await videoApi.getAudioUrl(selectedAudioId, token);
+        if (!cancelled) {
+          setSelectedAudioUrl(response.url);
+        }
+      } catch {
+        if (!cancelled) {
+          setSelectedAudioUrl(null);
+        }
+      }
+    };
+
+    void resolveAudioUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAudioId, token]);
+
+  useEffect(() => {
+    if (!token || !audioJobId) {
+      setIsPollingAudioJob(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncAudioJob = async () => {
+      try {
+        const status = await videoApi.getJobStatus(audioJobId, token);
+        if (cancelled) {
+          return;
+        }
+
+        if (status.output_path) {
+          setMixedVideoUrl(status.output_path);
+        }
+
+        if (isDoneStatus(status.status)) {
+          setAudioSubmitInfo(`Mezcla de audio lista. Job ${audioJobId.slice(0, 8)} finalizado.`);
+        }
+
+        if (isTerminalStatus(status.status) && (status.output_path || !isDoneStatus(status.status))) {
+          window.clearInterval(intervalId);
+          setIsPollingAudioJob(false);
+
+          if (!isDoneStatus(status.status)) {
+            setAudioSubmitError(`La mezcla de audio termino con estado ${status.status}.`);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setAudioSubmitError("No pudimos actualizar el estado del job de mezcla de audio.");
+        }
+      }
+    };
+
+    setIsPollingAudioJob(true);
+    const intervalId = window.setInterval(() => {
+      void syncAudioJob();
+    }, 4000);
+
+    void syncAudioJob();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      setIsPollingAudioJob(false);
+    };
+  }, [audioJobId, token]);
+
   const totalPages = Math.max(1, Math.ceil(totalVideos / PAGE_SIZE));
 
   const selectedVideo = useMemo(
@@ -176,8 +325,9 @@ export default function TimelinePage() {
     setDraftFilename(selectedVideo.filename);
   }, [selectedVideo]);
 
-  const selectedPreviewUrl =
-    focusedClip && focusedClip.video_id === selectedVideoId
+  const selectedPreviewUrl = mixedVideoUrl
+    ? mixedVideoUrl
+    : focusedClip && focusedClip.video_id === selectedVideoId
       ? (focusedClip.output_path ?? selectedVideo?.preview_url ?? null)
       : (selectedVideo?.preview_url ?? null);
 
@@ -212,7 +362,42 @@ export default function TimelinePage() {
       setIsSubmitting(false);
     }
   };
-    const videoEditarBool = !Boolean(preferredVideoId && preferredVideoId.trim().length > 0);
+
+  const handleAddAudioToVideo = async () => {
+    if (!token || !selectedVideoId || !selectedAudioId) {
+      setAudioSubmitError("Selecciona video y audio para iniciar la mezcla.");
+      return;
+    }
+
+    if (audioEndSec <= audioStartSec) {
+      setAudioSubmitError("El fin del segmento de audio debe ser mayor al inicio.");
+      return;
+    }
+
+    setIsSubmittingAudio(true);
+    setAudioSubmitError(null);
+    setAudioSubmitInfo(null);
+    setMixedVideoUrl(null);
+
+    try {
+      const response = await videoApi.addAudioToVideo(selectedVideoId, token, {
+        audio_id: selectedAudioId,
+        audio_offset_sec: Math.max(0, Math.floor(audioOffsetSec)),
+        audio_start_sec: Math.max(0, Math.floor(audioStartSec)),
+        audio_end_sec: Math.max(1, Math.ceil(audioEndSec)),
+        audio_volume: Math.min(2, Math.max(0.1, Number(audioVolume.toFixed(2))))
+      });
+
+      setAudioJobId(response.job_id);
+      setAudioSubmitInfo(`Mezcla enviada a cola. Job ${response.job_id.slice(0, 8)} en estado ${response.status}.`);
+    } catch (mixError) {
+      setAudioSubmitError(normalizeVideoError(mixError, "No pudimos enviar el job para mezclar audio."));
+    } finally {
+      setIsSubmittingAudio(false);
+    }
+  };
+
+  const videoEditarBool = !Boolean(preferredVideoId && preferredVideoId.trim().length > 0);
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -299,6 +484,7 @@ export default function TimelinePage() {
                       key={video.video_id}
                       onClick={() => {
                         setSelectedVideoId(video.video_id);
+                        setMixedVideoUrl(null);
                         if (focusedClip && focusedClip.video_id !== video.video_id) {
                           setFocusedClip(null);
                         }
@@ -349,6 +535,96 @@ export default function TimelinePage() {
           <p className="text-xs uppercase tracking-[0.22em] text-white/65">configuracion</p>
           <h3 className="mt-1 font-display text-2xl text-white sm:text-3xl">Ajustes de recorte</h3>
           <VideoSettings submitInfoSettings={submitInfoSettings} submitErrorSettings={submitErrorSettings} videoEditarBool={videoEditarBool} draftFilename={draftFilename} setDraftFilename={setDraftFilename} saveRaname={saveRaname} trimStart={trimStart} trimEnd={trimEnd} minClipDurationSec={MIN_CLIP_SECONDS} isSubmitting={isSubmitting} submitInfo={submitInfo} selectedVideoId={selectedVideoId} submitError={submitError}  handleCreateJob={handleCreateJob} />
+
+          <div className="mt-4 rounded-xl border border-neon-mint/30 bg-neon-mint/5 p-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-neon-mint/80">Mezclar audio en video</p>
+
+            {isLoadingAudios ? <p className="mt-2 text-xs text-white/70">Cargando audios...</p> : null}
+            {audioError ? <p className="mt-2 text-xs text-rose-200">{audioError}</p> : null}
+
+            {!isLoadingAudios && audios.length > 0 ? (
+              <>
+                <label className="mt-3 block text-xs text-white/75">
+                  Audio de biblioteca
+                  <select
+                    value={selectedAudioId ?? ""}
+                    onChange={(event) => setSelectedAudioId(event.target.value || null)}
+                    className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-mint/50"
+                  >
+                    {audios.map((audio) => (
+                      <option key={audio.audio_id} value={audio.audio_id}>
+                        {audio.filename}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {selectedAudioUrl ? <audio controls preload="metadata" className="mt-3 w-full" src={selectedAudioUrl} /> : null}
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label className="text-xs text-white/75">
+                    Offset en video (seg)
+                    <input
+                      type="number"
+                      min={0}
+                      value={audioOffsetSec}
+                      onChange={(event) => setAudioOffsetSec(Number(event.target.value || 0))}
+                      className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-mint/50"
+                    />
+                  </label>
+                  <label className="text-xs text-white/75">
+                    Volumen (0.1 - 2.0)
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={2}
+                      step={0.1}
+                      value={audioVolume}
+                      onChange={(event) => setAudioVolume(Number(event.target.value || 1))}
+                      className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-mint/50"
+                    />
+                  </label>
+                  <label className="text-xs text-white/75">
+                    Inicio audio (seg)
+                    <input
+                      type="number"
+                      min={0}
+                      value={audioStartSec}
+                      onChange={(event) => setAudioStartSec(Number(event.target.value || 0))}
+                      className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-mint/50"
+                    />
+                  </label>
+                  <label className="text-xs text-white/75">
+                    Fin audio (seg)
+                    <input
+                      type="number"
+                      min={1}
+                      value={audioEndSec}
+                      onChange={(event) => setAudioEndSec(Number(event.target.value || 1))}
+                      className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-mint/50"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleAddAudioToVideo()}
+                  disabled={!selectedVideoId || !selectedAudioId || isSubmittingAudio}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neon-mint/45 bg-neon-mint/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neon-mint transition hover:bg-neon-mint/20 disabled:opacity-40"
+                >
+                  <Music2 size={14} /> {isSubmittingAudio ? "Encolando..." : "Aplicar audio al video"}
+                </button>
+
+                {audioSubmitInfo ? <p className="mt-2 text-xs text-neon-mint">{audioSubmitInfo}</p> : null}
+                {audioSubmitError ? <p className="mt-2 text-xs text-rose-200">{audioSubmitError}</p> : null}
+                {isPollingAudioJob ? <p className="mt-2 text-xs text-white/65">Procesando mezcla de audio...</p> : null}
+              </>
+            ) : null}
+
+            {!isLoadingAudios && audios.length === 0 ? (
+              <p className="mt-2 text-xs text-white/70">No hay audios cargados. Subi uno desde Home para mezclarlo aca.</p>
+            ) : null}
+          </div>
         </Panel>
       </div>
     </section>

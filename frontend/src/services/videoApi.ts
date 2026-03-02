@@ -19,6 +19,16 @@ export type VideoUrlResponse = {
   filename: string;
 };
 
+export type VideoFromJobResponse = {
+  video_id: string;
+  bucket: string;
+  object_key: string;
+  filename: string;
+  user_id: string | null;
+  storage_path: string;
+  uploaded_at: string;
+};
+
 export type AudioUploadResponse = {
   audio_id: string;
   bucket: string;
@@ -87,10 +97,36 @@ export type ReframeJobResponse = {
   created_at: string;
 };
 
+export type AddAudioJobRequest = {
+  audio_id: string;
+  audio_offset_sec: number;
+  audio_start_sec: number;
+  audio_end_sec: number;
+  audio_volume: number;
+};
+
+export type AddAudioJobResponse = {
+  job_id: string;
+  job_type: string;
+  status: string;
+  filename: string;
+  audio_filename: string;
+  audio_volume: number;
+  created_at: string;
+};
+
 export type JobStatusResponse = {
   job_id: string;
   status: string;
   output_path: string | null;
+};
+
+type RawOutputPath = string | Record<string, unknown> | null;
+
+type RawJobStatusResponse = {
+  job_id: string;
+  status: string;
+  output_path: RawOutputPath;
 };
 
 export type UserClipItem = {
@@ -100,6 +136,26 @@ export type UserClipItem = {
   output_path: string | null;
   source_filename: string;
   created_at: string;
+};
+
+type RawUserClipItem = {
+  job_id: string;
+  video_id: string;
+  status: string;
+  output_path: RawOutputPath;
+  source_filename: string;
+  created_at: string;
+};
+
+type RawUserClipsResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  clips: RawUserClipItem[];
+};
+
+type RawUserClipDetailResponse = {
+  clip: RawUserClipItem;
 };
 
 export type UserClipsResponse = {
@@ -194,6 +250,46 @@ function getErrorMessage(payload: unknown) {
   return null;
 }
 
+function extractPlayableUrl(outputPath: RawOutputPath) {
+  if (!outputPath) {
+    return null;
+  }
+
+  if (typeof outputPath === "string") {
+    const cleaned = outputPath.trim();
+    return cleaned.length > 0 ? cleaned : null;
+  }
+
+  if (typeof outputPath !== "object") {
+    return null;
+  }
+
+  const map = outputPath as Record<string, unknown>;
+  const preferredKeys = ["video", "url", "preview_url", "previewUrl"];
+
+  for (const key of preferredKeys) {
+    const candidate = map[key];
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate;
+    }
+  }
+
+  for (const candidate of Object.values(map)) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function normalizeUserClip(raw: RawUserClipItem): UserClipItem {
+  return {
+    ...raw,
+    output_path: extractPlayableUrl(raw.output_path)
+  };
+}
+
 async function parseResponse<T>(response: Response) {
   if (response.status === 204) {
     return null as T;
@@ -265,6 +361,17 @@ export const videoApi = {
     return parseResponse<VideoUrlResponse>(response);
   },
 
+  async createVideoFromJob(jobId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/videos/from-job/${jobId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<VideoFromJobResponse>(response);
+  },
+
   async createAutoReframeJobs(
     videoId: string,
     token: string,
@@ -329,6 +436,19 @@ export const videoApi = {
     return parseResponse<ReframeJobResponse>(response);
   },
 
+  async addAudioToVideo(videoId: string, token: string, payload: AddAudioJobRequest) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/add-audio/${videoId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    return parseResponse<AddAudioJobResponse>(response);
+  },
+
   async getJobStatus(jobId: string, token: string) {
     const response = await fetch(`${apiBaseUrl}/api/v1/jobs/status/${jobId}`, {
       method: "GET",
@@ -337,7 +457,11 @@ export const videoApi = {
       }
     });
 
-    return parseResponse<JobStatusResponse>(response);
+    const payload = await parseResponse<RawJobStatusResponse>(response);
+    return {
+      ...payload,
+      output_path: extractPlayableUrl(payload.output_path)
+    } satisfies JobStatusResponse;
   },
 
   async getMyClips(token: string, options?: { limit?: number; offset?: number; query?: string }) {
@@ -358,7 +482,11 @@ export const videoApi = {
       }
     });
 
-    return parseResponse<UserClipsResponse>(response);
+    const payload = await parseResponse<RawUserClipsResponse>(response);
+    return {
+      ...payload,
+      clips: payload.clips.map(normalizeUserClip)
+    } satisfies UserClipsResponse;
   },
 
   async deleteMyClip(jobId: string, token: string) {
@@ -380,7 +508,10 @@ export const videoApi = {
       }
     });
 
-    return parseResponse<UserClipDetailResponse>(response);
+    const payload = await parseResponse<RawUserClipDetailResponse>(response);
+    return {
+      clip: normalizeUserClip(payload.clip)
+    } satisfies UserClipDetailResponse;
   },
 
   async getMyVideos(token: string, options?: { limit?: number; offset?: number; query?: string }) {

@@ -42,11 +42,13 @@ export default function LibraryPage() {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
   const [draftFilename, setDraftFilename] = useState("");
   const [isSavingVideo, setIsSavingVideo] = useState(false);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
+  const [importingClipId, setImportingClipId] = useState<string | null>(null);
   const [deletingAudioId, setDeletingAudioId] = useState<string | null>(null);
   const [audioUrlMap, setAudioUrlMap] = useState<Record<string, string>>({});
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
@@ -63,6 +65,7 @@ export default function LibraryPage() {
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
+      setInfo(null);
       try {
         if (view === "clips") {
           const response = await videoApi.getMyClips(token, {
@@ -215,6 +218,27 @@ export default function LibraryPage() {
     }
   };
 
+  const handleImportClipAsVideo = async (clip: UserClipItem) => {
+    if (!token || importingClipId) {
+      return;
+    }
+
+    setImportingClipId(clip.job_id);
+    setError(null);
+    setInfo(null);
+
+    try {
+      const imported = await videoApi.createVideoFromJob(clip.job_id, token);
+      setInfo(`Clip ${clip.job_id.slice(0, 8)} importado como video ${imported.video_id.slice(0, 8)}.`);
+      setView("videos");
+      setPage(1);
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : "No pudimos importar el clip como video.");
+    } finally {
+      setImportingClipId(null);
+    }
+  };
+
   const handleResolveAudioUrl = async (audioId: string) => {
     if (!token || loadingAudioId) {
       return;
@@ -358,6 +382,12 @@ export default function LibraryPage() {
         </Panel>
       ) : null}
 
+      {info ? (
+        <Panel className="mt-5">
+          <p className="rounded-xl border border-neon-mint/35 bg-neon-mint/10 px-3 py-2 text-sm text-neon-mint">{info}</p>
+        </Panel>
+      ) : null}
+
       {isLoading ? (
         <Panel className="mt-5">
           <p className="text-sm text-white/70">Cargando elementos de biblioteca...</p>
@@ -441,7 +471,7 @@ export default function LibraryPage() {
               )}
             </div>
 
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2">
               <Link
                 href={`/app/timeline?videoId=${clip.video_id}&clipId=${clip.job_id}`}
                 className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan"
@@ -461,6 +491,14 @@ export default function LibraryPage() {
                 onClick={() => void handleDeleteClip(clip)}
               >
                 <Trash2 size={12} /> {deletingClipId === clip.job_id ? "Eliminando..." : "Eliminar"}
+              </button>
+              <button
+                type="button"
+                className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-neon-violet/45 bg-neon-violet/15 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-violet transition hover:bg-neon-violet/20 disabled:opacity-40"
+                disabled={importingClipId === clip.job_id}
+                onClick={() => void handleImportClipAsVideo(clip)}
+              >
+                <Download size={12} /> {importingClipId === clip.job_id ? "Importando..." : "Importar a Videos"}
               </button>
             </div>
           </article>
@@ -571,27 +609,51 @@ export default function LibraryPage() {
             return (
               <article
                 key={audio.audio_id}
-                className="group animate-fade-up rounded-2xl border border-white/10 bg-gradient-to-b from-night-800/80 to-night-900/80 p-4 shadow-panel transition duration-300 hover:-translate-y-1 hover:border-neon-cyan/40"
+                className="group animate-fade-up rounded-2xl border border-white/10 bg-gradient-to-b from-night-800/80 via-night-800/75 to-night-900/85 p-4 shadow-panel transition duration-300 hover:-translate-y-1 hover:border-neon-violet/45"
                 style={{ animationDelay: `${index * 90}ms` }}
               >
-                <div className="relative mb-3 grid aspect-[16/9] place-items-center overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(53,208,255,0.25),transparent_45%),radial-gradient(circle_at_75%_80%,rgba(73,255,163,0.22),transparent_48%),#0d1630]">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-neon-mint/40 bg-neon-mint/10 px-3 py-1 text-xs text-neon-mint">
+                <div className="relative mb-3 overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(203,166,247,0.35),transparent_45%),radial-gradient(circle_at_80%_85%,rgba(245,194,231,0.26),transparent_48%),#1b1b2a]">
+                  <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-neon-violet/20 blur-2xl" />
+                  <div className="absolute -bottom-9 left-6 h-20 w-20 rounded-full bg-neon-magenta/20 blur-2xl" />
+                  <div className="relative z-10 p-4">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-neon-violet/40 bg-neon-violet/15 px-3 py-1 text-xs text-neon-violet">
                     <AudioLines size={13} /> Audio
+                    </div>
+                    <div className="mt-4 flex h-16 items-end gap-1.5">
+                      {Array.from({ length: 18 }).map((_, barIndex) => {
+                        const height = 20 + ((barIndex * 7 + index * 11) % 40);
+                        return (
+                          <span
+                            key={`${audio.audio_id}-${barIndex}`}
+                            className="w-1.5 rounded-full bg-gradient-to-t from-neon-violet/30 to-neon-magenta/80"
+                            style={{ height: `${height}%` }}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
                 <h2 className="font-display text-lg text-white">Audio {audio.audio_id.slice(0, 8)}</h2>
                 <p className="mt-2 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/70">{audio.filename}</p>
-                <p className="mt-2 inline-flex rounded-full border border-neon-cyan/35 bg-neon-cyan/10 px-2 py-1 text-xs text-neon-cyan">
+                <p className="mt-2 inline-flex rounded-full border border-neon-violet/35 bg-neon-violet/10 px-2 py-1 text-xs text-neon-violet">
                   Estado: {audio.status ?? "uploaded"}
                 </p>
 
                 {audioUrl ? (
-                  <audio controls preload="metadata" className="mt-4 w-full" src={audioUrl} />
+                  <div className="mt-4 rounded-xl border border-white/12 bg-night-900/70 p-3">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">Preview</p>
+                    <audio
+                      controls
+                      preload="metadata"
+                      className="mt-2 w-full rounded-lg [accent-color:#cba6f7]"
+                      src={audioUrl}
+                    />
+                  </div>
                 ) : (
                   <button
                     type="button"
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neon-mint/40 bg-neon-mint/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neon-mint transition hover:bg-neon-mint/20 disabled:opacity-40"
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neon-violet/45 bg-neon-violet/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neon-violet transition hover:bg-neon-violet/20 disabled:opacity-40"
                     disabled={loadingAudioId === audio.audio_id}
                     onClick={() => void handleResolveAudioUrl(audio.audio_id)}
                   >
@@ -602,7 +664,7 @@ export default function LibraryPage() {
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan disabled:opacity-40"
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-violet/40 hover:text-neon-violet disabled:opacity-40"
                     disabled={!audioUrl}
                     onClick={() => {
                       if (audioUrl) {
