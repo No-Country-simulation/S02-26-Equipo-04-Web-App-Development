@@ -19,6 +19,11 @@ const HOME_DRAFT_KEY = "home:uploaded-video-draft";
 type ClipOutputStyle = "vertical" | "speaker_split";
 type ClipContentProfile = "auto" | "interview" | "sports" | "music";
 type UploadedMediaType = "video" | "audio";
+type JobStatusInfo = {
+  status: string;
+  outputPath: string | null;
+  subtitlesPath: string | null;
+};
 
 function toTimeLabel(seconds: number) {
   const min = Math.floor(seconds / 60)
@@ -45,7 +50,7 @@ function mapJobStatusToClipStatus(status: string): Clip["status"] {
 
 function mapJobsToClips(
   jobs: AutoReframeJobItem[],
-  jobStatusMap: Record<string, { status: string; outputPath: string | null }>,
+  jobStatusMap: Record<string, JobStatusInfo>,
   fallbackClips: UserClipItem[]
 ): Clip[] {
   const fallbackByJobId = new Map(fallbackClips.map((clip) => [clip.job_id, clip]));
@@ -61,7 +66,8 @@ function mapJobsToClips(
       duration: toTimeLabel(Math.max(job.end_sec - job.start_sec, 0)),
       preset: "Auto Reframe",
       status: mapJobStatusToClipStatus(status),
-      previewUrl: statusInfo?.outputPath ?? fallbackClip?.output_path ?? null
+      previewUrl: statusInfo?.outputPath ?? fallbackClip?.output_path ?? null,
+      subtitlesUrl: statusInfo?.subtitlesPath ?? null
     };
   });
 
@@ -150,7 +156,8 @@ export default function AppHomePage() {
   const [uploadedMediaType, setUploadedMediaType] = useState<UploadedMediaType | null>(null);
   const [autoJobCount, setAutoJobCount] = useState(0);
   const [createdJobs, setCreatedJobs] = useState<AutoReframeJobItem[]>([]);
-  const [jobStatusMap, setJobStatusMap] = useState<Record<string, { status: string; outputPath: string | null }>>({});
+  const [jobStatusMap, setJobStatusMap] = useState<Record<string, JobStatusInfo>>({});
+  const [orchestratorJobId, setOrchestratorJobId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [isHydratingClips, setIsHydratingClips] = useState(false);
@@ -178,7 +185,8 @@ export default function AppHomePage() {
     });
 
     fallbackClips.forEach((clip) => {
-      if (!statusByJob.has(clip.job_id)) {
+      const current = statusByJob.get(clip.job_id);
+      if (!current || (!isTerminalStatus(current) && isTerminalStatus(clip.status))) {
         statusByJob.set(clip.job_id, clip.status);
       }
     });
@@ -212,6 +220,7 @@ export default function AppHomePage() {
         uploadedMediaType?: UploadedMediaType | null;
         createdJobs: AutoReframeJobItem[];
         autoJobCount: number;
+        orchestratorJobId?: string | null;
         outputStyle?: ClipOutputStyle;
         contentProfile?: ClipContentProfile;
         withSubtitles?: boolean;
@@ -232,6 +241,9 @@ export default function AppHomePage() {
       }
       if (typeof parsed.autoJobCount === "number") {
         setAutoJobCount(parsed.autoJobCount);
+      }
+      if (typeof parsed.orchestratorJobId === "string") {
+        setOrchestratorJobId(parsed.orchestratorJobId);
       }
       if (parsed.outputStyle === "vertical" || parsed.outputStyle === "speaker_split") {
         setOutputStyle(parsed.outputStyle);
@@ -267,6 +279,7 @@ export default function AppHomePage() {
       uploadedMediaType,
       createdJobs,
       autoJobCount,
+      orchestratorJobId,
       outputStyle,
       contentProfile,
       withSubtitles,
@@ -274,10 +287,10 @@ export default function AppHomePage() {
     };
 
     window.localStorage.setItem(HOME_DRAFT_KEY, JSON.stringify(payload));
-  }, [uploadedVideo, uploadedAudio, uploadedMediaType, createdJobs, autoJobCount, outputStyle, contentProfile, withSubtitles, watermark]);
+  }, [uploadedVideo, uploadedAudio, uploadedMediaType, createdJobs, autoJobCount, orchestratorJobId, outputStyle, contentProfile, withSubtitles, watermark]);
 
   useEffect(() => {
-    if (!token || createdJobs.length === 0) {
+    if (!token || (createdJobs.length === 0 && !orchestratorJobId)) {
       setIsPollingStatuses(false);
       return;
     }
@@ -286,7 +299,42 @@ export default function AppHomePage() {
 
     const syncStatuses = async () => {
       try {
-        const statuses = await Promise.all(createdJobs.map((job) => videoApi.getJobStatus(job.job_id, token)));
+        let jobIds = createdJobs.map((job) => job.job_id);
+
+        if (jobIds.length === 0 && orchestratorJobId) {
+          const orchestratorStatus = await videoApi.getJobStatus(orchestratorJobId, token);
+          if (cancelled) {
+            return;
+          }
+
+          if (orchestratorStatus.child_jobs.length > 0) {
+            jobIds = orchestratorStatus.child_jobs;
+            setAutoJobCount((prev) => (prev > 0 ? prev : orchestratorStatus.child_jobs.length));
+            setCreatedJobs((prev) => {
+              if (prev.length > 0) {
+                return prev;
+              }
+
+              return orchestratorStatus.child_jobs.map((jobId, index) => ({
+                job_id: jobId,
+                job_type: "AUTO_REFRAME",
+                status: "PENDING",
+                start_sec: index * 15,
+                end_sec: (index + 1) * 15,
+                created_at: new Date().toISOString()
+              }));
+            });
+          } else {
+            const isOrchestratorOpen = !isTerminalStatus(orchestratorStatus.status);
+            setIsPollingStatuses(isOrchestratorOpen);
+            if (!isOrchestratorOpen) {
+              window.clearInterval(intervalId);
+            }
+            return;
+          }
+        }
+
+        const statuses = await Promise.all(jobIds.map((jobId) => videoApi.getJobStatus(jobId, token)));
         if (cancelled) {
           return;
         }
@@ -294,14 +342,16 @@ export default function AppHomePage() {
         let shouldContinuePolling = false;
 
         setJobStatusMap((prev) => {
-          const nextMap: Record<string, { status: string; outputPath: string | null }> = {};
+          const nextMap: Record<string, JobStatusInfo> = {};
 
           statuses.forEach((item) => {
             const previous = prev[item.job_id];
             const stableOutputPath = previous?.outputPath ?? item.output_path ?? null;
+            const stableSubtitlesPath = previous?.subtitlesPath ?? item.subtitles_path ?? null;
             nextMap[item.job_id] = {
               status: item.status,
-              outputPath: stableOutputPath
+              outputPath: stableOutputPath,
+              subtitlesPath: stableSubtitlesPath
             };
 
             const waitingForOutput = !stableOutputPath && (item.status.toLowerCase() === "done" || item.status.toLowerCase() === "completed");
@@ -337,7 +387,7 @@ export default function AppHomePage() {
       window.clearInterval(intervalId);
       setIsPollingStatuses(false);
     };
-  }, [createdJobs, token]);
+  }, [createdJobs, orchestratorJobId, token]);
 
   const handleUpload = async (file: File) => {
     const isAudio = isAudioFile(file);
@@ -351,6 +401,7 @@ export default function AppHomePage() {
     setFallbackClips([]);
     setJobStatusMap({});
     setAutoJobCount(0);
+    setOrchestratorJobId(null);
     setUploadError(null);
     setJobError(null);
     window.localStorage.removeItem(HOME_DRAFT_KEY);
@@ -402,10 +453,11 @@ export default function AppHomePage() {
       });
       setCreatedJobs(autoJobs.jobs);
       setAutoJobCount(autoJobs.total_jobs);
+      setOrchestratorJobId(autoJobs.orchestrator_job_id ?? null);
 
-      const initialMap: Record<string, { status: string; outputPath: string | null }> = {};
+      const initialMap: Record<string, JobStatusInfo> = {};
       autoJobs.jobs.forEach((job) => {
-        initialMap[job.job_id] = { status: job.status, outputPath: null };
+        initialMap[job.job_id] = { status: job.status, outputPath: null, subtitlesPath: null };
       });
       setJobStatusMap(initialMap);
     } catch (error) {
@@ -421,10 +473,17 @@ export default function AppHomePage() {
       return;
     }
 
+    const hasPendingTrackedJobs =
+      createdJobs.length > 0 &&
+      createdJobs.some((job) => {
+        const status = jobStatusMap[job.job_id]?.status ?? job.status;
+        return !isTerminalStatus(status);
+      });
+
     const shouldHydrateFromLibrary =
       !isUploading &&
       !isCreatingJobs &&
-      (createdJobs.length === 0 || (autoJobCount > 0 && createdJobs.length < autoJobCount));
+      (createdJobs.length === 0 || hasPendingTrackedJobs || (autoJobCount > 0 && createdJobs.length < autoJobCount));
 
     if (!shouldHydrateFromLibrary) {
       setIsHydratingClips(false);
@@ -475,7 +534,7 @@ export default function AppHomePage() {
       window.clearInterval(intervalId);
       setIsHydratingClips(false);
     };
-  }, [token, uploadedVideo, createdJobs.length, isUploading, isCreatingJobs, autoJobCount]);
+  }, [token, uploadedVideo, createdJobs, jobStatusMap, isUploading, isCreatingJobs, autoJobCount]);
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -606,15 +665,10 @@ export default function AppHomePage() {
           <ProjectStatusPanel
             hasVideo={hasVideo}
             hasAudio={hasAudio}
-            activeMediaType={uploadedMediaType}
             isUploading={isUploading}
             uploadError={uploadError}
-            videoId={uploadedVideo?.video_id ?? null}
-            audioId={uploadedAudio?.audio_id ?? null}
             isCreatingJobs={isCreatingJobs}
             jobsCreated={autoJobCount}
-            clipsDone={clipProgress.done}
-            clipsFailed={clipProgress.failed}
             clipsPending={clipProgress.pending}
             clipProgressPercent={clipProgress.percent}
             jobError={jobError}

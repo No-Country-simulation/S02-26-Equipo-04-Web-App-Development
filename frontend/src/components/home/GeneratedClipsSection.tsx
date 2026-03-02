@@ -8,6 +8,7 @@ type Clip = {
   preset: string;
   status: "listo" | "revision" | "render";
   previewUrl?: string | null;
+  subtitlesUrl?: string | null;
 };
 
 type GeneratedClipsSectionProps = {
@@ -85,13 +86,23 @@ export function GeneratedClipsSection({
               <p className="mt-1 text-sm text-white/75">{clip.duration}</p>
               <p className="mt-2 rounded-lg border border-white/15 px-2 py-1 text-xs text-white/80">Preset: {clip.preset}</p>
               {isRefreshingStatuses ? <p className="mt-2 text-xs text-white/60">Actualizando estado de jobs...</p> : null}
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Link
                   href="/app/timeline"
                   className="inline-flex rounded-lg border border-neon-cyan/35 bg-neon-cyan/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neon-cyan transition hover:bg-neon-cyan/20"
                 >
                   Editar en timeline
                 </Link>
+                {clip.subtitlesUrl ? (
+                  <a
+                    href={clip.subtitlesUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex rounded-lg border border-neon-mint/35 bg-neon-mint/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-neon-mint transition hover:bg-neon-mint/20"
+                  >
+                    Ver subtitulos (.srt)
+                  </a>
+                ) : null}
               </div>
             </article>
           ))}

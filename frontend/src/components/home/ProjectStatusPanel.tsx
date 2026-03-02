@@ -4,15 +4,10 @@ import { Loader } from "@/src/components/ui/Loader";
 type ProjectStatusPanelProps = {
   hasVideo: boolean;
   hasAudio: boolean;
-  activeMediaType: "video" | "audio" | null;
   isUploading: boolean;
   uploadError: string | null;
-  videoId: string | null;
-  audioId: string | null;
   isCreatingJobs: boolean;
   jobsCreated: number;
-  clipsDone: number;
-  clipsFailed: number;
   clipsPending: number;
   clipProgressPercent: number;
   jobError: string | null;
@@ -21,15 +16,10 @@ type ProjectStatusPanelProps = {
 export function ProjectStatusPanel({
   hasVideo,
   hasAudio,
-  activeMediaType,
   isUploading,
   uploadError,
-  videoId,
-  audioId,
   isCreatingJobs,
   jobsCreated,
-  clipsDone,
-  clipsFailed,
   clipsPending,
   clipProgressPercent,
   jobError
@@ -53,22 +43,14 @@ export function ProjectStatusPanel({
     status = "Video cargado";
   }
 
-  const progress = isUploading
-    ? 30
-    : isCreatingJobs
-      ? 55
-      : jobsCreated > 0
-        ? Math.max(55, clipProgressPercent)
-        : hasAudio
-          ? 100
-          : hasVideo
-            ? 45
-            : 0;
-
-  const trackedTotal = Math.max(jobsCreated, clipsDone + clipsFailed + clipsPending);
-  const donePct = trackedTotal > 0 ? Math.round((clipsDone / trackedTotal) * 100) : 0;
-  const failedPct = trackedTotal > 0 ? Math.round((clipsFailed / trackedTotal) * 100) : 0;
-  const pendingPct = Math.max(0, 100 - donePct - failedPct);
+  const uploadProgress = isUploading ? 60 : hasVideo || hasAudio ? 100 : 0;
+  const generationProgress = isCreatingJobs
+    ? 25
+    : jobsCreated > 0
+      ? clipProgressPercent
+      : hasVideo
+        ? 10
+        : 0;
 
   return (
     <section>
@@ -84,46 +66,28 @@ export function ProjectStatusPanel({
 
       <div className="mt-4 rounded-xl border border-white/15 bg-white/5 p-3">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-white/80">Progreso</span>
-          <span className="text-white">{progress}%</span>
+          <span className="text-white/80">Subida de archivo</span>
+          <span className="text-white">{uploadProgress}%</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-night-950/90">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-neon-cyan to-neon-mint transition-all duration-500"
+            style={{ width: `${uploadProgress}%` }}
+          />
+        </div>
+
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <span className="text-white/80">Generacion de clips</span>
+          <span className="text-white">{generationProgress}%</span>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-night-950/90">
           <div
             className="h-full rounded-full bg-gradient-to-r from-neon-cyan to-neon-violet transition-all duration-500"
-            style={{ width: `${progress}%` }}
+            style={{ width: `${generationProgress}%` }}
           />
         </div>
-
-        {trackedTotal > 0 ? (
-          <>
-            <div className="mt-3 h-2 overflow-hidden rounded-full border border-white/10 bg-night-950/90">
-              <div className="flex h-full w-full">
-                <div className="h-full bg-emerald-400/85" style={{ width: `${donePct}%` }} />
-                <div className="h-full bg-rose-400/85" style={{ width: `${failedPct}%` }} />
-                <div className="h-full bg-sky-400/70" style={{ width: `${pendingPct}%` }} />
-              </div>
-            </div>
-            <p className="mt-2 text-[11px] text-white/65">
-              Verde: listos · Rojo: con error · Celeste: pendientes
-            </p>
-          </>
-        ) : null}
       </div>
 
-      <ul className="mt-4 space-y-2 text-sm text-white/80">
-        <li className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-          Upload recibido{activeMediaType ? ` (${activeMediaType})` : ""}
-        </li>
-        <li className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Generacion automatica de segmentos</li>
-        <li className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Encolado de jobs de reframe</li>
-      </ul>
-      {jobsCreated > 0 ? (
-        <p className="mt-3 text-xs text-neon-cyan">
-          Jobs creados: {jobsCreated} | listos: {clipsDone} | en proceso: {clipsPending} | con error: {clipsFailed}
-        </p>
-      ) : null}
-      {videoId ? <p className="mt-3 text-xs text-white/60">ID de video: {videoId}</p> : null}
-      {audioId ? <p className="mt-3 text-xs text-white/60">ID de audio: {audioId}</p> : null}
       {uploadError ? (
         <p className="mt-3 rounded-xl border border-rose-400/35 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">{uploadError}</p>
       ) : null}
