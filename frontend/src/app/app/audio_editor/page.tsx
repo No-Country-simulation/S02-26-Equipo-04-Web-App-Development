@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 10;
+const MIN_AUDIO_SEGMENT_SECONDS = 5;
 
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof VideoApiError) {
@@ -42,6 +43,13 @@ function toTimeLabel(seconds: number) {
   return `${min}:${sec}`;
 }
 
+function clamp(value: number, min: number, max: number) {
+  if (Number.isNaN(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+}
+
 export default function AudioEditorPage() {
   const searchParams = useSearchParams();
   const preferredVideoId = searchParams.get("videoId")?.trim() ?? "";
@@ -67,6 +75,8 @@ export default function AudioEditorPage() {
   const [audioStartSec, setAudioStartSec] = useState(0);
   const [audioEndSec, setAudioEndSec] = useState(15);
   const [audioVolume, setAudioVolume] = useState(1);
+  const [videoDurationSec, setVideoDurationSec] = useState(0);
+  const [audioDurationSec, setAudioDurationSec] = useState(0);
 
   const [isSubmittingAudio, setIsSubmittingAudio] = useState(false);
   const [audioSubmitInfo, setAudioSubmitInfo] = useState<string | null>(null);
@@ -207,10 +217,12 @@ export default function AudioEditorPage() {
   useEffect(() => {
     if (!token || !selectedAudioId) {
       setSelectedAudioUrl(null);
+      setAudioDurationSec(0);
       return;
     }
 
     let cancelled = false;
+    setAudioDurationSec(0);
 
     const resolveAudioUrl = async () => {
       try {
@@ -221,6 +233,7 @@ export default function AudioEditorPage() {
       } catch {
         if (!cancelled) {
           setSelectedAudioUrl(null);
+          setAudioDurationSec(0);
         }
       }
     };
@@ -288,14 +301,98 @@ export default function AudioEditorPage() {
   const selectedVideo = useMemo(() => videos.find((video) => video.video_id === selectedVideoId) ?? null, [videos, selectedVideoId]);
   const previewUrl = mixedVideoUrl ?? focusedClip?.output_path ?? selectedVideo?.preview_url ?? null;
 
+  useEffect(() => {
+    if (!previewUrl) {
+      setVideoDurationSec(0);
+      return;
+    }
+
+    const video = document.createElement("video");
+    const onLoaded = () => {
+      setVideoDurationSec(Number.isFinite(video.duration) ? video.duration : 0);
+    };
+    const onError = () => {
+      setVideoDurationSec(0);
+    };
+
+    video.preload = "metadata";
+    video.src = previewUrl;
+    video.addEventListener("loadedmetadata", onLoaded);
+    video.addEventListener("error", onError);
+
+    return () => {
+      video.removeEventListener("loadedmetadata", onLoaded);
+      video.removeEventListener("error", onError);
+      video.src = "";
+    };
+  }, [previewUrl]);
+
+  const maxOffsetSec = useMemo(() => {
+    if (videoDurationSec <= 0) {
+      return 0;
+    }
+    return Math.max(Math.floor(videoDurationSec) - MIN_AUDIO_SEGMENT_SECONDS, 0);
+  }, [videoDurationSec]);
+
+  const maxAudioStartSec = useMemo(() => {
+    if (audioDurationSec <= 0) {
+      return 0;
+    }
+    return Math.max(Math.floor(audioDurationSec) - MIN_AUDIO_SEGMENT_SECONDS, 0);
+  }, [audioDurationSec]);
+
+  const maxAudioEndSec = useMemo(() => {
+    const byAudio = audioDurationSec > 0 ? Math.floor(audioDurationSec) : Number.POSITIVE_INFINITY;
+    const byVideo = videoDurationSec > 0 ? Math.floor(videoDurationSec) : Number.POSITIVE_INFINITY;
+    return Math.min(byAudio, byVideo);
+  }, [audioDurationSec, videoDurationSec]);
+
+  useEffect(() => {
+    const nextOffset = clamp(audioOffsetSec, 0, maxOffsetSec);
+    const nextStart = clamp(audioStartSec, 0, maxAudioStartSec);
+
+    const availableByAudio = audioDurationSec > 0 ? Math.max(Math.floor(audioDurationSec) - nextStart, 0) : Number.POSITIVE_INFINITY;
+    const availableByVideo = videoDurationSec > 0 ? Math.max(Math.floor(videoDurationSec) - nextOffset, 0) : Number.POSITIVE_INFINITY;
+    const maxSegment = Math.max(Math.min(availableByAudio, availableByVideo), 0);
+    const minEnd = nextStart + Math.min(MIN_AUDIO_SEGMENT_SECONDS, maxSegment);
+    const maxEnd = nextStart + maxSegment;
+
+    const nextEnd = clamp(audioEndSec, minEnd, maxEnd || minEnd);
+
+    if (nextOffset !== audioOffsetSec) {
+      setAudioOffsetSec(nextOffset);
+    }
+    if (nextStart !== audioStartSec) {
+      setAudioStartSec(nextStart);
+    }
+    if (nextEnd !== audioEndSec) {
+      setAudioEndSec(nextEnd);
+    }
+  }, [audioDurationSec, audioEndSec, audioOffsetSec, audioStartSec, maxAudioStartSec, maxOffsetSec, videoDurationSec]);
+
+  const selectedSegmentDurationSec = Math.max(audioEndSec - audioStartSec, 0);
+  const canSubmitAudioJob =
+    Boolean(selectedVideoId) &&
+    Boolean(selectedAudioId) &&
+    selectedSegmentDurationSec >= MIN_AUDIO_SEGMENT_SECONDS &&
+    (videoDurationSec <= 0 || audioOffsetSec + selectedSegmentDurationSec <= Math.floor(videoDurationSec));
+
+  const audioOffsetPct = videoDurationSec > 0 ? Math.min((audioOffsetSec / videoDurationSec) * 100, 100) : 0;
+  const audioWidthPct = videoDurationSec > 0 ? Math.min((selectedSegmentDurationSec / videoDurationSec) * 100, 100 - audioOffsetPct) : 0;
+
   const handleAddAudioToVideo = async () => {
     if (!token || !selectedVideoId || !selectedAudioId) {
       setAudioSubmitError("Selecciona video y audio para iniciar la mezcla.");
       return;
     }
 
-    if (audioEndSec <= audioStartSec) {
-      setAudioSubmitError("El fin del segmento de audio debe ser mayor al inicio.");
+    if (selectedSegmentDurationSec < MIN_AUDIO_SEGMENT_SECONDS) {
+      setAudioSubmitError(`El segmento de audio debe durar al menos ${MIN_AUDIO_SEGMENT_SECONDS} segundos.`);
+      return;
+    }
+
+    if (videoDurationSec > 0 && audioOffsetSec + selectedSegmentDurationSec > Math.floor(videoDurationSec)) {
+      setAudioSubmitError("La pista de audio no puede exceder la duracion total del video.");
       return;
     }
 
@@ -309,7 +406,7 @@ export default function AudioEditorPage() {
         audio_id: selectedAudioId,
         audio_offset_sec: Math.max(0, Math.floor(audioOffsetSec)),
         audio_start_sec: Math.max(0, Math.floor(audioStartSec)),
-        audio_end_sec: Math.max(1, Math.ceil(audioEndSec)),
+        audio_end_sec: Math.max(MIN_AUDIO_SEGMENT_SECONDS, Math.ceil(audioEndSec)),
         audio_volume: Math.min(2, Math.max(0.1, Number(audioVolume.toFixed(2))))
       });
 
@@ -370,8 +467,8 @@ export default function AudioEditorPage() {
                   <div
                     className="h-full rounded bg-gradient-to-r from-neon-violet/65 to-neon-magenta/75"
                     style={{
-                      marginLeft: `${Math.min(audioOffsetSec * 2, 80)}px`,
-                      width: `${Math.max((audioEndSec - audioStartSec) * 5, 24)}px`
+                      marginLeft: `${audioOffsetPct}%`,
+                      width: `${Math.max(audioWidthPct, 2)}%`
                     }}
                   />
                 </div>
@@ -451,8 +548,21 @@ export default function AudioEditorPage() {
               </label>
 
               {selectedAudioUrl ? (
-                <audio controls preload="metadata" className="mt-3 w-full rounded-lg [accent-color:#cba6f7]" src={selectedAudioUrl} />
+                <audio
+                  controls
+                  preload="metadata"
+                  className="mt-3 w-full rounded-lg [accent-color:#cba6f7]"
+                  src={selectedAudioUrl}
+                  onLoadedMetadata={(event) => {
+                    const duration = event.currentTarget.duration;
+                    setAudioDurationSec(Number.isFinite(duration) ? duration : 0);
+                  }}
+                />
               ) : null}
+
+              <p className="mt-2 text-[11px] text-white/65">
+                Duracion de video: {videoDurationSec > 0 ? toTimeLabel(videoDurationSec) : "-"} · Duracion de audio: {audioDurationSec > 0 ? toTimeLabel(audioDurationSec) : "-"}
+              </p>
 
               <div className="mt-3 rounded-xl border border-white/12 bg-white/5 p-3 text-xs text-white/80">
                 <p className="text-neon-violet">Referencia rapida</p>
@@ -468,8 +578,9 @@ export default function AudioEditorPage() {
                   <input
                     type="number"
                     min={0}
+                    max={maxOffsetSec}
                     value={audioOffsetSec}
-                    onChange={(event) => setAudioOffsetSec(Number(event.target.value || 0))}
+                    onChange={(event) => setAudioOffsetSec(clamp(Number(event.target.value || 0), 0, maxOffsetSec))}
                     className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
                   />
                 </label>
@@ -490,8 +601,9 @@ export default function AudioEditorPage() {
                   <input
                     type="number"
                     min={0}
+                    max={maxAudioStartSec}
                     value={audioStartSec}
-                    onChange={(event) => setAudioStartSec(Number(event.target.value || 0))}
+                    onChange={(event) => setAudioStartSec(clamp(Number(event.target.value || 0), 0, maxAudioStartSec))}
                     className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
                   />
                 </label>
@@ -499,18 +611,33 @@ export default function AudioEditorPage() {
                   Fin audio (seg)
                   <input
                     type="number"
-                    min={1}
+                    min={audioStartSec + MIN_AUDIO_SEGMENT_SECONDS}
+                    max={Math.max(audioStartSec + MIN_AUDIO_SEGMENT_SECONDS, maxAudioEndSec)}
                     value={audioEndSec}
-                    onChange={(event) => setAudioEndSec(Number(event.target.value || 1))}
+                    onChange={(event) =>
+                      setAudioEndSec(
+                        clamp(
+                          Number(event.target.value || audioStartSec + MIN_AUDIO_SEGMENT_SECONDS),
+                          audioStartSec + MIN_AUDIO_SEGMENT_SECONDS,
+                          Math.max(audioStartSec + MIN_AUDIO_SEGMENT_SECONDS, maxAudioEndSec)
+                        )
+                      )
+                    }
                     className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
                   />
                 </label>
               </div>
 
+              {!canSubmitAudioJob ? (
+                <p className="mt-2 text-xs text-amber-200">
+                  Ajusta la pista para que no exceda la duracion del video y tenga al menos {MIN_AUDIO_SEGMENT_SECONDS}s.
+                </p>
+              ) : null}
+
               <button
                 type="button"
                 onClick={() => void handleAddAudioToVideo()}
-                disabled={!selectedVideoId || !selectedAudioId || isSubmittingAudio}
+                disabled={!canSubmitAudioJob || isSubmittingAudio}
                 className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neon-violet/45 bg-neon-violet/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neon-violet transition hover:bg-neon-violet/20 disabled:opacity-40"
               >
                 <Music2 size={14} /> {isSubmittingAudio ? "Encolando..." : "Aplicar audio al video"}
