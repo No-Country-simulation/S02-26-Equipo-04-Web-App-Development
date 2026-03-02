@@ -15,6 +15,7 @@ Dejar trazabilidad backend para el refresh de frontend sobre `auto2`, subtitulos
 - Se cableo en frontend el endpoint `POST /api/v1/videos/from-job/{job_id}` para importar resultados de jobs como videos editables.
 - Se movio en frontend el uso de `add-audio` hacia una pantalla dedicada `Audio editor` (sin cambios adicionales de backend requeridos).
 - Se aplico fix local en `backend/api/app/services/job_service.py` para eliminar clips cuando `output_path` llega como JSON (`video` + `subtitles`) y evitar fallos al borrar assets.
+- Ajuste de frontend: se validan limites de duracion antes de llamar `add-audio` para no enviar segmentos que excedan el largo del video destino.
 
 ### Commits de esta rama (backend)
 
