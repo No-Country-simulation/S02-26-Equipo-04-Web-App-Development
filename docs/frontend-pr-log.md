@@ -2,7 +2,49 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feat/frontend-auto2-audio-progress-clean`
+Rama de trabajo actual: `feat/frontend-home-status-polling-subtitles`
+
+## Objetivo de la rama
+
+Pulir Home para que el estado de generacion avance en tiempo real sin recarga manual, simplificar la UI del panel de estado y exponer acceso a subtitulos por clip.
+
+Rama de trabajo: `feat/frontend-home-status-polling-subtitles`.
+
+## Cambios realizados
+
+- Se simplifico `frontend/src/components/home/ProjectStatusPanel.tsx` para mostrar solo dos barras: `Subida de archivo` y `Generacion de clips`, removiendo IDs tecnicos y bloques de estado sobrecargados.
+- Se ajusto el polling de Home en `frontend/src/app/app/page.tsx` para soportar orquestador `auto2` (`orchestrator_job_id`) y resolver `child_jobs` desde `GET /api/v1/jobs/status/{job_id}`.
+- Se corrigio la hidratacion de resultados en Home para que continue mientras existan jobs no terminales, evitando que la lista quede congelada hasta navegar o recargar.
+- Se robustecio el calculo de progreso priorizando estados terminales obtenidos desde biblioteca cuando el estado local aun no se actualizo.
+- Se extendio `frontend/src/services/videoApi.ts` para extraer `child_jobs` y `subtitles_path` del `output_path`, y se forzo `cache: "no-store"` en `getJobStatus`/`getMyClips`.
+- Se actualizo `frontend/src/components/home/GeneratedClipsSection.tsx` con CTA `Ver subtitulos (.srt)` cuando el backend devuelve URL de subtitulos.
+
+## Commits realizados
+
+- `fix(frontend): sync home polling progress and simplify project status panel`
+
+## Archivos clave
+
+- `frontend/src/app/app/page.tsx`
+- `frontend/src/components/home/ProjectStatusPanel.tsx`
+- `frontend/src/components/home/GeneratedClipsSection.tsx`
+- `frontend/src/services/videoApi.ts`
+- `docs/frontend-pr-log.md`
+
+## Validaciones locales
+
+Ejecutado en `frontend/`:
+
+- `npm run lint` -> OK
+- `npm run build` -> OK
+
+## Checklist antes de PR a develop
+
+- [x] Rama nueva creada para cambios posteriores al merge previo
+- [x] Cambios limitados al alcance frontend/documentacion de esta iteracion
+- [x] `npm run lint` OK
+- [x] `npm run build` OK
+- [x] Documentacion actualizada
 
 ### Objetivo
 

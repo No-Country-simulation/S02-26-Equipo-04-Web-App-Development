@@ -145,6 +145,8 @@ export type JobStatusResponse = {
   job_id: string;
   status: string;
   output_path: string | null;
+  subtitles_path: string | null;
+  child_jobs: string[];
 };
 
 type RawOutputPath = string | Record<string, unknown> | null;
@@ -307,6 +309,41 @@ function extractPlayableUrl(outputPath: RawOutputPath) {
   }
 
   return null;
+}
+
+function extractStringFromKeys(map: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const candidate = map[key];
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function extractChildJobIds(outputPath: RawOutputPath) {
+  if (!outputPath || typeof outputPath !== "object") {
+    return [] as string[];
+  }
+
+  const map = outputPath as Record<string, unknown>;
+  const jobs = map.jobs;
+
+  if (!Array.isArray(jobs)) {
+    return [] as string[];
+  }
+
+  return jobs.filter((job): job is string => typeof job === "string" && job.trim().length > 0);
+}
+
+function extractSubtitlesUrl(outputPath: RawOutputPath) {
+  if (!outputPath || typeof outputPath !== "object") {
+    return null;
+  }
+
+  const map = outputPath as Record<string, unknown>;
+  return extractStringFromKeys(map, ["subtitles", "subtitle", "captions", "srt"]);
 }
 
 function normalizeUserClip(raw: RawUserClipItem): UserClipItem {
@@ -502,6 +539,7 @@ export const videoApi = {
   async getJobStatus(jobId: string, token: string) {
     const response = await fetch(`${apiBaseUrl}/api/v1/jobs/status/${jobId}`, {
       method: "GET",
+      cache: "no-store",
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -510,7 +548,9 @@ export const videoApi = {
     const payload = await parseResponse<RawJobStatusResponse>(response);
     return {
       ...payload,
-      output_path: extractPlayableUrl(payload.output_path)
+      output_path: extractPlayableUrl(payload.output_path),
+      subtitles_path: extractSubtitlesUrl(payload.output_path),
+      child_jobs: extractChildJobIds(payload.output_path)
     } satisfies JobStatusResponse;
   },
 
@@ -527,6 +567,7 @@ export const videoApi = {
 
     const response = await fetch(`${apiBaseUrl}/api/v1/jobs/my-clips?${params.toString()}`, {
       method: "GET",
+      cache: "no-store",
       headers: {
         Authorization: `Bearer ${token}`
       }
