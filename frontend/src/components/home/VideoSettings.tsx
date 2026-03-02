@@ -30,7 +30,7 @@ const settingItems: Array<{ key: keyof VideoSettings; label: string }> = [
 export function VideoSettings( {submitInfoSettings,submitErrorSettings, trimStart,videoEditarBool,draftFilename,setDraftFilename, saveRaname,  trimEnd, minClipDurationSec, isSubmitting,  submitInfo, submitError,selectedVideoId,handleCreateJob}:ButtonGeneraRecorte){
       const settings = useVideoSettingsStore((state) => state.settings);
       const saveSettings = useVideoSettingsStore((state) => state.saveSettings);
-      const [draft, setDraft] = useState<VideoSettings>(settings);
+      const [draft, setDraft] = useState<VideoSettings>({ ...settings, watermark: settings.watermark ?? "Hacelo Corto" });
       const selectedDuration = Math.max(0, Math.ceil(trimEnd) - Math.floor(trimStart));
       const canCreateClip = Boolean(selectedVideoId) && selectedDuration >= minClipDurationSec;
       
@@ -61,6 +61,20 @@ export function VideoSettings( {submitInfoSettings,submitErrorSettings, trimStar
                         />
                       </label>
                     ))}
+
+                    <label className="block rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/90">
+                      <span className="text-xs uppercase tracking-[0.12em] text-white/65">Watermark</span>
+                      <input
+                        type="text"
+                        value={draft.watermark}
+                        onChange={(event) => {
+                          const value = event.target.value.slice(0, 12);
+                          setDraft((prev) => ({ ...prev, watermark: value }));
+                        }}
+                        maxLength={12}
+                        className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/70 px-3 py-2 text-xs text-white outline-none transition focus:border-neon-cyan/50"
+                      />
+                    </label>
                   </div>
     {
           !videoEditarBool&&(

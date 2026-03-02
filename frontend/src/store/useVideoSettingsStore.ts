@@ -6,6 +6,7 @@ export type VideoSettings = {
   subtitles: boolean;
   faceTracking: boolean;
   colorFilter: boolean;
+  watermark: string;
   videoStart: number;
   videoEnd: number;
 };
@@ -15,6 +16,7 @@ const defaultSettings: VideoSettings = {
   subtitles: true,
   faceTracking: false,
   colorFilter: false,
+  watermark: "Hacelo Corto",
   videoStart: 0,
   videoEnd: 60
 };

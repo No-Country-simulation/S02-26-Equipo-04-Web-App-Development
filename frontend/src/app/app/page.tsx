@@ -5,6 +5,7 @@ import { ProjectStatusPanel } from "@/src/components/home/ProjectStatusPanel";
 import { UploadDropzone } from "@/src/components/home/UploadDropzone";
 import { Panel } from "@/src/components/ui/Panel";
 import {
+  type AudioUploadResponse,
   VideoApiError,
   type AutoReframeJobItem,
   type UserClipItem,
@@ -17,6 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 const HOME_DRAFT_KEY = "home:uploaded-video-draft";
 type ClipOutputStyle = "vertical" | "speaker_split";
 type ClipContentProfile = "auto" | "interview" | "sports" | "music";
+type UploadedMediaType = "video" | "audio";
 
 function toTimeLabel(seconds: number) {
   const min = Math.floor(seconds / 60)
@@ -94,10 +96,29 @@ function isTerminalStatus(status: string) {
   return normalized === "done" || normalized === "completed" || normalized === "failed" || normalized === "error";
 }
 
+function isDoneStatus(status: string) {
+  const normalized = status.toLowerCase();
+  return normalized === "done" || normalized === "completed";
+}
+
+function isFailedStatus(status: string) {
+  const normalized = status.toLowerCase();
+  return normalized === "failed" || normalized === "error";
+}
+
+function isAudioFile(file: File) {
+  if (file.type.toLowerCase().startsWith("audio/")) {
+    return true;
+  }
+
+  const lowerName = file.name.toLowerCase();
+  return [".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma", ".opus"].some((ext) => lowerName.endsWith(ext));
+}
+
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof VideoApiError) {
     if (error.status === 400) {
-      return error.message || "El archivo de video es invalido o no cumple los requisitos.";
+      return error.message || "El archivo es invalido o no cumple los requisitos.";
     }
 
     if (error.status === 401) {
@@ -125,6 +146,8 @@ export default function AppHomePage() {
   const [isCreatingJobs, setIsCreatingJobs] = useState(false);
   const [isPollingStatuses, setIsPollingStatuses] = useState(false);
   const [uploadedVideo, setUploadedVideo] = useState<VideoUploadResponse | null>(null);
+  const [uploadedAudio, setUploadedAudio] = useState<AudioUploadResponse | null>(null);
+  const [uploadedMediaType, setUploadedMediaType] = useState<UploadedMediaType | null>(null);
   const [autoJobCount, setAutoJobCount] = useState(0);
   const [createdJobs, setCreatedJobs] = useState<AutoReframeJobItem[]>([]);
   const [jobStatusMap, setJobStatusMap] = useState<Record<string, { status: string; outputPath: string | null }>>({});
@@ -133,15 +156,48 @@ export default function AppHomePage() {
   const [isHydratingClips, setIsHydratingClips] = useState(false);
   const [outputStyle, setOutputStyle] = useState<ClipOutputStyle>("vertical");
   const [contentProfile, setContentProfile] = useState<ClipContentProfile>("auto");
+  const [withSubtitles, setWithSubtitles] = useState(false);
+  const [watermark, setWatermark] = useState("Hacelo Corto");
   const [fallbackClips, setFallbackClips] = useState<UserClipItem[]>([]);
 
   const hasVideo = Boolean(uploadedVideo);
+  const hasAudio = Boolean(uploadedAudio);
   const visibleClips = useMemo(() => {
     if (createdJobs.length > 0) {
       return mapJobsToClips(createdJobs, jobStatusMap, fallbackClips);
     }
     return mapUserClipsToCards(fallbackClips);
   }, [createdJobs, jobStatusMap, fallbackClips]);
+
+  const clipProgress = useMemo(() => {
+    const statusByJob = new Map<string, string>();
+
+    createdJobs.forEach((job) => {
+      const status = jobStatusMap[job.job_id]?.status ?? job.status;
+      statusByJob.set(job.job_id, status);
+    });
+
+    fallbackClips.forEach((clip) => {
+      if (!statusByJob.has(clip.job_id)) {
+        statusByJob.set(clip.job_id, clip.status);
+      }
+    });
+
+    const statuses = Array.from(statusByJob.values());
+    const done = statuses.filter((status) => isDoneStatus(status)).length;
+    const failed = statuses.filter((status) => isFailedStatus(status)).length;
+    const total = autoJobCount > 0 ? autoJobCount : statuses.length;
+    const pending = Math.max(total - done - failed, 0);
+    const percent = total > 0 ? Math.round(((done + failed) / total) * 100) : 0;
+
+    return {
+      done,
+      failed,
+      pending,
+      total,
+      percent
+    };
+  }, [autoJobCount, createdJobs, fallbackClips, jobStatusMap]);
 
   useEffect(() => {
     try {
@@ -152,14 +208,24 @@ export default function AppHomePage() {
 
       const parsed = JSON.parse(raw) as {
         uploadedVideo: VideoUploadResponse | null;
+        uploadedAudio?: AudioUploadResponse | null;
+        uploadedMediaType?: UploadedMediaType | null;
         createdJobs: AutoReframeJobItem[];
         autoJobCount: number;
         outputStyle?: ClipOutputStyle;
         contentProfile?: ClipContentProfile;
+        withSubtitles?: boolean;
+        watermark?: string;
       };
 
       if (parsed.uploadedVideo) {
         setUploadedVideo(parsed.uploadedVideo);
+      }
+      if (parsed.uploadedAudio) {
+        setUploadedAudio(parsed.uploadedAudio);
+      }
+      if (parsed.uploadedMediaType === "video" || parsed.uploadedMediaType === "audio") {
+        setUploadedMediaType(parsed.uploadedMediaType);
       }
       if (Array.isArray(parsed.createdJobs)) {
         setCreatedJobs(parsed.createdJobs);
@@ -178,6 +244,12 @@ export default function AppHomePage() {
       ) {
         setContentProfile(parsed.contentProfile);
       }
+      if (typeof parsed.withSubtitles === "boolean") {
+        setWithSubtitles(parsed.withSubtitles);
+      }
+      if (typeof parsed.watermark === "string") {
+        setWatermark(parsed.watermark);
+      }
     } catch {
       window.localStorage.removeItem(HOME_DRAFT_KEY);
     }
@@ -191,14 +263,18 @@ export default function AppHomePage() {
 
     const payload = {
       uploadedVideo,
+      uploadedAudio,
+      uploadedMediaType,
       createdJobs,
       autoJobCount,
       outputStyle,
-      contentProfile
+      contentProfile,
+      withSubtitles,
+      watermark
     };
 
     window.localStorage.setItem(HOME_DRAFT_KEY, JSON.stringify(payload));
-  }, [uploadedVideo, createdJobs, autoJobCount, outputStyle, contentProfile]);
+  }, [uploadedVideo, uploadedAudio, uploadedMediaType, createdJobs, autoJobCount, outputStyle, contentProfile, withSubtitles, watermark]);
 
   useEffect(() => {
     if (!token || createdJobs.length === 0) {
@@ -264,9 +340,13 @@ export default function AppHomePage() {
   }, [createdJobs, token]);
 
   const handleUpload = async (file: File) => {
+    const isAudio = isAudioFile(file);
+
     setIsUploading(true);
     setIsCreatingJobs(false);
     setUploadedVideo(null);
+    setUploadedAudio(null);
+    setUploadedMediaType(isAudio ? "audio" : "video");
     setCreatedJobs([]);
     setFallbackClips([]);
     setJobStatusMap({});
@@ -275,17 +355,35 @@ export default function AppHomePage() {
     setJobError(null);
     window.localStorage.removeItem(HOME_DRAFT_KEY);
 
-    let uploaded: VideoUploadResponse;
+    let uploadedVideoResponse: VideoUploadResponse | null = null;
+    let uploadedAudioResponse: AudioUploadResponse | null = null;
 
     try {
-      uploaded = await videoApi.upload(file, token);
+      if (isAudio) {
+        uploadedAudioResponse = await videoApi.uploadAudio(file, token);
+      } else {
+        uploadedVideoResponse = await videoApi.upload(file, token);
+      }
     } catch (error) {
-      setUploadError(normalizeVideoError(error, "No pudimos subir el video."));
+      setUploadError(normalizeVideoError(error, "No pudimos subir el archivo."));
       setIsUploading(false);
       return;
     }
 
-    setUploadedVideo(uploaded);
+    if (uploadedAudioResponse) {
+      setUploadedAudio(uploadedAudioResponse);
+      setUploadedVideo(null);
+      setIsUploading(false);
+      return;
+    }
+
+    if (!uploadedVideoResponse) {
+      setUploadError("No pudimos determinar el tipo de archivo subido.");
+      setIsUploading(false);
+      return;
+    }
+
+    setUploadedVideo(uploadedVideoResponse);
     setIsUploading(false);
 
     if (!token) {
@@ -296,9 +394,11 @@ export default function AppHomePage() {
     setIsCreatingJobs(true);
 
     try {
-      const autoJobs = await videoApi.createAutoReframeJobs(uploaded.video_id, token, {
+      const autoJobs = await videoApi.createAutoReframeJobs(uploadedVideoResponse.video_id, token, {
         outputStyle,
-        contentProfile
+        contentProfile,
+        subtitles: withSubtitles,
+        watermark
       });
       setCreatedJobs(autoJobs.jobs);
       setAutoJobCount(autoJobs.total_jobs);
@@ -382,7 +482,29 @@ export default function AppHomePage() {
       <div className="grid gap-5 xl:grid-cols-[1.55fr_0.95fr]">
         <Panel variant="accent" className="p-4 sm:p-5">
           <div className="mb-4 rounded-xl border border-white/12 bg-white/5 p-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/60">Estilo de clip</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-white/60">Opciones de procesamiento</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+              <label className="flex items-center justify-between rounded-lg border border-white/15 bg-night-900/70 px-3 py-2 text-sm text-white/85">
+                <span>Subtitulos automaticos</span>
+                <input
+                  type="checkbox"
+                  checked={withSubtitles}
+                  onChange={(event) => setWithSubtitles(event.target.checked)}
+                  className="h-4 w-4 rounded border-white/20 bg-night-900 text-neon-cyan focus:ring-neon-cyan"
+                />
+              </label>
+              <label className="rounded-lg border border-white/15 bg-night-900/70 px-3 py-2 text-sm text-white/85">
+                <span className="mr-2 text-xs uppercase tracking-[0.12em] text-white/55">Watermark</span>
+                <input
+                  value={watermark}
+                  onChange={(event) => setWatermark(event.target.value.slice(0, 12))}
+                  maxLength={12}
+                  className="mt-1 w-full rounded-md border border-white/20 bg-night-900/80 px-2 py-1.5 text-sm text-white outline-none focus:border-neon-cyan/50"
+                />
+              </label>
+            </div>
+
+            <p className="mt-4 text-xs uppercase tracking-[0.18em] text-white/60">Estilo de clip</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
@@ -470,18 +592,31 @@ export default function AppHomePage() {
           <UploadDropzone
             onUpload={handleUpload}
             isUploading={isUploading}
-            fileName={uploadedVideo?.filename}
+            fileName={uploadedVideo?.filename ?? uploadedAudio?.filename}
+            fileKind={uploadedMediaType ?? (uploadedAudio ? "audio" : "video")}
           />
+          {hasAudio ? (
+            <div className="mt-4 rounded-xl border border-neon-mint/35 bg-neon-mint/10 p-3 text-xs text-neon-mint">
+              Audio cargado correctamente. Ya podes verlo en Biblioteca - Audios y usarlo en los proximos flujos de mezcla.
+            </div>
+          ) : null}
         </Panel>
 
         <Panel>
           <ProjectStatusPanel
             hasVideo={hasVideo}
+            hasAudio={hasAudio}
+            activeMediaType={uploadedMediaType}
             isUploading={isUploading}
             uploadError={uploadError}
             videoId={uploadedVideo?.video_id ?? null}
+            audioId={uploadedAudio?.audio_id ?? null}
             isCreatingJobs={isCreatingJobs}
             jobsCreated={autoJobCount}
+            clipsDone={clipProgress.done}
+            clipsFailed={clipProgress.failed}
+            clipsPending={clipProgress.pending}
+            clipProgressPercent={clipProgress.percent}
             jobError={jobError}
           />
         </Panel>
@@ -489,8 +624,16 @@ export default function AppHomePage() {
       <Panel className="mt-5">
         <GeneratedClipsSection
           clips={visibleClips}
-          showLoading={isUploading || (isCreatingJobs && createdJobs.length === 0) || (isHydratingClips && visibleClips.length === 0)}
+          showLoading={
+            uploadedMediaType !== "audio" &&
+            (isUploading || (isCreatingJobs && createdJobs.length === 0) || (isHydratingClips && visibleClips.length === 0))
+          }
           isRefreshingStatuses={isPollingStatuses}
+          emptyMessage={
+            uploadedMediaType === "audio"
+              ? "Subiste un audio. Los clips se generan cuando subis un video en este panel."
+              : "Todavia no hay clips generados. Subi un video para empezar."
+          }
         />
       </Panel>
     </section>

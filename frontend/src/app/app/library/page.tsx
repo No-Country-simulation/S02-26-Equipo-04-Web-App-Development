@@ -1,14 +1,14 @@
 "use client";
 
 import { Panel } from "@/src/components/ui/Panel";
-import { videoApi, type UserClipItem, type UserVideoItem } from "@/src/services/videoApi";
+import { videoApi, type UserAudioItem, type UserClipItem, type UserVideoItem } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
-import { Check, Clock3, Download, PencilLine, Search, Share2, Tag, Trash2, X } from "lucide-react";
+import { AudioLines, Check, Clock3, Download, PencilLine, Search, Share2, Tag, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const PAGE_SIZE = 12;
-type LibraryView = "clips" | "videos";
+type LibraryView = "clips" | "videos" | "audios";
 
 type VisualStatus = "listo" | "revision" | "render";
 
@@ -34,8 +34,10 @@ export default function LibraryPage() {
   const [view, setView] = useState<LibraryView>("clips");
   const [clips, setClips] = useState<UserClipItem[]>([]);
   const [videos, setVideos] = useState<UserVideoItem[]>([]);
+  const [audios, setAudios] = useState<UserAudioItem[]>([]);
   const [totalClips, setTotalClips] = useState(0);
   const [totalVideos, setTotalVideos] = useState(0);
+  const [totalAudios, setTotalAudios] = useState(0);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +47,9 @@ export default function LibraryPage() {
   const [isSavingVideo, setIsSavingVideo] = useState(false);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
+  const [deletingAudioId, setDeletingAudioId] = useState<string | null>(null);
+  const [audioUrlMap, setAudioUrlMap] = useState<Record<string, string>>({});
+  const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -69,7 +74,7 @@ export default function LibraryPage() {
             setClips(response.clips);
             setTotalClips(response.total);
           }
-        } else {
+        } else if (view === "videos") {
           const response = await videoApi.getMyVideos(token, {
             limit: PAGE_SIZE,
             offset: (page - 1) * PAGE_SIZE,
@@ -78,6 +83,16 @@ export default function LibraryPage() {
           if (!cancelled) {
             setVideos(response.videos);
             setTotalVideos(response.total);
+          }
+        } else {
+          const response = await videoApi.getMyAudios(token, {
+            limit: PAGE_SIZE,
+            offset: (page - 1) * PAGE_SIZE,
+            query
+          });
+          if (!cancelled) {
+            setAudios(response.audios);
+            setTotalAudios(response.total);
           }
         }
       } catch (loadError) {
@@ -98,7 +113,8 @@ export default function LibraryPage() {
     };
   }, [token, page, query, view]);
 
-  const totalPages = Math.max(1, Math.ceil((view === "clips" ? totalClips : totalVideos) / PAGE_SIZE));
+  const totalItems = view === "clips" ? totalClips : view === "videos" ? totalVideos : totalAudios;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
 
   const handleStartRename = (video: UserVideoItem) => {
     setEditingVideoId(video.video_id);
@@ -199,6 +215,65 @@ export default function LibraryPage() {
     }
   };
 
+  const handleResolveAudioUrl = async (audioId: string) => {
+    if (!token || loadingAudioId) {
+      return;
+    }
+
+    if (audioUrlMap[audioId]) {
+      return;
+    }
+
+    setLoadingAudioId(audioId);
+    setError(null);
+
+    try {
+      const response = await videoApi.getAudioUrl(audioId, token);
+      setAudioUrlMap((prev) => ({ ...prev, [audioId]: response.url }));
+    } catch (resolveError) {
+      setError(resolveError instanceof Error ? resolveError.message : "No pudimos cargar la URL del audio.");
+    } finally {
+      setLoadingAudioId(null);
+    }
+  };
+
+  const handleDeleteAudio = async (audio: UserAudioItem) => {
+    if (!token || deletingAudioId) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Vas a eliminar ${audio.filename}. Esta accion no se puede deshacer.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingAudioId(audio.audio_id);
+    setError(null);
+
+    try {
+      await videoApi.deleteMyAudio(audio.audio_id, token);
+      let shouldStepBackPage = false;
+      setAudios((prev) => {
+        shouldStepBackPage = prev.length === 1;
+        return prev.filter((item) => item.audio_id !== audio.audio_id);
+      });
+      setAudioUrlMap((prev) => {
+        const next = { ...prev };
+        delete next[audio.audio_id];
+        return next;
+      });
+      setTotalAudios((prev) => Math.max(0, prev - 1));
+
+      if (shouldStepBackPage && page > 1) {
+        setPage((prev) => Math.max(1, prev - 1));
+      }
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "No pudimos eliminar el audio.");
+    } finally {
+      setDeletingAudioId(null);
+    }
+  };
+
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <Panel className="relative overflow-hidden border-neon-cyan/25 bg-gradient-to-r from-night-900 via-night-800/85 to-night-900 p-5 sm:p-6">
@@ -207,9 +282,9 @@ export default function LibraryPage() {
 
         <div className="relative animate-fade-up">
           <p className="text-xs uppercase tracking-[0.25em] text-neon-cyan/80">biblioteca</p>
-          <h1 className="mt-2 font-display text-2xl text-white sm:text-3xl">Tus clips y videos originales</h1>
+          <h1 className="mt-2 font-display text-2xl text-white sm:text-3xl">Tus clips, videos y audios</h1>
           <p className="mt-2 max-w-2xl text-sm text-white/70">
-            Cambia entre clips generados y videos subidos originales. La busqueda se hace en backend por nombre o ID.
+            Cambia entre clips generados, videos subidos y audios. La busqueda se hace en backend por nombre o ID.
           </p>
         </div>
 
@@ -240,13 +315,32 @@ export default function LibraryPage() {
           >
             Videos originales
           </button>
+          <button
+            type="button"
+            className={[
+              "rounded-lg px-3 py-1.5 transition",
+              view === "audios" ? "bg-neon-cyan/20 text-neon-cyan" : "text-white/70 hover:text-white"
+            ].join(" ")}
+            onClick={() => {
+              setView("audios");
+              setPage(1);
+            }}
+          >
+            Audios
+          </button>
         </div>
 
         <div className="relative mt-5 grid gap-3 sm:grid-cols-1">
           <label className="group flex items-center gap-3 rounded-xl border border-white/12 bg-white/5 px-3 py-2 transition hover:border-neon-cyan/40">
             <Search size={15} className="text-neon-cyan/80" />
             <input
-              placeholder={view === "clips" ? "Buscar por id de job o archivo fuente..." : "Buscar por id de video o archivo subido..."}
+              placeholder={
+                view === "clips"
+                  ? "Buscar por id de job o archivo fuente..."
+                  : view === "videos"
+                    ? "Buscar por id de video o archivo subido..."
+                    : "Buscar por id de audio o nombre de archivo..."
+              }
               className="w-full bg-transparent text-sm text-white/90 outline-none placeholder:text-white/40"
               value={query}
               onChange={(event) => {
@@ -266,7 +360,7 @@ export default function LibraryPage() {
 
       {isLoading ? (
         <Panel className="mt-5">
-          <p className="text-sm text-white/70">Cargando clips de biblioteca...</p>
+          <p className="text-sm text-white/70">Cargando elementos de biblioteca...</p>
         </Panel>
       ) : null}
 
@@ -279,6 +373,12 @@ export default function LibraryPage() {
       {!isLoading && !error && view === "videos" && videos.length === 0 ? (
         <Panel className="mt-5">
           <p className="text-sm text-white/70">No encontramos videos subidos para esa busqueda.</p>
+        </Panel>
+      ) : null}
+
+      {!isLoading && !error && view === "audios" && audios.length === 0 ? (
+        <Panel className="mt-5">
+          <p className="text-sm text-white/70">No encontramos audios subidos para esa busqueda.</p>
         </Panel>
       ) : null}
 
@@ -367,7 +467,7 @@ export default function LibraryPage() {
           );
           })}
         </div>
-      ) : (
+      ) : view === "videos" ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {videos.map((video, index) => (
             <article
@@ -462,6 +562,68 @@ export default function LibraryPage() {
               ) : null}
             </article>
           ))}
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {audios.map((audio, index) => {
+            const audioUrl = audioUrlMap[audio.audio_id] ?? null;
+
+            return (
+              <article
+                key={audio.audio_id}
+                className="group animate-fade-up rounded-2xl border border-white/10 bg-gradient-to-b from-night-800/80 to-night-900/80 p-4 shadow-panel transition duration-300 hover:-translate-y-1 hover:border-neon-cyan/40"
+                style={{ animationDelay: `${index * 90}ms` }}
+              >
+                <div className="relative mb-3 grid aspect-[16/9] place-items-center overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(53,208,255,0.25),transparent_45%),radial-gradient(circle_at_75%_80%,rgba(73,255,163,0.22),transparent_48%),#0d1630]">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-neon-mint/40 bg-neon-mint/10 px-3 py-1 text-xs text-neon-mint">
+                    <AudioLines size={13} /> Audio
+                  </div>
+                </div>
+
+                <h2 className="font-display text-lg text-white">Audio {audio.audio_id.slice(0, 8)}</h2>
+                <p className="mt-2 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/70">{audio.filename}</p>
+                <p className="mt-2 inline-flex rounded-full border border-neon-cyan/35 bg-neon-cyan/10 px-2 py-1 text-xs text-neon-cyan">
+                  Estado: {audio.status ?? "uploaded"}
+                </p>
+
+                {audioUrl ? (
+                  <audio controls preload="metadata" className="mt-4 w-full" src={audioUrl} />
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neon-mint/40 bg-neon-mint/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neon-mint transition hover:bg-neon-mint/20 disabled:opacity-40"
+                    disabled={loadingAudioId === audio.audio_id}
+                    onClick={() => void handleResolveAudioUrl(audio.audio_id)}
+                  >
+                    <Download size={13} /> {loadingAudioId === audio.audio_id ? "Cargando..." : "Cargar preview"}
+                  </button>
+                )}
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan disabled:opacity-40"
+                    disabled={!audioUrl}
+                    onClick={() => {
+                      if (audioUrl) {
+                        window.open(audioUrl, "_blank", "noopener,noreferrer");
+                      }
+                    }}
+                  >
+                    <Download size={12} /> Abrir
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-300/45 bg-rose-300/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-200 transition hover:bg-rose-300/20 disabled:opacity-40"
+                    disabled={deletingAudioId === audio.audio_id}
+                    onClick={() => void handleDeleteAudio(audio)}
+                  >
+                    <Trash2 size={12} /> {deletingAudioId === audio.audio_id ? "Eliminando..." : "Eliminar"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 

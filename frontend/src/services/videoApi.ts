@@ -19,6 +19,25 @@ export type VideoUrlResponse = {
   filename: string;
 };
 
+export type AudioUploadResponse = {
+  audio_id: string;
+  bucket: string;
+  object_key: string;
+  filename: string;
+  content_type: string | null;
+  size_bytes: number;
+  user_id: string | null;
+  storage_path: string;
+  uploaded_at: string;
+};
+
+export type AudioUrlResponse = {
+  audio_id: string;
+  url: string;
+  expires_in_seconds: number;
+  filename: string;
+};
+
 export type AutoReframeJobItem = {
   job_id: string;
   job_type: string;
@@ -39,7 +58,11 @@ export type AutoReframeResponse = {
 
 type AutoReframeResponseV2 = {
   job_id: string;
+  job_type: string;
+  status: string;
+  filename: string;
   total_jobs: number;
+  created_at: string;
 };
 
 export type ReframeJobRequest = {
@@ -47,6 +70,7 @@ export type ReframeJobRequest = {
   end_sec: number;
   crop_to_vertical?: boolean;
   subtitles?: boolean;
+  watermark?: string;
   face_tracking?: boolean;
   color_filter?: boolean;
   output_style?: "vertical" | "speaker_split";
@@ -112,6 +136,20 @@ export type UserVideosResponse = {
   limit: number;
   offset: number;
   videos: UserVideoItem[];
+};
+
+export type UserAudioItem = {
+  audio_id: string;
+  filename: string;
+  status: string | null;
+  uploaded_at: string;
+};
+
+export type UserAudiosResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  audios: UserAudioItem[];
 };
 
 const apiBaseUrl = env.apiBaseUrl.replace(/\/$/, "");
@@ -195,6 +233,26 @@ export const videoApi = {
     return parseResponse<VideoUploadResponse>(response);
   },
 
+  async uploadAudio(file: File, token?: string | null) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const hasToken = Boolean(token && token.trim().length > 0);
+    if (!hasToken) {
+      throw new VideoApiError("Necesitas iniciar sesion para subir audios.", 401);
+    }
+
+    const response = await fetch(`${apiBaseUrl}/api/v1/audios/audio`, {
+      method: "POST",
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<AudioUploadResponse>(response);
+  },
+
   async getVideoUrl(videoId: string, expiresInSeconds = 3600) {
     const params = new URLSearchParams({
       expires_in: String(expiresInSeconds)
@@ -215,13 +273,18 @@ export const videoApi = {
       clipDurationSec?: number;
       outputStyle?: "vertical" | "speaker_split";
       contentProfile?: "auto" | "interview" | "sports" | "music";
+      subtitles?: boolean;
+      watermark?: string;
     }
   ) {
+    const watermark = options?.watermark?.trim();
     const body: Record<string, unknown> = {
       clips_count: options?.clipsCount ?? 3,
       clip_duration_sec: options?.clipDurationSec ?? 15,
       output_style: options?.outputStyle ?? "vertical",
-      content_profile: options?.contentProfile ?? "auto"
+      content_profile: options?.contentProfile ?? "auto",
+      subtitles: options?.subtitles ?? false,
+      watermark: watermark && watermark.length > 0 ? watermark : "Hacelo Corto"
     };
 
     const auto2Response = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}/auto2`, {
@@ -250,20 +313,7 @@ export const videoApi = {
       };
     }
 
-    if (auto2Response.status !== 404) {
-      return parseResponse<AutoReframeResponse>(auto2Response);
-    }
-
-    const fallbackResponse = await fetch(`${apiBaseUrl}/api/v1/jobs/reframe/${videoId}/auto`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(body)
-    });
-
-    return parseResponse<AutoReframeResponse>(fallbackResponse);
+    return parseResponse<AutoReframeResponse>(auto2Response);
   },
 
   async createReframeJob(videoId: string, token: string, payload: ReframeJobRequest) {
@@ -380,6 +430,53 @@ export const videoApi = {
 
   async deleteMyVideo(videoId: string, token: string) {
     const response = await fetch(`${apiBaseUrl}/api/v1/videos/${videoId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<null>(response);
+  },
+
+  async getMyAudios(token: string, options?: { limit?: number; offset?: number; query?: string }) {
+    const params = new URLSearchParams({
+      limit: String(options?.limit ?? 20),
+      offset: String(options?.offset ?? 0)
+    });
+
+    const query = options?.query?.trim();
+    if (query) {
+      params.set("q", query);
+    }
+
+    const response = await fetch(`${apiBaseUrl}/api/v1/audios/my-audios?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<UserAudiosResponse>(response);
+  },
+
+  async getAudioUrl(audioId: string, token: string, expiresInSeconds = 3600) {
+    const params = new URLSearchParams({
+      expires_in: String(expiresInSeconds)
+    });
+
+    const response = await fetch(`${apiBaseUrl}/api/v1/audios/${audioId}/url?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<AudioUrlResponse>(response);
+  },
+
+  async deleteMyAudio(audioId: string, token: string) {
+    const response = await fetch(`${apiBaseUrl}/api/v1/audios/${audioId}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`

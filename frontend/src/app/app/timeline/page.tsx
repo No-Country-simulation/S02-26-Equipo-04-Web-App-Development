@@ -200,6 +200,7 @@ export default function TimelinePage() {
         end_sec: normalizedEnd,
         crop_to_vertical: settings.cropToVertical,
         subtitles: settings.subtitles,
+        watermark: settings.watermark,
         face_tracking: settings.faceTracking,
         color_filter: settings.colorFilter
       });

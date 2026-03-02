@@ -14,6 +14,7 @@ type GeneratedClipsSectionProps = {
   clips: Clip[];
   showLoading: boolean;
   isRefreshingStatuses?: boolean;
+  emptyMessage?: string;
 };
 
 const statusStyles: Record<Clip["status"], string> = {
@@ -22,7 +23,12 @@ const statusStyles: Record<Clip["status"], string> = {
   render: "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan"
 };
 
-export function GeneratedClipsSection({ clips, showLoading, isRefreshingStatuses = false }: GeneratedClipsSectionProps) {
+export function GeneratedClipsSection({
+  clips,
+  showLoading,
+  isRefreshingStatuses = false,
+  emptyMessage = "Todavia no hay clips generados. Subi un video para empezar."
+}: GeneratedClipsSectionProps) {
   return (
     <section>
       <p className="text-xs uppercase tracking-[0.22em] text-white/65">clips generados</p>
@@ -40,7 +46,7 @@ export function GeneratedClipsSection({ clips, showLoading, isRefreshingStatuses
         </div>
       ) : clips.length === 0 ? (
         <div className="mt-5 rounded-2xl border border-white/10 bg-night-900/45 p-6 text-sm text-white/70">
-          Todavia no hay clips generados. Subi un video para empezar.
+          {emptyMessage}
         </div>
       ) : (
         <div className="mt-5 grid justify-center gap-4 sm:grid-cols-2 xl:grid-cols-3">
