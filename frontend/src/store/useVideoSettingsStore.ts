@@ -2,23 +2,17 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type VideoSettings = {
-  cropToVertical: boolean;
   subtitles: boolean;
-  faceTracking: boolean;
-  colorFilter: boolean;
   watermark: string;
-  videoStart: number;
-  videoEnd: number;
+  outputStyle: "vertical" | "speaker_split";
+  contentProfile: "auto" | "interview" | "sports" | "music";
 };
 
 const defaultSettings: VideoSettings = {
-  cropToVertical: true,
   subtitles: true,
-  faceTracking: false,
-  colorFilter: false,
   watermark: "Hacelo Corto",
-  videoStart: 0,
-  videoEnd: 60
+  outputStyle: "vertical",
+  contentProfile: "auto"
 };
 
 type VideoSettingsState = {

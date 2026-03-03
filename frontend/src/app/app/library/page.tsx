@@ -1,6 +1,7 @@
 "use client";
 
 import { Panel } from "@/src/components/ui/Panel";
+import { AudioPlayer } from "@/src/components/audio/AudioPlayer";
 import { videoApi, type UserAudioItem, type UserClipItem, type UserVideoItem } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { AudioLines, Check, Clock3, Download, PencilLine, Search, Share2, Tag, Trash2, X } from "lucide-react";
@@ -50,6 +51,7 @@ export default function LibraryPage() {
   const [deletingAudioId, setDeletingAudioId] = useState<string | null>(null);
   const [audioUrlMap, setAudioUrlMap] = useState<Record<string, string>>({});
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
+  const [brokenClipPreviewIds, setBrokenClipPreviewIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!token) {
@@ -394,8 +396,16 @@ export default function LibraryPage() {
             style={{ animationDelay: `${index * 90}ms` }}
           >
             <div className="relative mb-3 overflow-hidden rounded-xl border border-white/10 bg-night-900/80">
-              {clip.output_path ? (
-                <video controls preload="metadata" className="aspect-[9/13] w-full object-cover" src={clip.output_path} />
+              {clip.output_path && !brokenClipPreviewIds[clip.job_id] ? (
+                <video
+                  controls
+                  preload="metadata"
+                  className="aspect-[9/13] w-full object-cover"
+                  src={clip.output_path}
+                  onError={() => {
+                    setBrokenClipPreviewIds((prev) => ({ ...prev, [clip.job_id]: true }));
+                  }}
+                />
               ) : (
                 <div className="aspect-[9/13] bg-[radial-gradient(circle_at_20%_20%,rgba(53,208,255,0.32),transparent_45%),radial-gradient(circle_at_80%_78%,rgba(255,79,216,0.28),transparent_50%),#0d1630]" />
               )}
@@ -440,6 +450,10 @@ export default function LibraryPage() {
                 </span>
               )}
             </div>
+
+            {clip.output_path && brokenClipPreviewIds[clip.job_id] ? (
+              <p className="mt-2 text-xs text-amber-200">No pudimos reproducir el preview en el navegador. Abri el clip desde el boton para verificarlo.</p>
+            ) : null}
 
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Link
@@ -549,6 +563,18 @@ export default function LibraryPage() {
 
               {editingVideoId !== video.video_id ? (
                 <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Link
+                    href={`/app/timeline?videoId=${video.video_id}`}
+                    className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-cyan transition hover:bg-neon-cyan/20"
+                  >
+                    <PencilLine size={12} /> Abrir Timeline
+                  </Link>
+                  <Link
+                    href={`/app/audio_editor?videoId=${video.video_id}`}
+                    className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-neon-mint/40 bg-neon-mint/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-mint transition hover:bg-neon-mint/20"
+                  >
+                    <AudioLines size={12} /> Abrir en Audio Editor
+                  </Link>
                   <button
                     type="button"
                     className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan"
@@ -611,12 +637,7 @@ export default function LibraryPage() {
                 {audioUrl ? (
                   <div className="mt-4 rounded-xl border border-white/12 bg-night-900/70 p-3">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">Preview</p>
-                    <audio
-                      controls
-                      preload="metadata"
-                      className="mt-2 w-full rounded-lg [accent-color:#cba6f7]"
-                      src={audioUrl}
-                    />
+                    <AudioPlayer key={audio.audio_id} src={audioUrl} className="mt-2" />
                   </div>
                 ) : (
                   <button

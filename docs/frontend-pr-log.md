@@ -2,33 +2,51 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feat/frontend-home-status-polling-subtitles`
+Rama de trabajo actual: `feat/frontend-timeline-library-streamline`
 
 ## Objetivo de la rama
 
-Pulir Home para que el estado de generacion avance en tiempo real sin recarga manual, simplificar la UI del panel de estado y exponer acceso a subtitulos por clip.
+Simplificar el flujo entre Biblioteca y Timeline para evitar duplicidad de listados, sumar feedback de progreso/preview final en Timeline y dejar los ajustes del editor mas claros, limpios y alineados al look catppuccin.
 
-Rama de trabajo: `feat/frontend-home-status-polling-subtitles`.
+Rama de trabajo: `feat/frontend-timeline-library-streamline`.
 
 ## Cambios realizados
 
-- Se simplifico `frontend/src/components/home/ProjectStatusPanel.tsx` para mostrar solo dos barras: `Subida de archivo` y `Generacion de clips`, removiendo IDs tecnicos y bloques de estado sobrecargados.
-- Se ajusto el polling de Home en `frontend/src/app/app/page.tsx` para soportar orquestador `auto2` (`orchestrator_job_id`) y resolver `child_jobs` desde `GET /api/v1/jobs/status/{job_id}`.
-- Se corrigio la hidratacion de resultados en Home para que continue mientras existan jobs no terminales, evitando que la lista quede congelada hasta navegar o recargar.
-- Se robustecio el calculo de progreso priorizando estados terminales obtenidos desde biblioteca cuando el estado local aun no se actualizo.
-- Se extendio `frontend/src/services/videoApi.ts` para extraer `child_jobs` y `subtitles_path` del `output_path`, y se forzo `cache: "no-store"` en `getJobStatus`/`getMyClips`.
-- Se actualizo `frontend/src/components/home/GeneratedClipsSection.tsx` con CTA `Ver subtitulos (.srt)` cuando el backend devuelve URL de subtitulos.
+- Se agrego en `frontend/src/app/app/timeline/page.tsx` una barra de progreso para la creacion del clip con polling por `job_id` y estados visuales (`En cola`, `Procesando`, `Completado`, `Error`).
+- Se incorporo en Timeline una seccion de `Preview final` que reproduce el resultado renderizado cuando el backend expone `output_path`.
+- Se elimino del Timeline la lista duplicada de videos subidos; ahora la pantalla trabaja sobre un unico `videoId` (o resuelto por `clipId`) y muestra CTA a Biblioteca cuando falta seleccion.
+- Se agrego accion `Abrir Timeline` en `frontend/src/app/app/library/page.tsx` para cada video original, replicando el flujo de navegacion profunda que ya existia para clips.
+- Se rediseño `frontend/src/components/home/VideoSettings.tsx` para incluir en Timeline `output_style` (`Vertical 9:16` y `Speaker split`) + `content_profile` (`auto`, `entrevista`, `deporte`, `musica`) con UI mas limpia.
+- Se removieron de ajustes de timeline valores sin uso real (`crop`, `face tracking`, `color filter`, `videoStart`, `videoEnd`) y se alinio el store en `frontend/src/store/useVideoSettingsStore.ts` a parametros vigentes del backend.
+- Se actualizo `frontend/src/components/home/VideoSettingsModal.tsx` para mantener consistencia de tipos/ajustes y evitar deuda tecnica por campos obsoletos.
+- Se persistio la sesion de Timeline en `localStorage` (`timeline:editor-session`) para conservar video activo + job en curso/resultado al recargar o navegar, evitando que se pierda el contexto de trabajo.
+- Se agrego el asset `frontend/public/landing-demos/video1_musica.mp4` para la seccion de demos de landing.
+- Se simplifico `frontend/src/app/app/audio_editor/page.tsx` removiendo listado/buscador/paginacion de videos para replicar el enfoque de Timeline: editor sobre un unico `videoId`/`clipId` proveniente de Biblioteca.
+- Se agrego CTA a Biblioteca en Audio Editor cuando no hay video seleccionado, evitando estado vacio confuso.
+- Se incorporo en Biblioteca (videos originales) el boton `Abrir en Audio Editor` en `frontend/src/app/app/library/page.tsx`, alineando la navegacion con clips.
+- Fix de compatibilidad temporal con backend en `frontend/src/app/app/audio_editor/page.tsx`: `audio_volume` ahora se envia como entero (`1` o `2`) para evitar `500` por validacion de `JobAddAudioResponse`.
+- Se agrego fallback visual en previews de clips en `frontend/src/app/app/library/page.tsx` para mostrar aviso cuando el `<video>` falla al reproducir (sin dejar card vacia/negra).
+- Se reemplazo el reproductor nativo de audio por un componente custom catppuccin (`frontend/src/components/audio/AudioPlayer.tsx` + `AudioPlayer.module.css`) reutilizado en `Audio editor` y `Biblioteca`.
+- Ajuste UX del player custom: se removio el bloque visual superior y se reorganizo el layout en dos filas limpias (arriba progreso/tiempos, abajo volumen), con foco en simplicidad visual.
 
 ## Commits realizados
 
-- `fix(frontend): sync home polling progress and simplify project status panel`
+- `feat(frontend): streamline timeline flow and add job progress preview`
+- `fix(frontend): persist timeline editor session across reloads`
+- `chore(frontend): add landing demo video1 asset`
+- `feat(frontend): streamline audio editor entry from library`
+- `fix(frontend): send integer audio volume and add clip preview fallback`
+- `feat(frontend): redesign custom audio player with catppuccin UI`
+- `refactor(frontend): simplify audio player layout for cleaner controls`
+- `docs(frontend): log timeline-library streamlining and settings cleanup`
 
 ## Archivos clave
 
-- `frontend/src/app/app/page.tsx`
-- `frontend/src/components/home/ProjectStatusPanel.tsx`
-- `frontend/src/components/home/GeneratedClipsSection.tsx`
-- `frontend/src/services/videoApi.ts`
+- `frontend/src/app/app/timeline/page.tsx`
+- `frontend/src/app/app/library/page.tsx`
+- `frontend/src/components/home/VideoSettings.tsx`
+- `frontend/src/components/home/VideoSettingsModal.tsx`
+- `frontend/src/store/useVideoSettingsStore.ts`
 - `docs/frontend-pr-log.md`
 
 ## Validaciones locales
@@ -36,14 +54,12 @@ Rama de trabajo: `feat/frontend-home-status-polling-subtitles`.
 Ejecutado en `frontend/`:
 
 - `npm run lint` -> OK
-- `npm run build` -> OK
 
 ## Checklist antes de PR a develop
 
-- [x] Rama nueva creada para cambios posteriores al merge previo
+- [x] Rama nueva creada desde `develop`
 - [x] Cambios limitados al alcance frontend/documentacion de esta iteracion
 - [x] `npm run lint` OK
-- [x] `npm run build` OK
 - [x] Documentacion actualizada
 
 ### Objetivo

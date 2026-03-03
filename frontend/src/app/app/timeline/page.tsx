@@ -6,13 +6,70 @@ import { Panel } from "@/src/components/ui/Panel";
 import { videoApi, type UserClipItem, type UserVideoItem, VideoApiError } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useVideoSettingsStore } from "@/src/store/useVideoSettingsStore";
-import { Search } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-const PAGE_SIZE = 10;
 const MIN_CLIP_SECONDS = 5;
+const TIMELINE_SESSION_KEY = "timeline:editor-session";
+
+type StoredTimelineJob = {
+  jobId: string;
+  status: string | null;
+  outputPath: string | null;
+  updatedAt: string;
+};
+
+type TimelineSession = {
+  lastVideoId: string | null;
+  jobsByVideo: Record<string, StoredTimelineJob>;
+};
+
+const emptyTimelineSession: TimelineSession = {
+  lastVideoId: null,
+  jobsByVideo: {}
+};
+
+function normalizeJobStatus(status: string | null) {
+  return (status ?? "PENDING").toLowerCase();
+}
+
+function isTerminalJobStatus(status: string | null) {
+  const normalized = normalizeJobStatus(status);
+  return normalized === "done" || normalized === "completed" || normalized === "failed" || normalized === "error";
+}
+
+function getClipCreationProgress(status: string | null) {
+  const normalized = normalizeJobStatus(status);
+
+  if (normalized === "done" || normalized === "completed") {
+    return 100;
+  }
+
+  if (normalized === "failed" || normalized === "error") {
+    return 100;
+  }
+
+  if (normalized === "processing" || normalized === "running" || normalized === "in_progress") {
+    return 70;
+  }
+
+  return 20;
+}
+
+function formatJobStatusLabel(status: string | null) {
+  const normalized = normalizeJobStatus(status);
+  if (normalized === "done" || normalized === "completed") {
+    return "Completado";
+  }
+  if (normalized === "failed" || normalized === "error") {
+    return "Error";
+  }
+  if (normalized === "processing" || normalized === "running" || normalized === "in_progress") {
+    return "Procesando";
+  }
+  return "En cola";
+}
 
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof VideoApiError) {
@@ -33,9 +90,6 @@ export default function TimelinePage() {
   const token = useAuthStore((state) => state.token);
   const settings = useVideoSettingsStore((state) => state.settings);
   const [videos, setVideos] = useState<UserVideoItem[]>([]);
-  const [totalVideos, setTotalVideos] = useState(0);
-  const [page, setPage] = useState(1);
-  const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
@@ -48,10 +102,51 @@ export default function TimelinePage() {
   const [submitErrorSettings, setSubmitErrorSettings] = useState<string | null>(null);
   const [submitInfoSettings, setSubmitInfoSettings] = useState<string | null>(null);
   const [draftFilename, setDraftFilename] = useState("");
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [activeJobStatus, setActiveJobStatus] = useState<string | null>(null);
+  const [activeJobOutputPath, setActiveJobOutputPath] = useState<string | null>(null);
+  const [activeJobPollingError, setActiveJobPollingError] = useState<string | null>(null);
+  const [isPollingActiveJob, setIsPollingActiveJob] = useState(false);
+  const [storedSession, setStoredSession] = useState<TimelineSession>(emptyTimelineSession);
+  const [isSessionHydrated, setIsSessionHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TIMELINE_SESSION_KEY);
+      if (!raw) {
+        setStoredSession(emptyTimelineSession);
+        setIsSessionHydrated(true);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Partial<TimelineSession>;
+      const next: TimelineSession = {
+        lastVideoId: typeof parsed.lastVideoId === "string" ? parsed.lastVideoId : null,
+        jobsByVideo:
+          parsed.jobsByVideo && typeof parsed.jobsByVideo === "object"
+            ? (parsed.jobsByVideo as Record<string, StoredTimelineJob>)
+            : {}
+      };
+      setStoredSession(next);
+    } catch {
+      window.localStorage.removeItem(TIMELINE_SESSION_KEY);
+      setStoredSession(emptyTimelineSession);
+    } finally {
+      setIsSessionHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isSessionHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem(TIMELINE_SESSION_KEY, JSON.stringify(storedSession));
+  }, [isSessionHydrated, storedSession]);
 
 
-  const saveRaname =  async()=>{
-      if (!token) {
+  const saveRaname = async () => {
+    if (!token) {
       return;
     }
 
@@ -66,16 +161,17 @@ export default function TimelinePage() {
       const updated = await videoApi.updateMyVideo(selectedVideoId, token, { filename: draftFilename.trim() });
       setVideos((prev) => prev.map((item) => (item.video_id === selectedVideoId ? updated : item)));
       setSubmitInfoSettings("Ajustes guardados.");
-
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : "No pudimos actualizar el nombre del video.";
       setSubmitErrorSettings(message);
-
     }
-
-  }
+  };
 
   useEffect(() => {
+    if (!isSessionHydrated) {
+      return;
+    }
+
     if (!token) {
       setIsLoading(false);
       setError("No encontramos una sesion activa para cargar el timeline.");
@@ -103,48 +199,34 @@ export default function TimelinePage() {
           }
         }
 
-        const response = await videoApi.getMyVideos(token, {
-          limit: PAGE_SIZE,
-          offset: (page - 1) * PAGE_SIZE,
-          query
-        });
+        const targetVideoId = preferredVideoFromQuery || selectedClip?.video_id || storedSession.lastVideoId || "";
+
+        if (!targetVideoId) {
+          setVideos([]);
+          setFocusedClip(null);
+          setSelectedVideoId(null);
+          setDraftFilename("");
+          setError("Selecciona un video desde Biblioteca para abrirlo en timeline.");
+          return;
+        }
+
+        const preferredVideo = await videoApi.getMyVideoById(targetVideoId, token);
         if (cancelled) {
           return;
         }
 
-        let nextVideos = response.videos;
-
-        if (preferredVideoFromQuery && !response.videos.some((video) => video.video_id === preferredVideoFromQuery)) {
-          try {
-            const preferredVideo = await videoApi.getMyVideoById(preferredVideoFromQuery, token);
-            nextVideos = [
-              {
-                video_id: preferredVideo.video_id,
-                filename: preferredVideo.filename,
-                status: preferredVideo.status,
-                uploaded_at: preferredVideo.uploaded_at,
-                preview_url: preferredVideo.preview_url
-              },
-              ...response.videos.filter((video) => video.video_id !== preferredVideo.video_id)
-            ];
-          } catch {
-            nextVideos = response.videos;
+        setVideos([
+          {
+            video_id: preferredVideo.video_id,
+            filename: preferredVideo.filename,
+            status: preferredVideo.status,
+            uploaded_at: preferredVideo.uploaded_at,
+            preview_url: preferredVideo.preview_url
           }
-        }
-
-        setVideos(nextVideos);
+        ]);
         setFocusedClip(selectedClip);
-        setDraftFilename(selectedClip?.source_filename || "")
-        setTotalVideos(response.total);
-        setSelectedVideoId((prev) => {
-          if (preferredVideoFromQuery && nextVideos.some((video) => video.video_id === preferredVideoFromQuery)) {
-            return preferredVideoFromQuery;
-          }
-          if (prev && nextVideos.some((video) => video.video_id === prev)) {
-            return prev;
-          }
-          return nextVideos[0]?.video_id ?? null;
-        });
+        setSelectedVideoId(preferredVideo.video_id);
+        setDraftFilename(preferredVideo.filename);
       } catch (loadError) {
         if (!cancelled) {
           setError(normalizeVideoError(loadError, "No pudimos cargar tus videos."));
@@ -161,9 +243,77 @@ export default function TimelinePage() {
     return () => {
       cancelled = true;
     };
-  }, [token, page, preferredClipId, preferredVideoId, query]);
+  }, [token, preferredClipId, preferredVideoId, storedSession.lastVideoId, isSessionHydrated]);
 
-  const totalPages = Math.max(1, Math.ceil(totalVideos / PAGE_SIZE));
+  useEffect(() => {
+    if (!selectedVideoId) {
+      return;
+    }
+
+    setStoredSession((prev) => {
+      if (prev.lastVideoId === selectedVideoId) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        lastVideoId: selectedVideoId
+      };
+    });
+  }, [selectedVideoId]);
+
+  useEffect(() => {
+    if (!selectedVideoId) {
+      return;
+    }
+
+    const storedJob = storedSession.jobsByVideo[selectedVideoId];
+    if (!storedJob) {
+      setActiveJobId(null);
+      setActiveJobStatus(null);
+      setActiveJobOutputPath(null);
+      setActiveJobPollingError(null);
+      return;
+    }
+
+    setActiveJobId(storedJob.jobId);
+    setActiveJobStatus(storedJob.status ?? null);
+    setActiveJobOutputPath(storedJob.outputPath ?? null);
+    setActiveJobPollingError(null);
+  }, [selectedVideoId, storedSession.jobsByVideo]);
+
+  useEffect(() => {
+    if (!selectedVideoId || !activeJobId) {
+      return;
+    }
+
+    setStoredSession((prev) => {
+      const previousStoredJob = prev.jobsByVideo[selectedVideoId];
+      const nextStoredJob: StoredTimelineJob = {
+        jobId: activeJobId,
+        status: activeJobStatus,
+        outputPath: activeJobOutputPath,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (
+        previousStoredJob &&
+        previousStoredJob.jobId === nextStoredJob.jobId &&
+        previousStoredJob.status === nextStoredJob.status &&
+        previousStoredJob.outputPath === nextStoredJob.outputPath
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        jobsByVideo: {
+          ...prev.jobsByVideo,
+          [selectedVideoId]: nextStoredJob
+        }
+      };
+    });
+  }, [selectedVideoId, activeJobId, activeJobStatus, activeJobOutputPath]);
 
   const selectedVideo = useMemo(
     () => videos.find((video) => video.video_id === selectedVideoId) ?? null,
@@ -182,6 +332,53 @@ export default function TimelinePage() {
       ? (focusedClip.output_path ?? selectedVideo?.preview_url ?? null)
       : (selectedVideo?.preview_url ?? null);
 
+  const activeJobProgress = getClipCreationProgress(activeJobStatus);
+  const activeJobStatusLabel = formatJobStatusLabel(activeJobStatus);
+
+  useEffect(() => {
+    if (!token || !activeJobId) {
+      setIsPollingActiveJob(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncActiveJob = async () => {
+      try {
+        const status = await videoApi.getJobStatus(activeJobId, token);
+        if (cancelled) {
+          return;
+        }
+
+        setActiveJobStatus(status.status);
+        setActiveJobOutputPath((prev) => prev ?? status.output_path ?? null);
+        setActiveJobPollingError(null);
+        const shouldContinuePolling = !isTerminalJobStatus(status.status) || !status.output_path;
+        setIsPollingActiveJob(shouldContinuePolling);
+
+        if (!shouldContinuePolling) {
+          window.clearInterval(intervalId);
+        }
+      } catch (pollError) {
+        if (!cancelled) {
+          setActiveJobPollingError(normalizeVideoError(pollError, "No pudimos actualizar el estado del clip."));
+        }
+      }
+    };
+
+    setIsPollingActiveJob(true);
+    const intervalId = window.setInterval(() => {
+      void syncActiveJob();
+    }, 4000);
+    void syncActiveJob();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      setIsPollingActiveJob(false);
+    };
+  }, [activeJobId, token]);
+
   const handleCreateJob = async () => {
     if (!token || !selectedVideoId) {
       setSubmitError("Selecciona un video y verifica tu sesion para crear el clip.");
@@ -199,14 +396,17 @@ export default function TimelinePage() {
       const response = await videoApi.createReframeJob(selectedVideoId, token, {
         start_sec: normalizedStart,
         end_sec: normalizedEnd,
-        crop_to_vertical: settings.cropToVertical,
         subtitles: settings.subtitles,
         watermark: settings.watermark,
-        face_tracking: settings.faceTracking,
-        color_filter: settings.colorFilter
+        output_style: settings.outputStyle,
+        content_profile: settings.contentProfile
       });
 
       setSubmitInfo(`Clip enviado a cola. Job ${response.job_id.slice(0, 8)} en estado ${response.status}.`);
+      setActiveJobId(response.job_id);
+      setActiveJobStatus(response.status);
+      setActiveJobOutputPath(null);
+      setActiveJobPollingError(null);
     } catch (createError) {
       setSubmitError(normalizeVideoError(createError, "No pudimos crear el clip desde timeline."));
     } finally {
@@ -222,19 +422,12 @@ export default function TimelinePage() {
         <Panel>
           <p className="text-xs uppercase tracking-[0.22em] text-white/65">timeline</p>
           <h3 className="mt-1 font-display text-2xl text-white sm:text-3xl">Preview y recorte</h3>
-          {videoEditarBool &&(<label className="mt-3 flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:border-neon-cyan/40">
-            <Search size={14} className="text-neon-cyan/80" />
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Buscar clip por job o archivo..."
-              className="w-full bg-transparent text-sm text-white/90 outline-none placeholder:text-white/40"
-            />
-          </label>
-)}
+
+          {videoEditarBool ? (
+            <div className="mt-3 rounded-xl border border-neon-cyan/30 bg-neon-cyan/10 px-3 py-2 text-xs text-neon-cyan/90">
+              Para cambiar de video, abrilo desde Biblioteca - Videos originales.
+            </div>
+          ) : null}
           {focusedClip ? (
             <div className="mt-3 rounded-xl border border-neon-cyan/35 bg-neon-cyan/10 px-3 py-2 text-xs text-neon-cyan">
               Editando desde clip {focusedClip.job_id.slice(0, 8)} sobre video {focusedClip.video_id.slice(0, 8)}.
@@ -259,91 +452,50 @@ export default function TimelinePage() {
             </p>
           )}
 
-
-
-          {
-          // !videoEditarBool&&(
-          //   <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
-          //     <label className="">
-          //       Nombre
-          //     </label>
-          //     <input
-          //         value={draftFilename}
-          //         onChange={(event) => setDraftFilename(event.target.value)}
-          //         className="w-full rounded-lg border border-white/20 bg-night-900/70 px-3 mt-1 py-2 text-xs text-white outline-none transition focus:border-neon-cyan/50"
-          //         maxLength={255}
-          //         autoFocus
-          //         />
-          //         {/* <Button className="mt-3 w-auto px-4" disabled={isSubmitting || !selectedVideoId}>
-          //         Guardar Cambios
-          //       </Button> */}
-          // </div>)
-          
-          }
-
-          
-          {/* <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
-            <p>Recorte seleccionado: {Math.floor(trimStart)}s - {Math.ceil(trimEnd)}s</p>
-            <Button className="mt-3 w-auto px-4" onClick={handleCreateJob} disabled={isSubmitting || !selectedVideoId}>
-              {isSubmitting ? "Creando clip..." : "Generar clip con timeline"}
-            </Button>
-            {submitInfo ? <p className="mt-2 text-xs text-neon-mint">{submitInfo}</p> : null}
-            {submitError ? <p className="mt-2 text-xs text-rose-200">{submitError}</p> : null}
-          </div> */}
-
-          {videoEditarBool &&!isLoading && videos.length > 0 ? (
-            <>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                {videos.map((video) => {
-                  return (
-                    <button
-                      type="button"
-                      key={video.video_id}
-                      onClick={() => {
-                        setSelectedVideoId(video.video_id);
-                        if (focusedClip && focusedClip.video_id !== video.video_id) {
-                          setFocusedClip(null);
-                        }
-                      }}
-                      className={[
-                        "rounded-xl border px-3 py-2 text-left text-sm transition",
-                        selectedVideoId === video.video_id
-                          ? "border-neon-cyan/45 bg-neon-cyan/10 text-white"
-                          : "border-white/10 bg-white/5 text-white/75 hover:border-white/20 hover:text-white"
-                      ].join(" ")}
-                    >
-                      <p className="font-semibold">Video {video.video_id.slice(0, 8)}</p>
-                      <p className="mt-1 text-xs text-white/60">Archivo: {video.filename}</p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-neon-cyan/80">Estado: {video.status ?? "uploaded"}</p>
-                    </button>
-                  );
-                })}
+          {activeJobId ? (
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-white/80">Progreso de creacion del clip</span>
+                <span className="text-white">{activeJobProgress}%</span>
               </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-night-950/90">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-neon-cyan to-neon-mint transition-all duration-700"
+                  style={{ width: `${activeJobProgress}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-white/65">
+                Job {activeJobId.slice(0, 8)} - {activeJobStatusLabel}{isPollingActiveJob ? " (actualizando...)" : ""}
+              </p>
+              {activeJobPollingError ? <p className="mt-2 text-xs text-rose-200">{activeJobPollingError}</p> : null}
 
-              {totalPages > 1 ? (
-                <div className="mt-4 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
-                  <span>Pagina {page} de {totalPages}</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="rounded-lg border border-white/15 px-3 py-1.5 text-xs transition hover:border-white/35 disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={page <= 1 || isLoading}
-                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                    >
-                      Anterior
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg border border-white/15 px-3 py-1.5 text-xs transition hover:border-white/35 disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={page >= totalPages || isLoading}
-                      onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                    >
-                      Siguiente
-                    </button>
+              <div className="mt-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/60">Preview final</p>
+                {activeJobOutputPath ? (
+                  <div className="mt-2 overflow-hidden rounded-xl border border-neon-cyan/30 bg-black">
+                    <video controls preload="metadata" src={activeJobOutputPath} className="w-full max-h-[420px] bg-black" />
                   </div>
-                </div>
-              ) : null}
-            </>
+                ) : (
+                  <div className="mt-2 rounded-xl border border-white/10 bg-night-900/70 px-3 py-4 text-sm text-white/70">
+                    El preview final aparecera aca cuando termine el render.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+
+
+          {videoEditarBool && !selectedVideoId && !isLoading ? (
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+              <p>No hay video seleccionado para este timeline.</p>
+              <Link
+                href="/app/library"
+                className="mt-3 inline-flex items-center justify-center rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neon-cyan transition hover:bg-neon-cyan/20"
+              >
+                Ir a Biblioteca
+              </Link>
+            </div>
           ) : null}
         </Panel>
 
