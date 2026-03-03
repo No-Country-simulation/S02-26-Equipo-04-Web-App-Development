@@ -468,8 +468,13 @@ export const videoApi = {
     return parseResponse<YoutubePublishResponse>(response);
   },
 
-  async suggestYoutubeMetadata(jobId: string, token: string) {
-    const response = await fetch(`${apiBaseUrl}/api/v1/youtube/metadata/${jobId}`, {
+  async suggestYoutubeMetadata(
+    jobId: string,
+    token: string,
+    tone: "neutral" | "energetic" | "informative" = "neutral"
+  ) {
+    const params = new URLSearchParams({ tone });
+    const response = await fetch(`${apiBaseUrl}/api/v1/youtube/metadata/${jobId}?${params.toString()}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`

@@ -55,6 +55,7 @@ export default function ShareClipPage() {
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [youtubePrivacy, setYoutubePrivacy] = useState<"public" | "private" | "unlisted">("private");
   const [youtubeHashtags, setYoutubeHashtags] = useState("#shorts #hacelocorto");
+  const [youtubeTone, setYoutubeTone] = useState<"neutral" | "energetic" | "informative">("neutral");
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
   const [metadataProvider, setMetadataProvider] = useState<string | null>(null);
   const canPublishClip = clip ? ["done", "completed"].includes(clip.status.toLowerCase()) : false;
@@ -128,6 +129,7 @@ export default function ShareClipPage() {
     setYoutubeTitle(`Clip ${clip.job_id.slice(0, 8)} - Hacelo Corto`);
     setYoutubeDescription(`Clip generado desde ${clip.source_filename}`);
     setYoutubeHashtags("#shorts #hacelocorto");
+    setYoutubeTone("neutral");
     setMetadataProvider(null);
   }, [clip]);
 
@@ -197,7 +199,11 @@ export default function ShareClipPage() {
     setError(null);
 
     try {
-      const suggestion: YoutubeMetadataSuggestionResponse = await videoApi.suggestYoutubeMetadata(clip.job_id, token);
+      const suggestion: YoutubeMetadataSuggestionResponse = await videoApi.suggestYoutubeMetadata(
+        clip.job_id,
+        token,
+        youtubeTone
+      );
       setYoutubeTitle(suggestion.title.slice(0, 100));
       setYoutubeDescription(suggestion.description.slice(0, 5000));
       setYoutubeHashtags(suggestion.hashtags.join(" "));
@@ -323,14 +329,25 @@ export default function ShareClipPage() {
                             Mejora titulo y descripcion con sugerencias automaticas.
                             {metadataProvider ? ` Provider: ${metadataProvider}` : ""}
                           </p>
-                          <Button
-                            className="h-8 px-3 py-1.5 text-[11px]"
-                            variant="neutral"
-                            disabled={isGeneratingMetadata || !canPublishClip}
-                            onClick={() => void handleSuggestMetadata()}
-                          >
-                            {isGeneratingMetadata ? "Generando..." : "Sugerir con IA"}
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={youtubeTone}
+                              onChange={(event) => setYoutubeTone(event.target.value as "neutral" | "energetic" | "informative")}
+                              className="h-8 rounded-lg border border-white/20 bg-night-900/80 px-2 text-[11px] text-white outline-none focus:border-neon-cyan/50"
+                            >
+                              <option value="neutral">Tono neutral</option>
+                              <option value="energetic">Tono energico</option>
+                              <option value="informative">Tono informativo</option>
+                            </select>
+                            <Button
+                              className="h-8 px-3 py-1.5 text-[11px]"
+                              variant="neutral"
+                              disabled={isGeneratingMetadata || !canPublishClip}
+                              onClick={() => void handleSuggestMetadata()}
+                            >
+                              {isGeneratingMetadata ? "Generando..." : "Sugerir con IA"}
+                            </Button>
+                          </div>
                         </div>
                         <label className="text-xs text-white/75 sm:col-span-2">
                           Titulo
