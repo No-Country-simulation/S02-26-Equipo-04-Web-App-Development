@@ -4,11 +4,11 @@ import { VideoPreview } from "@/src/components/home/videoPrevewTimeLine/VideoPre
 import { Panel } from "@/src/components/ui/Panel";
 import { videoApi, type UserAudioItem, type UserClipItem, type UserVideoItem, VideoApiError } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
-import { Music2, Search } from "lucide-react";
+import { Music2 } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-const PAGE_SIZE = 10;
 const MIN_AUDIO_SEGMENT_SECONDS = 5;
 
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
@@ -57,9 +57,6 @@ export default function AudioEditorPage() {
   const token = useAuthStore((state) => state.token);
 
   const [videos, setVideos] = useState<UserVideoItem[]>([]);
-  const [totalVideos, setTotalVideos] = useState(0);
-  const [page, setPage] = useState(1);
-  const [query, setQuery] = useState("");
   const [isLoadingVideos, setIsLoadingVideos] = useState(true);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
@@ -113,47 +110,32 @@ export default function AudioEditorPage() {
           }
         }
 
-        const response = await videoApi.getMyVideos(token, {
-          limit: PAGE_SIZE,
-          offset: (page - 1) * PAGE_SIZE,
-          query
-        });
+        const targetVideoId = preferredVideoFromQuery || selectedClip?.video_id || "";
+        if (!targetVideoId) {
+          setVideos([]);
+          setFocusedClip(null);
+          setSelectedVideoId(null);
+          setVideoError("Selecciona un video o clip desde Biblioteca para abrir el Audio editor.");
+          return;
+        }
+
+        const targetVideo = await videoApi.getMyVideoById(targetVideoId, token);
 
         if (cancelled) {
           return;
         }
 
-        let nextVideos = response.videos;
-        if (preferredVideoFromQuery && !response.videos.some((video) => video.video_id === preferredVideoFromQuery)) {
-          try {
-            const preferredVideo = await videoApi.getMyVideoById(preferredVideoFromQuery, token);
-            nextVideos = [
-              {
-                video_id: preferredVideo.video_id,
-                filename: preferredVideo.filename,
-                status: preferredVideo.status,
-                uploaded_at: preferredVideo.uploaded_at,
-                preview_url: preferredVideo.preview_url
-              },
-              ...response.videos.filter((video) => video.video_id !== preferredVideo.video_id)
-            ];
-          } catch {
-            nextVideos = response.videos;
+        setVideos([
+          {
+            video_id: targetVideo.video_id,
+            filename: targetVideo.filename,
+            status: targetVideo.status,
+            uploaded_at: targetVideo.uploaded_at,
+            preview_url: targetVideo.preview_url
           }
-        }
-
-        setVideos(nextVideos);
+        ]);
         setFocusedClip(selectedClip);
-        setTotalVideos(response.total);
-        setSelectedVideoId((prev) => {
-          if (preferredVideoFromQuery && nextVideos.some((video) => video.video_id === preferredVideoFromQuery)) {
-            return preferredVideoFromQuery;
-          }
-          if (prev && nextVideos.some((video) => video.video_id === prev)) {
-            return prev;
-          }
-          return nextVideos[0]?.video_id ?? null;
-        });
+        setSelectedVideoId(targetVideo.video_id);
       } catch (loadError) {
         if (!cancelled) {
           setVideoError(normalizeVideoError(loadError, "No pudimos cargar tus videos."));
@@ -170,7 +152,7 @@ export default function AudioEditorPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, page, preferredClipId, preferredVideoId, query]);
+  }, [token, preferredClipId, preferredVideoId]);
 
   useEffect(() => {
     if (!token) {
@@ -297,7 +279,6 @@ export default function AudioEditorPage() {
     };
   }, [audioJobId, token]);
 
-  const totalPages = Math.max(1, Math.ceil(totalVideos / PAGE_SIZE));
   const selectedVideo = useMemo(() => videos.find((video) => video.video_id === selectedVideoId) ?? null, [videos, selectedVideoId]);
   const previewUrl = mixedVideoUrl ?? focusedClip?.output_path ?? selectedVideo?.preview_url ?? null;
 
@@ -426,18 +407,9 @@ export default function AudioEditorPage() {
           <p className="text-xs uppercase tracking-[0.22em] text-white/65">audio editor</p>
           <h3 className="mt-1 font-display text-2xl text-white sm:text-3xl">Video + pista de audio</h3>
 
-          <label className="mt-3 flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:border-neon-violet/40">
-            <Search size={14} className="text-neon-violet/80" />
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Buscar video por id o archivo..."
-              className="w-full bg-transparent text-sm text-white/90 outline-none placeholder:text-white/40"
-            />
-          </label>
+          <div className="mt-3 rounded-xl border border-neon-violet/30 bg-neon-violet/10 px-3 py-2 text-xs text-neon-violet/90">
+            Para cambiar de video, abrilo desde Biblioteca en la card de video o clip.
+          </div>
 
           {isLoadingVideos ? (
             <p className="mt-4 text-sm text-white/70">Cargando videos...</p>
@@ -476,49 +448,15 @@ export default function AudioEditorPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {videos.map((video) => (
-              <button
-                type="button"
-                key={video.video_id}
-                onClick={() => {
-                  setSelectedVideoId(video.video_id);
-                  setMixedVideoUrl(null);
-                }}
-                className={[
-                  "rounded-xl border px-3 py-2 text-left text-sm transition",
-                  selectedVideoId === video.video_id
-                    ? "border-neon-violet/45 bg-neon-violet/10 text-white"
-                    : "border-white/10 bg-white/5 text-white/75 hover:border-white/20 hover:text-white"
-                ].join(" ")}
+          {!isLoadingVideos && !selectedVideoId ? (
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+              <p>No hay video seleccionado para este editor.</p>
+              <Link
+                href="/app/library"
+                className="mt-3 inline-flex items-center justify-center rounded-lg border border-neon-violet/40 bg-neon-violet/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neon-violet transition hover:bg-neon-violet/20"
               >
-                <p className="font-semibold">Video {video.video_id.slice(0, 8)}</p>
-                <p className="mt-1 text-xs text-white/60">Archivo: {video.filename}</p>
-              </button>
-            ))}
-          </div>
-
-          {totalPages > 1 ? (
-            <div className="mt-4 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
-              <span>Pagina {page} de {totalPages}</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-lg border border-white/15 px-3 py-1.5 text-xs transition hover:border-white/35 disabled:opacity-40"
-                  disabled={page <= 1 || isLoadingVideos}
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                >
-                  Anterior
-                </button>
-                <button
-                  type="button"
-                  className="rounded-lg border border-white/15 px-3 py-1.5 text-xs transition hover:border-white/35 disabled:opacity-40"
-                  disabled={page >= totalPages || isLoadingVideos}
-                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                >
-                  Siguiente
-                </button>
-              </div>
+                Ir a Biblioteca
+              </Link>
             </div>
           ) : null}
         </Panel>

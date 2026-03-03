@@ -555,6 +555,12 @@ export default function LibraryPage() {
                   >
                     <PencilLine size={12} /> Abrir Timeline
                   </Link>
+                  <Link
+                    href={`/app/audio_editor?videoId=${video.video_id}`}
+                    className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-neon-mint/40 bg-neon-mint/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-mint transition hover:bg-neon-mint/20"
+                  >
+                    <AudioLines size={12} /> Abrir en Audio Editor
+                  </Link>
                   <button
                     type="button"
                     className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan"
