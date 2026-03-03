@@ -49,3 +49,15 @@ class YouTubeConnectionStatus(BaseSchema):
     provider_user_id: str | None = None
     token_expires_at: str | None = None
     is_expired: bool | None = None
+
+
+
+class YouTubeMetadataSuggestionResponse(BaseSchema):
+    """Metadata sugerida para publicar en YouTube."""
+
+    title: str = Field(max_length=100)
+    description: str = Field(max_length=5000)
+    hashtags: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    provider: str = Field(description="Proveedor usado para sugerencia")
+    generated_with_ai: bool = Field(default=False)

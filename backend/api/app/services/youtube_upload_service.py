@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
@@ -37,6 +38,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 APP_NAME = "Hacelo Corto"
 YOUTUBE_CATEGORY_PEOPLE_BLOGS = "22"
+DEFAULT_DESCRIPTION_TEMPLATE = "Clip generado con Hacelo Corto"
 
 
 class YouTubeUploadService:
@@ -105,7 +107,9 @@ class YouTubeUploadService:
 
         try:
             # 4. Preparar metadata
-            resolved_title = title or job.video.original_filename or f"Clip {str(job_id)[:8]}"
+            resolved_title = (
+                title or job.video.original_filename or f"Clip {str(job_id)[:8]}"
+            )
             resolved_description = description or f"Video generado con {APP_NAME}"
             tags = self._build_tags(job)
 
@@ -143,7 +147,10 @@ class YouTubeUploadService:
         oauth_token = self._find_youtube_token(user_id)
 
         if not oauth_token:
-            return {"connected": False, "message": "Usuario no tiene cuenta de YouTube conectada"}
+            return {
+                    "connected": False,
+                    "message": "Usuario no tiene cuenta de YouTube conectada",
+                }
 
         return {
             "connected": True,
@@ -155,9 +162,52 @@ class YouTubeUploadService:
             "is_expired": oauth_token.is_expired(),
         }
 
-   
-    #  Métodos privados — lógica interna
+    async def suggest_metadata_for_job(
+        self,
+        *,
+        job_id: UUID,
+        user_id: UUID,
+        tone: str = "neutral",
+    ) -> Dict[str, Any]:
+        """Genera sugerencias de titulo/descripcion/hashtags para YouTube."""
+        job = self.db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            raise NotFoundException(f"Job {job_id} no encontrado")
 
+        if job.user_id != user_id:
+            raise BadRequestException(
+                "No tenes permiso para generar metadata de este clip"
+            )
+
+        source_name = "clip"
+        if job.video and job.video.original_filename:
+            source_name = job.video.original_filename
+
+        subtitle_excerpt = self._extract_subtitle_excerpt(job)
+        base_title = self._build_default_title(source_name, str(job.id))
+        base_description = self._build_default_description(
+            source_name,
+            subtitle_excerpt,
+            tone,
+        )
+
+        metadata = self._fallback_metadata(base_title, base_description)
+        metadata["provider"] = "template"
+        metadata["generated_with_ai"] = False
+
+        if not settings.OPENROUTER_API_KEY:
+            return metadata
+
+        ai_metadata = await self._generate_metadata_with_openrouter(
+            source_filename=source_name,
+            job_id=str(job.id),
+            subtitle_excerpt=subtitle_excerpt,
+            tone=tone,
+            fallback=metadata,
+        )
+        return ai_metadata
+
+    #  Métodos privados — lógica interna
 
     def _get_validated_job(self, job_id: UUID, user_id: UUID) -> Job:
         """Busca el Job, valida pertenencia y estado DONE."""
@@ -236,9 +286,7 @@ class YouTubeUploadService:
             )
         except Exception as exc:
             self._cleanup_temp(temp_path)
-            raise BadRequestException(
-                f"Error descargando video de MinIO: {exc}"
-            )
+            raise BadRequestException(f"Error descargando video de MinIO: {exc}")
 
         logger.info("✅ Video descargado a: %s", temp_path)
         return temp_path
@@ -251,6 +299,251 @@ class YouTubeUploadService:
         if video and video.width and video.height and video.height > video.width:
             tags.append("vertical")
         return tags
+
+    def _extract_subtitle_excerpt(self, job: Job) -> str:
+        raw_output = job.output_path
+        if not isinstance(raw_output, dict):
+            return ""
+
+        subtitles_path = raw_output.get("subtitles")
+        if not isinstance(subtitles_path, str) or not subtitles_path.startswith(
+            "s3://"
+        ):
+            return ""
+
+        try:
+            bucket, key = self.storage._extract_bucket_and_key(subtitles_path)
+            response = self.storage.client.get_object(Bucket=bucket, Key=key)
+            body = response["Body"].read()
+            text = body.decode("utf-8", errors="ignore")
+        except Exception:
+            return ""
+
+        lines: list[str] = []
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.isdigit():
+                continue
+            if "-->" in line:
+                continue
+            lines.append(line)
+            if len(lines) >= 4:
+                break
+
+        return " ".join(lines)[:500]
+
+    @staticmethod
+    def _sanitize_filename(filename: str) -> str:
+        cleaned = re.sub(r"\.[A-Za-z0-9]{2,5}$", "", filename)
+        cleaned = re.sub(r"[_\-]+", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned or "clip"
+
+    def _build_default_title(self, source_filename: str, job_id: str) -> str:
+        stem = self._sanitize_filename(source_filename)
+        title = f"{stem} | Clip corto"
+        if len(title) > 100:
+            title = title[:97].rstrip() + "..."
+        if not title.strip():
+            title = f"Clip {job_id[:8]} - {APP_NAME}"
+        return title
+
+    @staticmethod
+    def _build_default_description(
+        source_filename: str,
+        subtitle_excerpt: str,
+        tone: str,
+    ) -> str:
+        source = f"Fuente: {source_filename}" if source_filename else ""
+        tone_line = {
+            "energetic": "Tono: dinamico y potente.",
+            "informative": "Tono: informativo y claro.",
+        }.get(tone, "Tono: neutral y directo.")
+        parts = [DEFAULT_DESCRIPTION_TEMPLATE]
+        parts.append(tone_line)
+        if subtitle_excerpt:
+            parts.append(f"Momento destacado: {subtitle_excerpt}")
+        if source:
+            parts.append(source)
+        parts.append("#shorts #hacelocorto")
+        return "\n".join(parts)[:5000]
+
+    @staticmethod
+    def _normalize_hashtags(values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for value in values:
+            token = value.strip()
+            if not token:
+                continue
+            token = token.replace(" ", "")
+            if not token.startswith("#"):
+                token = f"#{token}"
+            token = re.sub(r"[^#\w]", "", token)
+            if len(token) <= 1:
+                continue
+            lowered = token.lower()
+            if lowered in {item.lower() for item in normalized}:
+                continue
+            normalized.append(token)
+            if len(normalized) >= 10:
+                break
+        return normalized
+
+    @staticmethod
+    def _normalize_tags(values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            token = value.strip().lstrip("#")
+            token = re.sub(r"\s+", " ", token)
+            if not token:
+                continue
+            key = token.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized.append(token[:50])
+            if len(normalized) >= 15:
+                break
+        return normalized
+
+    def _fallback_metadata(self, title: str, description: str) -> Dict[str, Any]:
+        hashtags = self._normalize_hashtags(
+            ["#shorts", "#hacelocorto", "#clip", "#video"]
+        )
+        tags = self._normalize_tags([item.lstrip("#") for item in hashtags])
+        return {
+            "title": title[:100],
+            "description": description[:5000],
+            "hashtags": hashtags,
+            "tags": tags,
+        }
+
+    @staticmethod
+    def _extract_json_object(raw_text: str) -> Dict[str, Any] | None:
+        candidate = raw_text.strip()
+        if candidate.startswith("```"):
+            candidate = re.sub(r"^```(?:json)?", "", candidate).strip()
+            candidate = re.sub(r"```$", "", candidate).strip()
+
+        try:
+            parsed = json.loads(candidate)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", candidate, flags=re.DOTALL)
+            if not match:
+                return None
+            try:
+                parsed = json.loads(match.group(0))
+                return parsed if isinstance(parsed, dict) else None
+            except json.JSONDecodeError:
+                return None
+
+    async def _generate_metadata_with_openrouter(
+        self,
+        *,
+        source_filename: str,
+        job_id: str,
+        subtitle_excerpt: str,
+        tone: str,
+        fallback: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        tone_hint = {
+            "neutral": "Tono neutral y claro.",
+            "energetic": "Tono energico y dinamico, sin exageraciones.",
+            "informative": "Tono informativo y directo.",
+        }.get(tone, "Tono neutral y claro.")
+
+        prompt = (
+            "Genera metadata para YouTube Shorts en español rioplatense. "
+            "Responde SOLO JSON valido con claves: title, description, hashtags, tags. "
+            "title max 100 chars. description max 5000 chars. "
+            "hashtags array de 5 a 10 items (con #). tags array de 5 a 12 items (sin #). "
+            "Evita promesas engañosas.\n"
+            f"job_id: {job_id}\n"
+            f"source_filename: {source_filename}\n"
+            f"subtitle_excerpt: {subtitle_excerpt or 'sin subtitulos'}\n"
+            f"tono: {tone_hint}"
+        )
+
+        body = {
+            "model": settings.OPENROUTER_MODEL,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Eres especialista en copy para YouTube Shorts. Devuelves JSON estricto.",
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+            "temperature": 0.5,
+        }
+
+        headers = {
+            "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=25) as client:
+                response = await client.post(
+                    f"{settings.OPENROUTER_BASE_URL.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=body,
+                )
+                response.raise_for_status()
+                payload = response.json()
+
+            message = (
+                payload.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
+            parsed = self._extract_json_object(message)
+            if not parsed:
+                return {
+                    **fallback,
+                    "provider": f"openrouter:{settings.OPENROUTER_MODEL}",
+                    "generated_with_ai": False,
+                }
+
+            raw_hashtags = parsed.get("hashtags")
+            raw_tags = parsed.get("tags")
+            hashtags = raw_hashtags if isinstance(raw_hashtags, list) else []
+            tags = raw_tags if isinstance(raw_tags, list) else []
+
+            title = str(parsed.get("title") or fallback["title"]).strip()[:100]
+            description = str(
+                parsed.get("description") or fallback["description"]
+            ).strip()[:5000]
+
+            normalized_hashtags = self._normalize_hashtags(
+                [str(item) for item in hashtags]
+            )
+            if not normalized_hashtags:
+                normalized_hashtags = fallback["hashtags"]
+
+            normalized_tags = self._normalize_tags([str(item) for item in tags])
+            if not normalized_tags:
+                normalized_tags = fallback["tags"]
+
+            return {
+                "title": title,
+                "description": description,
+                "hashtags": normalized_hashtags,
+                "tags": normalized_tags,
+                "provider": f"openrouter:{settings.OPENROUTER_MODEL}",
+                "generated_with_ai": True,
+            }
+        except Exception as exc:
+            logger.warning("No se pudo generar metadata con OpenRouter: %s", exc)
+            return {
+                **fallback,
+                "provider": f"openrouter:{settings.OPENROUTER_MODEL}",
+                "generated_with_ai": False,
+            }
 
     @staticmethod
     def _cleanup_temp(path: str) -> None:
@@ -412,7 +705,9 @@ class YouTubeUploadService:
 
             # Persistir token renovado
             oauth_token.access_token = new_access_token
-            oauth_token.expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+            oauth_token.expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=expires_in
+            )
             oauth_token.last_refreshed_at = datetime.now(timezone.utc)
             self.db.commit()
 
