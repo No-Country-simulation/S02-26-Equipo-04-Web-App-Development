@@ -19,10 +19,12 @@ Rama de trabajo: `feat/frontend-timeline-library-streamline`.
 - Se rediseño `frontend/src/components/home/VideoSettings.tsx` para incluir en Timeline `output_style` (`Vertical 9:16` y `Speaker split`) + `content_profile` (`auto`, `entrevista`, `deporte`, `musica`) con UI mas limpia.
 - Se removieron de ajustes de timeline valores sin uso real (`crop`, `face tracking`, `color filter`, `videoStart`, `videoEnd`) y se alinio el store en `frontend/src/store/useVideoSettingsStore.ts` a parametros vigentes del backend.
 - Se actualizo `frontend/src/components/home/VideoSettingsModal.tsx` para mantener consistencia de tipos/ajustes y evitar deuda tecnica por campos obsoletos.
+- Se persistio la sesion de Timeline en `localStorage` (`timeline:editor-session`) para conservar video activo + job en curso/resultado al recargar o navegar, evitando que se pierda el contexto de trabajo.
 
 ## Commits realizados
 
 - `feat(frontend): streamline timeline flow and add job progress preview`
+- `fix(frontend): persist timeline editor session across reloads`
 - `docs(frontend): log timeline-library streamlining and settings cleanup`
 
 ## Archivos clave
