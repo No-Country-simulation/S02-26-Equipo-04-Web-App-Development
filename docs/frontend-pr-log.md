@@ -2,51 +2,32 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feat/frontend-timeline-library-streamline`
+Rama de trabajo actual: `feat/frontend-youtube-ai-metadata`
 
 ## Objetivo de la rama
 
-Simplificar el flujo entre Biblioteca y Timeline para evitar duplicidad de listados, sumar feedback de progreso/preview final en Timeline y dejar los ajustes del editor mas claros, limpios y alineados al look catppuccin.
+Mejorar la pantalla de Share para sugerir metadata de YouTube con IA (titulo, descripcion y hashtags), dejando control editable desde frontend y selector de tono para el copy.
 
-Rama de trabajo: `feat/frontend-timeline-library-streamline`.
+Rama de trabajo: `feat/frontend-youtube-ai-metadata`.
 
 ## Cambios realizados
 
-- Se agrego en `frontend/src/app/app/timeline/page.tsx` una barra de progreso para la creacion del clip con polling por `job_id` y estados visuales (`En cola`, `Procesando`, `Completado`, `Error`).
-- Se incorporo en Timeline una seccion de `Preview final` que reproduce el resultado renderizado cuando el backend expone `output_path`.
-- Se elimino del Timeline la lista duplicada de videos subidos; ahora la pantalla trabaja sobre un unico `videoId` (o resuelto por `clipId`) y muestra CTA a Biblioteca cuando falta seleccion.
-- Se agrego accion `Abrir Timeline` en `frontend/src/app/app/library/page.tsx` para cada video original, replicando el flujo de navegacion profunda que ya existia para clips.
-- Se rediseño `frontend/src/components/home/VideoSettings.tsx` para incluir en Timeline `output_style` (`Vertical 9:16` y `Speaker split`) + `content_profile` (`auto`, `entrevista`, `deporte`, `musica`) con UI mas limpia.
-- Se removieron de ajustes de timeline valores sin uso real (`crop`, `face tracking`, `color filter`, `videoStart`, `videoEnd`) y se alinio el store en `frontend/src/store/useVideoSettingsStore.ts` a parametros vigentes del backend.
-- Se actualizo `frontend/src/components/home/VideoSettingsModal.tsx` para mantener consistencia de tipos/ajustes y evitar deuda tecnica por campos obsoletos.
-- Se persistio la sesion de Timeline en `localStorage` (`timeline:editor-session`) para conservar video activo + job en curso/resultado al recargar o navegar, evitando que se pierda el contexto de trabajo.
-- Se agrego el asset `frontend/public/landing-demos/video1_musica.mp4` para la seccion de demos de landing.
-- Se simplifico `frontend/src/app/app/audio_editor/page.tsx` removiendo listado/buscador/paginacion de videos para replicar el enfoque de Timeline: editor sobre un unico `videoId`/`clipId` proveniente de Biblioteca.
-- Se agrego CTA a Biblioteca en Audio Editor cuando no hay video seleccionado, evitando estado vacio confuso.
-- Se incorporo en Biblioteca (videos originales) el boton `Abrir en Audio Editor` en `frontend/src/app/app/library/page.tsx`, alineando la navegacion con clips.
-- Fix de compatibilidad temporal con backend en `frontend/src/app/app/audio_editor/page.tsx`: `audio_volume` ahora se envia como entero (`1` o `2`) para evitar `500` por validacion de `JobAddAudioResponse`.
-- Se agrego fallback visual en previews de clips en `frontend/src/app/app/library/page.tsx` para mostrar aviso cuando el `<video>` falla al reproducir (sin dejar card vacia/negra).
-- Se reemplazo el reproductor nativo de audio por un componente custom catppuccin (`frontend/src/components/audio/AudioPlayer.tsx` + `AudioPlayer.module.css`) reutilizado en `Audio editor` y `Biblioteca`.
-- Ajuste UX del player custom: se removio el bloque visual superior y se reorganizo el layout en dos filas limpias (arriba progreso/tiempos, abajo volumen), con foco en simplicidad visual.
+- Se agrego en `frontend/src/services/videoApi.ts` el contrato `suggestYoutubeMetadata(jobId, token, tone)` para consumir `GET /api/v1/youtube/metadata/{job_id}` con tono opcional.
+- Se actualizo `frontend/src/app/app/share/[clipId]/page.tsx` con boton `Sugerir con IA`, estado de carga y autocompletado de titulo/descripcion/hashtags.
+- Se incorporo campo editable de hashtags y composicion automatica en descripcion final al publicar (sin perder edicion manual).
+- Se agrego selector de tono (`neutral`, `energetic`, `informative`) para personalizar estilo del copy sugerido.
+- Se agrego visualizacion de proveedor de metadata para trazabilidad en UI (`template` o `openrouter:<model>`).
 
 ## Commits realizados
 
-- `feat(frontend): streamline timeline flow and add job progress preview`
-- `fix(frontend): persist timeline editor session across reloads`
-- `chore(frontend): add landing demo video1 asset`
-- `feat(frontend): streamline audio editor entry from library`
-- `fix(frontend): send integer audio volume and add clip preview fallback`
-- `feat(frontend): redesign custom audio player with catppuccin UI`
-- `refactor(frontend): simplify audio player layout for cleaner controls`
-- `docs(frontend): log timeline-library streamlining and settings cleanup`
+- `feat(frontend): add ai metadata suggestions in share flow`
+- `feat(frontend): add tone selector for ai metadata suggestions`
+- `docs(frontend): log youtube ai metadata flow in share`
 
 ## Archivos clave
 
-- `frontend/src/app/app/timeline/page.tsx`
-- `frontend/src/app/app/library/page.tsx`
-- `frontend/src/components/home/VideoSettings.tsx`
-- `frontend/src/components/home/VideoSettingsModal.tsx`
-- `frontend/src/store/useVideoSettingsStore.ts`
+- `frontend/src/app/app/share/[clipId]/page.tsx`
+- `frontend/src/services/videoApi.ts`
 - `docs/frontend-pr-log.md`
 
 ## Validaciones locales
