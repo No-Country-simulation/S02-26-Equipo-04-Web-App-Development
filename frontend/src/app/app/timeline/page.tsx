@@ -11,6 +11,24 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 const MIN_CLIP_SECONDS = 5;
+const TIMELINE_SESSION_KEY = "timeline:editor-session";
+
+type StoredTimelineJob = {
+  jobId: string;
+  status: string | null;
+  outputPath: string | null;
+  updatedAt: string;
+};
+
+type TimelineSession = {
+  lastVideoId: string | null;
+  jobsByVideo: Record<string, StoredTimelineJob>;
+};
+
+const emptyTimelineSession: TimelineSession = {
+  lastVideoId: null,
+  jobsByVideo: {}
+};
 
 function normalizeJobStatus(status: string | null) {
   return (status ?? "PENDING").toLowerCase();
@@ -89,6 +107,42 @@ export default function TimelinePage() {
   const [activeJobOutputPath, setActiveJobOutputPath] = useState<string | null>(null);
   const [activeJobPollingError, setActiveJobPollingError] = useState<string | null>(null);
   const [isPollingActiveJob, setIsPollingActiveJob] = useState(false);
+  const [storedSession, setStoredSession] = useState<TimelineSession>(emptyTimelineSession);
+  const [isSessionHydrated, setIsSessionHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TIMELINE_SESSION_KEY);
+      if (!raw) {
+        setStoredSession(emptyTimelineSession);
+        setIsSessionHydrated(true);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Partial<TimelineSession>;
+      const next: TimelineSession = {
+        lastVideoId: typeof parsed.lastVideoId === "string" ? parsed.lastVideoId : null,
+        jobsByVideo:
+          parsed.jobsByVideo && typeof parsed.jobsByVideo === "object"
+            ? (parsed.jobsByVideo as Record<string, StoredTimelineJob>)
+            : {}
+      };
+      setStoredSession(next);
+    } catch {
+      window.localStorage.removeItem(TIMELINE_SESSION_KEY);
+      setStoredSession(emptyTimelineSession);
+    } finally {
+      setIsSessionHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isSessionHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem(TIMELINE_SESSION_KEY, JSON.stringify(storedSession));
+  }, [isSessionHydrated, storedSession]);
 
 
   const saveRaname = async () => {
@@ -114,6 +168,10 @@ export default function TimelinePage() {
   };
 
   useEffect(() => {
+    if (!isSessionHydrated) {
+      return;
+    }
+
     if (!token) {
       setIsLoading(false);
       setError("No encontramos una sesion activa para cargar el timeline.");
@@ -141,7 +199,7 @@ export default function TimelinePage() {
           }
         }
 
-        const targetVideoId = preferredVideoFromQuery || selectedClip?.video_id || "";
+        const targetVideoId = preferredVideoFromQuery || selectedClip?.video_id || storedSession.lastVideoId || "";
 
         if (!targetVideoId) {
           setVideos([]);
@@ -185,7 +243,77 @@ export default function TimelinePage() {
     return () => {
       cancelled = true;
     };
-  }, [token, preferredClipId, preferredVideoId]);
+  }, [token, preferredClipId, preferredVideoId, storedSession.lastVideoId, isSessionHydrated]);
+
+  useEffect(() => {
+    if (!selectedVideoId) {
+      return;
+    }
+
+    setStoredSession((prev) => {
+      if (prev.lastVideoId === selectedVideoId) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        lastVideoId: selectedVideoId
+      };
+    });
+  }, [selectedVideoId]);
+
+  useEffect(() => {
+    if (!selectedVideoId) {
+      return;
+    }
+
+    const storedJob = storedSession.jobsByVideo[selectedVideoId];
+    if (!storedJob) {
+      setActiveJobId(null);
+      setActiveJobStatus(null);
+      setActiveJobOutputPath(null);
+      setActiveJobPollingError(null);
+      return;
+    }
+
+    setActiveJobId(storedJob.jobId);
+    setActiveJobStatus(storedJob.status ?? null);
+    setActiveJobOutputPath(storedJob.outputPath ?? null);
+    setActiveJobPollingError(null);
+  }, [selectedVideoId, storedSession.jobsByVideo]);
+
+  useEffect(() => {
+    if (!selectedVideoId || !activeJobId) {
+      return;
+    }
+
+    setStoredSession((prev) => {
+      const previousStoredJob = prev.jobsByVideo[selectedVideoId];
+      const nextStoredJob: StoredTimelineJob = {
+        jobId: activeJobId,
+        status: activeJobStatus,
+        outputPath: activeJobOutputPath,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (
+        previousStoredJob &&
+        previousStoredJob.jobId === nextStoredJob.jobId &&
+        previousStoredJob.status === nextStoredJob.status &&
+        previousStoredJob.outputPath === nextStoredJob.outputPath
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        jobsByVideo: {
+          ...prev.jobsByVideo,
+          [selectedVideoId]: nextStoredJob
+        }
+      };
+    });
+  }, [selectedVideoId, activeJobId, activeJobStatus, activeJobOutputPath]);
 
   const selectedVideo = useMemo(
     () => videos.find((video) => video.video_id === selectedVideoId) ?? null,
