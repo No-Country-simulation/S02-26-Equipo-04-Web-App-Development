@@ -50,6 +50,7 @@ export default function LibraryPage() {
   const [deletingAudioId, setDeletingAudioId] = useState<string | null>(null);
   const [audioUrlMap, setAudioUrlMap] = useState<Record<string, string>>({});
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
+  const [brokenClipPreviewIds, setBrokenClipPreviewIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!token) {
@@ -394,8 +395,16 @@ export default function LibraryPage() {
             style={{ animationDelay: `${index * 90}ms` }}
           >
             <div className="relative mb-3 overflow-hidden rounded-xl border border-white/10 bg-night-900/80">
-              {clip.output_path ? (
-                <video controls preload="metadata" className="aspect-[9/13] w-full object-cover" src={clip.output_path} />
+              {clip.output_path && !brokenClipPreviewIds[clip.job_id] ? (
+                <video
+                  controls
+                  preload="metadata"
+                  className="aspect-[9/13] w-full object-cover"
+                  src={clip.output_path}
+                  onError={() => {
+                    setBrokenClipPreviewIds((prev) => ({ ...prev, [clip.job_id]: true }));
+                  }}
+                />
               ) : (
                 <div className="aspect-[9/13] bg-[radial-gradient(circle_at_20%_20%,rgba(53,208,255,0.32),transparent_45%),radial-gradient(circle_at_80%_78%,rgba(255,79,216,0.28),transparent_50%),#0d1630]" />
               )}
@@ -440,6 +449,10 @@ export default function LibraryPage() {
                 </span>
               )}
             </div>
+
+            {clip.output_path && brokenClipPreviewIds[clip.job_id] ? (
+              <p className="mt-2 text-xs text-amber-200">No pudimos reproducir el preview en el navegador. Abri el clip desde el boton para verificarlo.</p>
+            ) : null}
 
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Link

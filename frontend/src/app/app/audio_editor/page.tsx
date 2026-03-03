@@ -388,7 +388,7 @@ export default function AudioEditorPage() {
         audio_offset_sec: Math.max(0, Math.floor(audioOffsetSec)),
         audio_start_sec: Math.max(0, Math.floor(audioStartSec)),
         audio_end_sec: Math.max(MIN_AUDIO_SEGMENT_SECONDS, Math.ceil(audioEndSec)),
-        audio_volume: Math.min(2, Math.max(0.1, Number(audioVolume.toFixed(2))))
+        audio_volume: Math.round(clamp(audioVolume, 1, 2))
       });
 
       setAudioJobId(response.job_id);
@@ -507,7 +507,7 @@ export default function AudioEditorPage() {
                 <p className="mt-1">- `offset en video`: segundo del video donde empieza a sonar el audio.</p>
                 <p>- `inicio audio`: desde que segundo del archivo de audio recortas.</p>
                 <p>- `fin audio`: hasta que segundo del archivo de audio usas.</p>
-                <p>- `volumen`: ganancia del audio agregado (1.0 = normal).</p>
+                <p>- `volumen`: ganancia del audio agregado (1 = normal, 2 = fuerte).</p>
               </div>
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -522,18 +522,18 @@ export default function AudioEditorPage() {
                     className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
                   />
                 </label>
-                <label className="text-xs text-white/75">
-                  Volumen (0.1 - 2.0)
-                  <input
-                    type="number"
-                    min={0.1}
-                    max={2}
-                    step={0.1}
-                    value={audioVolume}
-                    onChange={(event) => setAudioVolume(Number(event.target.value || 1))}
-                    className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
-                  />
-                </label>
+                 <label className="text-xs text-white/75">
+                   Volumen (1 - 2)
+                   <input
+                     type="number"
+                     min={1}
+                     max={2}
+                     step={1}
+                     value={audioVolume}
+                     onChange={(event) => setAudioVolume(clamp(Number(event.target.value || 1), 1, 2))}
+                     className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
+                   />
+                 </label>
                 <label className="text-xs text-white/75">
                   Inicio audio (seg)
                   <input
