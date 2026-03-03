@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = Field(default="")
     GOOGLE_REDIRECT_URI: str = Field(default="http://localhost:3000/auth/callback")
 
+    # === LLM metadata suggestions (optional) ===
+    OPENROUTER_API_KEY: str = Field(default="")
+    OPENROUTER_MODEL: str = Field(default="meta-llama/llama-3.1-8b-instruct:free")
+    OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
+
     @field_validator("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET")
     @classmethod
     def validate_google_credentials(cls, v, info):
