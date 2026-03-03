@@ -3,7 +3,7 @@
 import { Button } from "@/src/components/ui/Button";
 import { Panel } from "@/src/components/ui/Panel";
 import { authApi } from "@/src/services/authApi";
-import { videoApi, type UserClipItem, type YoutubeConnectionStatus, VideoApiError } from "@/src/services/videoApi";
+import { videoApi, type UserClipItem, type YoutubeConnectionStatus, type YoutubeMetadataSuggestionResponse, VideoApiError } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { Facebook, Instagram, MessageCircle, Music2, Share2, Youtube } from "lucide-react";
 import Link from "next/link";
@@ -54,6 +54,9 @@ export default function ShareClipPage() {
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [youtubePrivacy, setYoutubePrivacy] = useState<"public" | "private" | "unlisted">("private");
+  const [youtubeHashtags, setYoutubeHashtags] = useState("#shorts #hacelocorto");
+  const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
+  const [metadataProvider, setMetadataProvider] = useState<string | null>(null);
   const canPublishClip = clip ? ["done", "completed"].includes(clip.status.toLowerCase()) : false;
 
   useEffect(() => {
@@ -124,7 +127,29 @@ export default function ShareClipPage() {
 
     setYoutubeTitle(`Clip ${clip.job_id.slice(0, 8)} - Hacelo Corto`);
     setYoutubeDescription(`Clip generado desde ${clip.source_filename}`);
+    setYoutubeHashtags("#shorts #hacelocorto");
+    setMetadataProvider(null);
   }, [clip]);
+
+  function buildPublishDescription(baseDescription: string, hashtagsText: string) {
+    const normalizedDescription = baseDescription.trim();
+    const hashtags = hashtagsText
+      .split(/\s+/)
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0)
+      .map((tag) => (tag.startsWith("#") ? tag : `#${tag}`));
+
+    if (hashtags.length === 0) {
+      return normalizedDescription || undefined;
+    }
+
+    const hashtagsLine = hashtags.join(" ");
+    if (!normalizedDescription) {
+      return hashtagsLine;
+    }
+
+    return `${normalizedDescription}\n\n${hashtagsLine}`;
+  }
 
   const handleConnectYoutube = async () => {
     setInfo(null);
@@ -150,7 +175,7 @@ export default function ShareClipPage() {
     try {
       const response = await videoApi.publishToYoutube(clip.job_id, token, {
         title: youtubeTitle.trim() || undefined,
-        description: youtubeDescription.trim() || undefined,
+        description: buildPublishDescription(youtubeDescription, youtubeHashtags),
         privacy: youtubePrivacy
       });
 
@@ -159,6 +184,33 @@ export default function ShareClipPage() {
       setError(normalizeVideoError(publishError, "No pudimos publicar el clip en YouTube."));
     } finally {
       setIsPublishingYoutube(false);
+    }
+  };
+
+  const handleSuggestMetadata = async () => {
+    if (!token || !clip) {
+      setError("No hay sesion activa o clip seleccionado para sugerir metadata.");
+      return;
+    }
+
+    setIsGeneratingMetadata(true);
+    setError(null);
+
+    try {
+      const suggestion: YoutubeMetadataSuggestionResponse = await videoApi.suggestYoutubeMetadata(clip.job_id, token);
+      setYoutubeTitle(suggestion.title.slice(0, 100));
+      setYoutubeDescription(suggestion.description.slice(0, 5000));
+      setYoutubeHashtags(suggestion.hashtags.join(" "));
+      setMetadataProvider(suggestion.provider);
+      setInfo(
+        suggestion.generated_with_ai
+          ? "Metadata sugerida con IA. Puedes editarla antes de publicar."
+          : "Aplicamos una sugerencia base de metadata. Puedes editarla antes de publicar."
+      );
+    } catch (suggestError) {
+      setError(normalizeVideoError(suggestError, "No pudimos generar metadata sugerida."));
+    } finally {
+      setIsGeneratingMetadata(false);
     }
   };
 
@@ -266,6 +318,20 @@ export default function ShareClipPage() {
 
                     {isYoutube ? (
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="sm:col-span-2 flex items-center justify-between gap-2">
+                          <p className="text-[11px] text-white/60">
+                            Mejora titulo y descripcion con sugerencias automaticas.
+                            {metadataProvider ? ` Provider: ${metadataProvider}` : ""}
+                          </p>
+                          <Button
+                            className="h-8 px-3 py-1.5 text-[11px]"
+                            variant="neutral"
+                            disabled={isGeneratingMetadata || !canPublishClip}
+                            onClick={() => void handleSuggestMetadata()}
+                          >
+                            {isGeneratingMetadata ? "Generando..." : "Sugerir con IA"}
+                          </Button>
+                        </div>
                         <label className="text-xs text-white/75 sm:col-span-2">
                           Titulo
                           <input
@@ -283,6 +349,16 @@ export default function ShareClipPage() {
                             maxLength={5000}
                             rows={3}
                             className="mt-1 w-full resize-y rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-cyan/50"
+                          />
+                        </label>
+                        <label className="text-xs text-white/75 sm:col-span-2">
+                          Hashtags
+                          <input
+                            value={youtubeHashtags}
+                            onChange={(event) => setYoutubeHashtags(event.target.value.slice(0, 300))}
+                            maxLength={300}
+                            placeholder="#shorts #hacelocorto"
+                            className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-cyan/50"
                           />
                         </label>
                         <label className="text-xs text-white/75 sm:col-span-2">
