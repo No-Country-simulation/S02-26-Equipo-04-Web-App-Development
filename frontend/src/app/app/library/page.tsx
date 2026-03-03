@@ -1,6 +1,7 @@
 "use client";
 
 import { Panel } from "@/src/components/ui/Panel";
+import { AudioPlayer } from "@/src/components/audio/AudioPlayer";
 import { videoApi, type UserAudioItem, type UserClipItem, type UserVideoItem } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { AudioLines, Check, Clock3, Download, PencilLine, Search, Share2, Tag, Trash2, X } from "lucide-react";
@@ -636,12 +637,7 @@ export default function LibraryPage() {
                 {audioUrl ? (
                   <div className="mt-4 rounded-xl border border-white/12 bg-night-900/70 p-3">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">Preview</p>
-                    <audio
-                      controls
-                      preload="metadata"
-                      className="mt-2 w-full rounded-lg [accent-color:#cba6f7]"
-                      src={audioUrl}
-                    />
+                    <AudioPlayer key={audio.audio_id} src={audioUrl} className="mt-2" />
                   </div>
                 ) : (
                   <button

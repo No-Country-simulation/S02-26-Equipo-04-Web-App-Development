@@ -1,6 +1,7 @@
 "use client";
 
 import { VideoPreview } from "@/src/components/home/videoPrevewTimeLine/VideoPreview";
+import { AudioPlayer } from "@/src/components/audio/AudioPlayer";
 import { Panel } from "@/src/components/ui/Panel";
 import { videoApi, type UserAudioItem, type UserClipItem, type UserVideoItem, VideoApiError } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
@@ -486,13 +487,11 @@ export default function AudioEditorPage() {
               </label>
 
               {selectedAudioUrl ? (
-                <audio
-                  controls
-                  preload="metadata"
-                  className="mt-3 w-full rounded-lg [accent-color:#cba6f7]"
+                <AudioPlayer
+                  key={selectedAudioUrl}
                   src={selectedAudioUrl}
-                  onLoadedMetadata={(event) => {
-                    const duration = event.currentTarget.duration;
+                  className="mt-3"
+                  onDurationChange={(duration) => {
                     setAudioDurationSec(Number.isFinite(duration) ? duration : 0);
                   }}
                 />
