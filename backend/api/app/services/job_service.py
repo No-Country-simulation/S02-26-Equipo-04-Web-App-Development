@@ -409,7 +409,7 @@ class JobService:
             .join(Video, Video.id == Job.video_id)
             .filter(
                 Job.user_id == user_id,
-                Job.job_type == JobType.REFRAME,
+                Job.job_type in([JobType.REFRAME, JobType.ADD_AUDIO]),
                 Job.output_path.isnot(None),
             )
         )
@@ -431,6 +431,7 @@ class JobService:
             UserClipItem(
                 job_id=job.id,
                 video_id=job.video_id,
+                job_type=job.job_type,
                 status=job.status,
                 output_path=self._resolve_output_urls(job.output_path),
                 source_filename=video.original_filename,
@@ -449,7 +450,7 @@ class JobService:
             .filter(
                 Job.id == job_id,
                 Job.user_id == user_id,
-                Job.job_type == JobType.REFRAME,
+                Job.job_type.in_([JobType.REFRAME, JobType.ADD_AUDIO]),
             )
             .first()
         )
@@ -461,6 +462,7 @@ class JobService:
         clip = UserClipItem(
             job_id=job.id,
             video_id=job.video_id,
+            job_type=job.job_type,
             status=job.status,
             output_path=self._resolve_output_urls(job.output_path),
             source_filename=video.original_filename,
@@ -475,7 +477,7 @@ class JobService:
             .filter(
                 Job.id == job_id,
                 Job.user_id == user_id,
-                Job.job_type == JobType.REFRAME,
+                Job.job_type.in_([JobType.REFRAME, JobType.ADD_AUDIO]),
             )
             .first()
         )
