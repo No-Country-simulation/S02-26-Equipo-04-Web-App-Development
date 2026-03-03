@@ -167,6 +167,7 @@ class YouTubeUploadService:
         *,
         job_id: UUID,
         user_id: UUID,
+        tone: str = "neutral",
     ) -> Dict[str, Any]:
         """Genera sugerencias de titulo/descripcion/hashtags para YouTube."""
         job = self.db.query(Job).filter(Job.id == job_id).first()
@@ -185,7 +186,9 @@ class YouTubeUploadService:
         subtitle_excerpt = self._extract_subtitle_excerpt(job)
         base_title = self._build_default_title(source_name, str(job.id))
         base_description = self._build_default_description(
-            source_name, subtitle_excerpt
+            source_name,
+            subtitle_excerpt,
+            tone,
         )
 
         metadata = self._fallback_metadata(base_title, base_description)
@@ -199,6 +202,7 @@ class YouTubeUploadService:
             source_filename=source_name,
             job_id=str(job.id),
             subtitle_excerpt=subtitle_excerpt,
+            tone=tone,
             fallback=metadata,
         )
         return ai_metadata
@@ -347,9 +351,18 @@ class YouTubeUploadService:
         return title
 
     @staticmethod
-    def _build_default_description(source_filename: str, subtitle_excerpt: str) -> str:
+    def _build_default_description(
+        source_filename: str,
+        subtitle_excerpt: str,
+        tone: str,
+    ) -> str:
         source = f"Fuente: {source_filename}" if source_filename else ""
+        tone_line = {
+            "energetic": "Tono: dinamico y potente.",
+            "informative": "Tono: informativo y claro.",
+        }.get(tone, "Tono: neutral y directo.")
         parts = [DEFAULT_DESCRIPTION_TEMPLATE]
+        parts.append(tone_line)
         if subtitle_excerpt:
             parts.append(f"Momento destacado: {subtitle_excerpt}")
         if source:
@@ -434,8 +447,15 @@ class YouTubeUploadService:
         source_filename: str,
         job_id: str,
         subtitle_excerpt: str,
+        tone: str,
         fallback: Dict[str, Any],
     ) -> Dict[str, Any]:
+        tone_hint = {
+            "neutral": "Tono neutral y claro.",
+            "energetic": "Tono energico y dinamico, sin exageraciones.",
+            "informative": "Tono informativo y directo.",
+        }.get(tone, "Tono neutral y claro.")
+
         prompt = (
             "Genera metadata para YouTube Shorts en español rioplatense. "
             "Responde SOLO JSON valido con claves: title, description, hashtags, tags. "
@@ -444,7 +464,8 @@ class YouTubeUploadService:
             "Evita promesas engañosas.\n"
             f"job_id: {job_id}\n"
             f"source_filename: {source_filename}\n"
-            f"subtitle_excerpt: {subtitle_excerpt or 'sin subtitulos'}"
+            f"subtitle_excerpt: {subtitle_excerpt or 'sin subtitulos'}\n"
+            f"tono: {tone_hint}"
         )
 
         body = {
@@ -488,12 +509,10 @@ class YouTubeUploadService:
                     "generated_with_ai": False,
                 }
 
-            hashtags = (
-                parsed.get("hashtags")
-                if isinstance(parsed.get("hashtags"), list)
-                else []
-            )
-            tags = parsed.get("tags") if isinstance(parsed.get("tags"), list) else []
+            raw_hashtags = parsed.get("hashtags")
+            raw_tags = parsed.get("tags")
+            hashtags = raw_hashtags if isinstance(raw_hashtags, list) else []
+            tags = raw_tags if isinstance(raw_tags, list) else []
 
             title = str(parsed.get("title") or fallback["title"]).strip()[:100]
             description = str(
