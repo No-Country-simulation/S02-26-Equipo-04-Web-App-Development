@@ -2,31 +2,43 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feat/frontend-auto2-audio-progress-clean`
+Rama de trabajo actual: `feat/backend-youtube-ai-metadata`
 
 ### Objetivo
 
-Dejar trazabilidad backend para el refresh de frontend sobre `auto2`, subtitulos/watermark y soporte de audios, incluyendo fix minimo en `delete clip` para contratos `output_path` JSON.
+Agregar sugerencias automaticas de metadata para YouTube (titulo, descripcion, hashtags y tags) desde backend, con fallback seguro y opcion IA via OpenRouter.
 
 ### Cambios implementados en curso
 
-- Se valido que el frontend ya no consuma el endpoint eliminado `POST /api/v1/jobs/reframe/{video_id}/auto` y quede alineado con `POST /api/v1/jobs/reframe/{video_id}/auto2`.
-- Se cableo en frontend el endpoint `POST /api/v1/jobs/add-audio/{video_id}` para iniciar jobs de mezcla de audio desde Timeline.
-- Se cableo en frontend el endpoint `POST /api/v1/videos/from-job/{job_id}` para importar resultados de jobs como videos editables.
-- Se movio en frontend el uso de `add-audio` hacia una pantalla dedicada `Audio editor` (sin cambios adicionales de backend requeridos).
-- Se aplico fix local en `backend/api/app/services/job_service.py` para eliminar clips cuando `output_path` llega como JSON (`video` + `subtitles`) y evitar fallos al borrar assets.
-- Ajuste de frontend: se validan limites de duracion antes de llamar `add-audio` para no enviar segmentos que excedan el largo del video destino.
-- Se consumen desde frontend los endpoints ya disponibles de YouTube (`GET /api/v1/youtube/status`, `POST /api/v1/youtube/publish/{job_id}`) para pasar de modo demo a flujo real de publicacion.
-- Ajuste de consumo frontend: la vista Share ahora usa `GET /api/v1/jobs/{job_id}` para resolver clip puntual y evitar dependencia de filtros en listados.
-- En esta iteracion no hubo cambios de codigo backend; solo se incorporo un asset de demo en frontend para landing.
+- Se agrego `GET /api/v1/youtube/metadata/{job_id}` en `backend/api/app/api/v1/endpoints/youtube.py` para devolver metadata sugerida por clip autenticado.
+- Se extendio `backend/api/app/schemas/youtube.py` con `YouTubeMetadataSuggestionResponse` (`title`, `description`, `hashtags`, `tags`, `provider`, `generated_with_ai`).
+- Se implemento en `backend/api/app/services/youtube_upload_service.py` la logica de sugerencia de copy usando como contexto:
+  - `source_filename` del video original,
+  - extracto de subtitulos si existe (`output_path.subtitles`),
+  - `job_id`,
+  - `tone` recibido desde frontend (`neutral`, `energetic`, `informative`).
+- Se enforcean limites y normalizacion post-modelo para asegurar salida publicable:
+  - `title <= 100`, `description <= 5000`,
+  - limpieza y dedupe de hashtags/tags,
+  - JSON estricto con fallback robusto si la respuesta IA viene en formato no ideal.
+- Se agrego fallback deterministico cuando no hay key o falla provider IA (`provider=template`, `generated_with_ai=false`) para no bloquear publicacion.
+- Se agregaron variables opcionales en `backend/api/app/core/config.py` y `backend/api/.env.example`:
+  - `OPENROUTER_API_KEY`,
+  - `OPENROUTER_MODEL` (ej: `arcee-ai/trinity-large-preview:free`),
+  - `OPENROUTER_BASE_URL=https://openrouter.ai/api/v1`.
 
 ### Commits de esta rama (backend)
 
-- `fix(backend): support deleting clips with json output_path`
+- `feat(backend): add youtube metadata suggestion endpoint`
+- `feat(backend): add tone control for youtube metadata suggestions`
+- `docs(backend): document youtube ai metadata flow and env setup`
 
 ### Validaciones locales
 
-- Verificacion manual del flujo `DELETE /api/v1/jobs/{job_id}` con `output_path` JSON (sin excepciones de tipo y borrado correcto de assets asociados).
+- `python3 -m compileall backend/api/app/api/v1/endpoints/youtube.py backend/api/app/services/youtube_upload_service.py` -> OK
+- Verificacion manual de `GET /api/v1/youtube/metadata/{job_id}`:
+  - sin key -> responde fallback `template`,
+  - con key -> responde `provider=openrouter:<model>` cuando IA responde correctamente.
 
 ## Objetivo
 
