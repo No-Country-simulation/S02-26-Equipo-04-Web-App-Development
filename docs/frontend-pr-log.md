@@ -16,11 +16,16 @@ Mejorar visibilidad del progreso en Home y estabilizar Audio Editor/Biblioteca p
 - Se reforzo `frontend/src/app/app/page.tsx` para que Home use solo clips `REFRAME` al calcular progreso/listado y no mezclar jobs de audio.
 - Se implemento persistencia de sesion en `frontend/src/app/app/audio_editor/page.tsx` usando `localStorage` por `videoId` (audio elegido, offsets, volumen, job, mensajes y preview).
 - Se agrego barra de progreso de mezcla en Audio Editor (estados `En cola`, `Procesando`, `Mezcla lista`, `Mezcla con error`) y label explicita cuando el preview corresponde al resultado mezclado.
+- Se integro en `frontend/src/app/app/share/[clipId]/page.tsx` la generacion de metadata de YouTube con IA (`GET /api/v1/youtube/metadata/{job_id}`), incluyendo selector de tono (`neutral`, `energetic`, `informative`) y aplicacion directa de titulo/descripcion sugeridos.
+- Se extendio el formulario de publicacion con visualizacion de `hashtags`, `tags` y `provider` devueltos por backend para dejar trazabilidad del origen (IA/template).
+- Se mejoro la UX de publicacion en `frontend/src/app/app/share/[clipId]/page.tsx` con estado explicito de resultado (`Publicado` / `Fallo la publicacion`) y acceso directo al link de YouTube cuando la subida fue exitosa.
+- Se rediseño la presentacion de metadata sugerida para mostrar `hashtags` y `tags` como chips visuales, mejorando lectura y edicion previa a publicar.
 
 ### Commits de esta rama (frontend)
 
 - `feat(frontend): persist audio editor session and expose mix progress`
 - `fix(frontend): surface audio-mix clips in library while keeping home scoped to reframe`
+- `feat(frontend): add ai metadata suggestions to youtube share flow`
 
 ### Validaciones locales
 

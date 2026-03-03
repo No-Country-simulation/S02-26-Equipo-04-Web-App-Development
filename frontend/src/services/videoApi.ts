@@ -55,6 +55,17 @@ export type YoutubeConnectionStatus = {
   is_expired: boolean | null;
 };
 
+export type YoutubeMetadataSuggestionTone = "neutral" | "energetic" | "informative";
+
+export type YoutubeMetadataSuggestion = {
+  title: string;
+  description: string;
+  hashtags: string[];
+  tags: string[];
+  provider: string;
+  generated_with_ai: boolean;
+};
+
 export type AudioUploadResponse = {
   audio_id: string;
   bucket: string;
@@ -459,6 +470,18 @@ export const videoApi = {
     });
 
     return parseResponse<YoutubePublishResponse>(response);
+  },
+
+  async suggestYoutubeMetadata(jobId: string, token: string, tone: YoutubeMetadataSuggestionTone = "neutral") {
+    const params = new URLSearchParams({ tone });
+    const response = await fetch(`${apiBaseUrl}/api/v1/youtube/metadata/${jobId}?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return parseResponse<YoutubeMetadataSuggestion>(response);
   },
 
   async createAutoReframeJobs(

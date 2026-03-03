@@ -3,9 +3,15 @@
 import { Button } from "@/src/components/ui/Button";
 import { Panel } from "@/src/components/ui/Panel";
 import { authApi } from "@/src/services/authApi";
-import { videoApi, type UserClipItem, type YoutubeConnectionStatus, VideoApiError } from "@/src/services/videoApi";
+import {
+  videoApi,
+  type UserClipItem,
+  type YoutubeConnectionStatus,
+  type YoutubeMetadataSuggestionTone,
+  VideoApiError
+} from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
-import { Facebook, Instagram, MessageCircle, Music2, Share2, Youtube } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Facebook, Instagram, MessageCircle, Music2, Share2, Sparkles, Youtube } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type ComponentType, useEffect, useState } from "react";
@@ -23,6 +29,12 @@ const socialTargets: SocialTarget[] = [
   { id: "youtube", label: "YouTube", icon: Youtube },
   { id: "x", label: "X", icon: Share2 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle }
+];
+
+const metadataToneOptions: Array<{ value: YoutubeMetadataSuggestionTone; label: string }> = [
+  { value: "neutral", label: "Neutral" },
+  { value: "energetic", label: "Energetico" },
+  { value: "informative", label: "Informativo" }
 ];
 
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
@@ -54,6 +66,14 @@ export default function ShareClipPage() {
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [youtubePrivacy, setYoutubePrivacy] = useState<"public" | "private" | "unlisted">("private");
+  const [metadataTone, setMetadataTone] = useState<YoutubeMetadataSuggestionTone>("neutral");
+  const [isSuggestingMetadata, setIsSuggestingMetadata] = useState(false);
+  const [youtubeHashtags, setYoutubeHashtags] = useState<string[]>([]);
+  const [youtubeTags, setYoutubeTags] = useState<string[]>([]);
+  const [youtubeMetadataProvider, setYoutubeMetadataProvider] = useState<string | null>(null);
+  const [youtubePublishStatus, setYoutubePublishStatus] = useState<"idle" | "success" | "error">("idle");
+  const [youtubePublishMessage, setYoutubePublishMessage] = useState<string | null>(null);
+  const [youtubePublishedUrl, setYoutubePublishedUrl] = useState<string | null>(null);
   const canPublishClip = clip ? ["done", "completed"].includes(clip.status.toLowerCase()) : false;
 
   useEffect(() => {
@@ -124,6 +144,12 @@ export default function ShareClipPage() {
 
     setYoutubeTitle(`Clip ${clip.job_id.slice(0, 8)} - Hacelo Corto`);
     setYoutubeDescription(`Clip generado desde ${clip.source_filename}`);
+    setYoutubeHashtags([]);
+    setYoutubeTags([]);
+    setYoutubeMetadataProvider(null);
+    setYoutubePublishStatus("idle");
+    setYoutubePublishMessage(null);
+    setYoutubePublishedUrl(null);
   }, [clip]);
 
   const handleConnectYoutube = async () => {
@@ -146,6 +172,9 @@ export default function ShareClipPage() {
     setIsPublishingYoutube(true);
     setError(null);
     setInfo(null);
+    setYoutubePublishStatus("idle");
+    setYoutubePublishMessage(null);
+    setYoutubePublishedUrl(null);
 
     try {
       const response = await videoApi.publishToYoutube(clip.job_id, token, {
@@ -155,10 +184,39 @@ export default function ShareClipPage() {
       });
 
       setInfo(`Publicado en YouTube: ${response.youtube_url}`);
+      setYoutubePublishStatus("success");
+      setYoutubePublishedUrl(response.youtube_url);
+      setYoutubePublishMessage("Publicacion completada correctamente.");
     } catch (publishError) {
-      setError(normalizeVideoError(publishError, "No pudimos publicar el clip en YouTube."));
+      setYoutubePublishStatus("error");
+      setYoutubePublishMessage(normalizeVideoError(publishError, "No pudimos publicar el clip en YouTube."));
     } finally {
       setIsPublishingYoutube(false);
+    }
+  };
+
+  const handleSuggestYoutubeMetadata = async () => {
+    if (!token || !clip) {
+      setError("No hay sesion activa o clip seleccionado para generar metadata.");
+      return;
+    }
+
+    setIsSuggestingMetadata(true);
+    setError(null);
+    setInfo(null);
+
+    try {
+      const suggestion = await videoApi.suggestYoutubeMetadata(clip.job_id, token, metadataTone);
+      setYoutubeTitle(suggestion.title);
+      setYoutubeDescription(suggestion.description);
+      setYoutubeHashtags(suggestion.hashtags);
+      setYoutubeTags(suggestion.tags);
+      setYoutubeMetadataProvider(suggestion.provider);
+      setInfo(`Metadata sugerida aplicada (${suggestion.generated_with_ai ? "IA" : "template"}).`);
+    } catch (suggestError) {
+      setError(normalizeVideoError(suggestError, "No pudimos generar metadata sugerida para YouTube."));
+    } finally {
+      setIsSuggestingMetadata(false);
     }
   };
 
@@ -260,12 +318,71 @@ export default function ShareClipPage() {
                       </div>
                     </div>
 
+                    {isYoutube && youtubePublishStatus !== "idle" ? (
+                      <div
+                        className={[
+                          "mt-3 rounded-lg border px-3 py-2 text-xs",
+                          youtubePublishStatus === "success"
+                            ? "border-emerald-300/45 bg-emerald-300/10 text-emerald-100"
+                            : "border-rose-300/45 bg-rose-300/10 text-rose-100"
+                        ].join(" ")}
+                      >
+                        <p className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-[0.12em]">
+                          {youtubePublishStatus === "success" ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                          {youtubePublishStatus === "success" ? "Publicado" : "Fallo la publicacion"}
+                        </p>
+                        {youtubePublishMessage ? <p className="mt-1">{youtubePublishMessage}</p> : null}
+                        {youtubePublishStatus === "success" && youtubePublishedUrl ? (
+                          <a
+                            href={youtubePublishedUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 rounded-md border border-emerald-200/35 bg-emerald-200/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-100 transition hover:bg-emerald-200/20"
+                          >
+                            Ver en YouTube
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     {isYoutube && !canPublishClip ? (
                       <p className="mt-2 text-xs text-amber-200">Este clip debe estar en estado DONE para poder publicarse en YouTube.</p>
                     ) : null}
 
                     {isYoutube ? (
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="sm:col-span-2 rounded-lg border border-neon-cyan/25 bg-gradient-to-r from-neon-cyan/8 to-neon-violet/8 p-3">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-neon-cyan/85">Asistente IA</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <label className="text-xs text-white/75">
+                              Tono IA
+                              <select
+                                value={metadataTone}
+                                onChange={(event) => setMetadataTone(event.target.value as YoutubeMetadataSuggestionTone)}
+                                className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-cyan/50"
+                              >
+                                {metadataToneOptions.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <div className="flex items-end">
+                              <Button
+                                className="h-9 w-full px-3 py-2 text-xs"
+                                variant="cyan"
+                                disabled={!isYoutubeConnected || isSuggestingMetadata || !canPublishClip}
+                                onClick={() => void handleSuggestYoutubeMetadata()}
+                              >
+                                <Sparkles size={14} />
+                                {isSuggestingMetadata ? "Generando..." : "Generar datos con IA"}
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-[11px] text-white/60">Completa titulo y descripcion sugeridos para acelerar la publicacion.</p>
+                        </div>
+
                         <label className="text-xs text-white/75 sm:col-span-2">
                           Titulo
                           <input
@@ -297,6 +414,44 @@ export default function ShareClipPage() {
                             <option value="public">public</option>
                           </select>
                         </label>
+
+                        {(youtubeHashtags.length > 0 || youtubeTags.length > 0) ? (
+                          <div className="sm:col-span-2 rounded-lg border border-white/12 bg-night-900/60 p-3 text-xs text-white/75">
+                            {youtubeMetadataProvider ? (
+                              <p className="text-[11px] uppercase tracking-[0.15em] text-neon-cyan/80">Provider: {youtubeMetadataProvider}</p>
+                            ) : null}
+                            {youtubeHashtags.length > 0 ? (
+                              <div className="mt-2">
+                                <p className="text-[11px] uppercase tracking-[0.12em] text-white/60">Hashtags sugeridos</p>
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                  {youtubeHashtags.map((hashtag) => (
+                                    <span
+                                      key={hashtag}
+                                      className="rounded-full border border-neon-cyan/35 bg-neon-cyan/10 px-2 py-0.5 text-[11px] text-neon-cyan"
+                                    >
+                                      {hashtag}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                            {youtubeTags.length > 0 ? (
+                              <div className="mt-2">
+                                <p className="text-[11px] uppercase tracking-[0.12em] text-white/60">Tags sugeridos</p>
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                  {youtubeTags.map((tag) => (
+                                    <span
+                                      key={tag}
+                                      className="rounded-full border border-neon-violet/35 bg-neon-violet/10 px-2 py-0.5 text-[11px] text-neon-violet"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
