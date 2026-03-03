@@ -112,6 +112,11 @@ function isFailedStatus(status: string) {
   return normalized === "failed" || normalized === "error";
 }
 
+function isReframeClip(clip: UserClipItem) {
+  const normalized = clip.job_type.toLowerCase();
+  return normalized === "reframe";
+}
+
 function isAudioFile(file: File) {
   if (file.type.toLowerCase().startsWith("audio/")) {
     return true;
@@ -170,10 +175,11 @@ export default function AppHomePage() {
   const hasVideo = Boolean(uploadedVideo);
   const hasAudio = Boolean(uploadedAudio);
   const visibleClips = useMemo(() => {
+    const reframeFallbackClips = fallbackClips.filter(isReframeClip);
     if (createdJobs.length > 0) {
-      return mapJobsToClips(createdJobs, jobStatusMap, fallbackClips);
+      return mapJobsToClips(createdJobs, jobStatusMap, reframeFallbackClips);
     }
-    return mapUserClipsToCards(fallbackClips);
+    return mapUserClipsToCards(reframeFallbackClips);
   }, [createdJobs, jobStatusMap, fallbackClips]);
 
   const clipProgress = useMemo(() => {
@@ -502,7 +508,7 @@ export default function AppHomePage() {
           return;
         }
 
-        const related = data.clips.filter((clip) => clip.video_id === uploadedVideo.video_id);
+        const related = data.clips.filter((clip) => clip.video_id === uploadedVideo.video_id && isReframeClip(clip));
         setFallbackClips(related);
         setAutoJobCount((prev) => (prev > 0 ? prev : related.length));
 

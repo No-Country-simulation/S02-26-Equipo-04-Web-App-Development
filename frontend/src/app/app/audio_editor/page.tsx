@@ -11,6 +11,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 const MIN_AUDIO_SEGMENT_SECONDS = 5;
+const AUDIO_EDITOR_DRAFT_KEY = "audio-editor:draft";
 
 function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof VideoApiError) {
@@ -51,6 +52,24 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function getAudioJobProgress(status: string | null) {
+  if (!status) {
+    return null;
+  }
+
+  const normalized = status.toLowerCase();
+  if (normalized === "done" || normalized === "completed") {
+    return { label: "Mezcla lista", percent: 100, isError: false };
+  }
+  if (normalized === "failed" || normalized === "error") {
+    return { label: "Mezcla con error", percent: 100, isError: true };
+  }
+  if (normalized === "running" || normalized === "processing" || normalized === "in_progress") {
+    return { label: "Procesando mezcla", percent: 68, isError: false };
+  }
+  return { label: "En cola", percent: 24, isError: false };
+}
+
 export default function AudioEditorPage() {
   const searchParams = useSearchParams();
   const preferredVideoId = searchParams.get("videoId")?.trim() ?? "";
@@ -80,8 +99,10 @@ export default function AudioEditorPage() {
   const [audioSubmitInfo, setAudioSubmitInfo] = useState<string | null>(null);
   const [audioSubmitError, setAudioSubmitError] = useState<string | null>(null);
   const [audioJobId, setAudioJobId] = useState<string | null>(null);
+  const [audioJobStatus, setAudioJobStatus] = useState<string | null>(null);
   const [isPollingAudioJob, setIsPollingAudioJob] = useState(false);
   const [mixedVideoUrl, setMixedVideoUrl] = useState<string | null>(null);
+  const [hasRestoredEditorDraft, setHasRestoredEditorDraft] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -229,6 +250,103 @@ export default function AudioEditorPage() {
   }, [selectedAudioId, token]);
 
   useEffect(() => {
+    if (!selectedVideoId) {
+      setHasRestoredEditorDraft(false);
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(`${AUDIO_EDITOR_DRAFT_KEY}:${selectedVideoId}`);
+      if (!raw) {
+        setHasRestoredEditorDraft(true);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as {
+        selectedAudioId?: string | null;
+        audioOffsetSec?: number;
+        audioStartSec?: number;
+        audioEndSec?: number;
+        audioVolume?: number;
+        audioJobId?: string | null;
+        audioJobStatus?: string | null;
+        mixedVideoUrl?: string | null;
+        audioSubmitInfo?: string | null;
+        audioSubmitError?: string | null;
+      };
+
+      if (typeof parsed.selectedAudioId === "string") {
+        setSelectedAudioId(parsed.selectedAudioId);
+      }
+      if (typeof parsed.audioOffsetSec === "number") {
+        setAudioOffsetSec(parsed.audioOffsetSec);
+      }
+      if (typeof parsed.audioStartSec === "number") {
+        setAudioStartSec(parsed.audioStartSec);
+      }
+      if (typeof parsed.audioEndSec === "number") {
+        setAudioEndSec(parsed.audioEndSec);
+      }
+      if (typeof parsed.audioVolume === "number") {
+        setAudioVolume(parsed.audioVolume);
+      }
+      if (typeof parsed.audioJobId === "string") {
+        setAudioJobId(parsed.audioJobId);
+      }
+      if (typeof parsed.audioJobStatus === "string") {
+        setAudioJobStatus(parsed.audioJobStatus);
+      }
+      if (typeof parsed.mixedVideoUrl === "string") {
+        setMixedVideoUrl(parsed.mixedVideoUrl);
+      }
+      if (typeof parsed.audioSubmitInfo === "string") {
+        setAudioSubmitInfo(parsed.audioSubmitInfo);
+      }
+      if (typeof parsed.audioSubmitError === "string") {
+        setAudioSubmitError(parsed.audioSubmitError);
+      }
+    } catch {
+      window.localStorage.removeItem(`${AUDIO_EDITOR_DRAFT_KEY}:${selectedVideoId}`);
+    } finally {
+      setHasRestoredEditorDraft(true);
+    }
+  }, [selectedVideoId]);
+
+  useEffect(() => {
+    if (!selectedVideoId || !hasRestoredEditorDraft) {
+      return;
+    }
+
+    const payload = {
+      selectedAudioId,
+      audioOffsetSec,
+      audioStartSec,
+      audioEndSec,
+      audioVolume,
+      audioJobId,
+      audioJobStatus,
+      mixedVideoUrl,
+      audioSubmitInfo,
+      audioSubmitError
+    };
+
+    window.localStorage.setItem(`${AUDIO_EDITOR_DRAFT_KEY}:${selectedVideoId}`, JSON.stringify(payload));
+  }, [
+    selectedVideoId,
+    hasRestoredEditorDraft,
+    selectedAudioId,
+    audioOffsetSec,
+    audioStartSec,
+    audioEndSec,
+    audioVolume,
+    audioJobId,
+    audioJobStatus,
+    mixedVideoUrl,
+    audioSubmitInfo,
+    audioSubmitError
+  ]);
+
+  useEffect(() => {
     if (!token || !audioJobId) {
       setIsPollingAudioJob(false);
       return;
@@ -246,6 +364,8 @@ export default function AudioEditorPage() {
         if (status.output_path) {
           setMixedVideoUrl(status.output_path);
         }
+
+        setAudioJobStatus(status.status);
 
         if (isDoneStatus(status.status)) {
           setAudioSubmitInfo(`Mezcla de audio lista. Job ${audioJobId.slice(0, 8)} finalizado.`);
@@ -353,6 +473,7 @@ export default function AudioEditorPage() {
   }, [audioDurationSec, audioEndSec, audioOffsetSec, audioStartSec, maxAudioStartSec, maxOffsetSec, videoDurationSec]);
 
   const selectedSegmentDurationSec = Math.max(audioEndSec - audioStartSec, 0);
+  const audioJobProgress = getAudioJobProgress(audioJobStatus);
   const canSubmitAudioJob =
     Boolean(selectedVideoId) &&
     Boolean(selectedAudioId) &&
@@ -382,6 +503,7 @@ export default function AudioEditorPage() {
     setAudioSubmitError(null);
     setAudioSubmitInfo(null);
     setMixedVideoUrl(null);
+    setAudioJobStatus(null);
 
     try {
       const response = await videoApi.addAudioToVideo(selectedVideoId, token, {
@@ -393,6 +515,7 @@ export default function AudioEditorPage() {
       });
 
       setAudioJobId(response.job_id);
+      setAudioJobStatus(response.status);
       setAudioSubmitInfo(`Mezcla enviada a cola. Job ${response.job_id.slice(0, 8)} en estado ${response.status}.`);
     } catch (mixError) {
       setAudioSubmitError(normalizeVideoError(mixError, "No pudimos enviar el job para mezclar audio."));
@@ -417,7 +540,14 @@ export default function AudioEditorPage() {
           ) : videoError ? (
             <p className="mt-4 rounded-xl border border-rose-400/35 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">{videoError}</p>
           ) : previewUrl ? (
-            <VideoPreview videoPreviewUrl={previewUrl} onTrimChange={() => {}} />
+            <>
+              {mixedVideoUrl ? (
+                <p className="mt-3 inline-flex rounded-full border border-neon-mint/35 bg-neon-mint/10 px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-neon-mint">
+                  Preview del resultado mezclado
+                </p>
+              ) : null}
+              <VideoPreview videoPreviewUrl={previewUrl} onTrimChange={() => {}} />
+            </>
           ) : (
             <p className="mt-4 text-sm text-white/70">Selecciona un video con preview disponible.</p>
           )}
@@ -583,6 +713,21 @@ export default function AudioEditorPage() {
               {audioSubmitInfo ? <p className="mt-2 text-xs text-neon-mint">{audioSubmitInfo}</p> : null}
               {audioSubmitError ? <p className="mt-2 text-xs text-rose-200">{audioSubmitError}</p> : null}
               {isPollingAudioJob ? <p className="mt-2 text-xs text-white/65">Procesando mezcla de audio...</p> : null}
+
+              {audioJobProgress ? (
+                <div className="mt-3 rounded-xl border border-white/12 bg-white/5 p-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className={audioJobProgress.isError ? "text-rose-200" : "text-white/80"}>{audioJobProgress.label}</span>
+                    <span className={audioJobProgress.isError ? "text-rose-200" : "text-white"}>{audioJobProgress.percent}%</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-night-950/90">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${audioJobProgress.isError ? "bg-gradient-to-r from-rose-500 to-rose-300" : "bg-gradient-to-r from-neon-violet to-neon-mint"}`}
+                      style={{ width: `${audioJobProgress.percent}%` }}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </>
           ) : null}
 

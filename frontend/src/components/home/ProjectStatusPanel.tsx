@@ -51,6 +51,8 @@ export function ProjectStatusPanel({
       : hasVideo
         ? 10
         : 0;
+  const generationCountLabel =
+    jobsCreated > 0 ? `${clipsPending}/${jobsCreated} en proceso` : isCreatingJobs ? "Calculando cantidad..." : "";
 
   return (
     <section>
@@ -78,7 +80,10 @@ export function ProjectStatusPanel({
 
         <div className="mt-4 flex items-center justify-between text-sm">
           <span className="text-white/80">Generacion de clips</span>
-          <span className="text-white">{generationProgress}%</span>
+          <div className="text-right">
+            <p className="text-white">{generationProgress}%</p>
+            {generationCountLabel ? <p className="text-[11px] text-white/60">{generationCountLabel}</p> : null}
+          </div>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-night-950/90">
           <div

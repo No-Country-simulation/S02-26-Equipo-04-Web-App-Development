@@ -2,6 +2,33 @@
 
 ## Seguimiento activo (rama actual)
 
+Rama de trabajo actual: `feature/mi-tarea`
+
+### Objetivo
+
+Mejorar visibilidad del progreso en Home y estabilizar Audio Editor/Biblioteca para que el flujo de mezcla no pierda contexto y muestre los resultados generados.
+
+### Cambios implementados en curso
+
+- Se mejoro `frontend/src/components/home/ProjectStatusPanel.tsx` para mostrar cantidad de clips en proceso junto al porcentaje (`pendientes/total`).
+- Se extendio `frontend/src/services/videoApi.ts` con `job_type` en `UserClipItem` para distinguir `REFRAME` vs `ADD_AUDIO`.
+- Se ajusto `frontend/src/app/app/library/page.tsx` para etiquetar los clips por tipo (`Auto Reframe` / `Audio Mix`).
+- Se reforzo `frontend/src/app/app/page.tsx` para que Home use solo clips `REFRAME` al calcular progreso/listado y no mezclar jobs de audio.
+- Se implemento persistencia de sesion en `frontend/src/app/app/audio_editor/page.tsx` usando `localStorage` por `videoId` (audio elegido, offsets, volumen, job, mensajes y preview).
+- Se agrego barra de progreso de mezcla en Audio Editor (estados `En cola`, `Procesando`, `Mezcla lista`, `Mezcla con error`) y label explicita cuando el preview corresponde al resultado mezclado.
+
+### Commits de esta rama (frontend)
+
+- `feat(frontend): persist audio editor session and expose mix progress`
+- `fix(frontend): surface audio-mix clips in library while keeping home scoped to reframe`
+
+### Validaciones locales
+
+- `npm run lint` -> OK
+- `npm run build` -> OK
+
+## Seguimiento activo (rama actual)
+
 Rama de trabajo actual: `feat/frontend-timeline-library-streamline`
 
 ## Objetivo de la rama

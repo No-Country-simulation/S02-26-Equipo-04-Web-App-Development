@@ -30,6 +30,14 @@ function mapStatus(status: string): VisualStatus {
   return "render";
 }
 
+function toClipTypeLabel(jobType: string) {
+  const normalized = jobType.toLowerCase();
+  if (normalized === "add_audio") {
+    return "Audio Mix";
+  }
+  return "Auto Reframe";
+}
+
 export default function LibraryPage() {
   const token = useAuthStore((state) => state.token);
   const [view, setView] = useState<LibraryView>("clips");
@@ -428,7 +436,7 @@ export default function LibraryPage() {
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               <span className="inline-flex items-center gap-1 rounded-full border border-neon-violet/35 bg-neon-violet/10 px-2 py-1 text-neon-violet">
                 <Tag size={11} />
-                Auto Reframe
+                {toClipTypeLabel(clip.job_type)}
               </span>
               <span className="rounded-full border border-white/15 bg-white/5 px-2 py-1 text-white/70">{clip.source_filename}</span>
             </div>

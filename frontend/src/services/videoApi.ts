@@ -160,6 +160,7 @@ type RawJobStatusResponse = {
 export type UserClipItem = {
   job_id: string;
   video_id: string;
+  job_type: string;
   status: string;
   output_path: string | null;
   source_filename: string;
@@ -169,6 +170,7 @@ export type UserClipItem = {
 type RawUserClipItem = {
   job_id: string;
   video_id: string;
+  job_type: string;
   status: string;
   output_path: RawOutputPath;
   source_filename: string;
