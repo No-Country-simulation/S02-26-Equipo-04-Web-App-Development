@@ -129,6 +129,7 @@ class JobAutoReframeResponse2(BaseSchema):
 class UserClipItem(BaseSchema):
     job_id: UUID
     video_id: UUID
+    job_type: JobType
     status: JobStatus
     output_path: dict[str, Any] | None = None
     source_filename: str
