@@ -68,7 +68,7 @@ export default function NavBar(
             </div>
             <button
                 onClick={handleClick}
-                className='inline-flex items-center gap-2 rounded-lg border border-rose-400/35 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:-translate-y-0.5 hover:bg-rose-400/200 disabled:cursor-not-allowed disabled:opacity-70'
+                className='logout-btn inline-flex items-center gap-2 rounded-lg border border-rose-400/35 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:-translate-y-0.5 hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-70'
                 disabled={isLoading}
             >
                 <LogOut size={14}/>

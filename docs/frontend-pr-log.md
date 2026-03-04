@@ -2,30 +2,32 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feature/mi-tarea`
+Rama de trabajo actual: `feat/frontend-landing-prod-refresh`
 
 ### Objetivo
 
-Mejorar visibilidad del progreso en Home y estabilizar Audio Editor/Biblioteca para que el flujo de mezcla no pierda contexto y muestre los resultados generados.
+Actualizar la landing para reflejar el alcance real actual de la app web, mostrar demos/capturas nuevas del flujo productivo y alinear el discurso a estado operativo (sin mensajes de preproduccion).
 
 ### Cambios implementados en curso
 
-- Se mejoro `frontend/src/components/home/ProjectStatusPanel.tsx` para mostrar cantidad de clips en proceso junto al porcentaje (`pendientes/total`).
-- Se extendio `frontend/src/services/videoApi.ts` con `job_type` en `UserClipItem` para distinguir `REFRAME` vs `ADD_AUDIO`.
-- Se ajusto `frontend/src/app/app/library/page.tsx` para etiquetar los clips por tipo (`Auto Reframe` / `Audio Mix`).
-- Se reforzo `frontend/src/app/app/page.tsx` para que Home use solo clips `REFRAME` al calcular progreso/listado y no mezclar jobs de audio.
-- Se implemento persistencia de sesion en `frontend/src/app/app/audio_editor/page.tsx` usando `localStorage` por `videoId` (audio elegido, offsets, volumen, job, mensajes y preview).
-- Se agrego barra de progreso de mezcla en Audio Editor (estados `En cola`, `Procesando`, `Mezcla lista`, `Mezcla con error`) y label explicita cuando el preview corresponde al resultado mezclado.
-- Se integro en `frontend/src/app/app/share/[clipId]/page.tsx` la generacion de metadata de YouTube con IA (`GET /api/v1/youtube/metadata/{job_id}`), incluyendo selector de tono (`neutral`, `energetic`, `informative`) y aplicacion directa de titulo/descripcion sugeridos.
-- Se extendio el formulario de publicacion con visualizacion de `hashtags`, `tags` y `provider` devueltos por backend para dejar trazabilidad del origen (IA/template).
-- Se mejoro la UX de publicacion en `frontend/src/app/app/share/[clipId]/page.tsx` con estado explicito de resultado (`Publicado` / `Fallo la publicacion`) y acceso directo al link de YouTube cuando la subida fue exitosa.
-- Se rediseño la presentacion de metadata sugerida para mostrar `hashtags` y `tags` como chips visuales, mejorando lectura y edicion previa a publicar.
+- Se refactorizo `frontend/src/app/page.tsx` para reposicionar la propuesta de valor: flujo completo `upload -> jobs -> timeline -> audio editor -> biblioteca -> exportacion -> compartir`.
+- Se removieron textos de etapa temprana (ej. "Estado real", "produccion interna", "preparacion") para dejar una narrativa alineada al uso actual del producto.
+- Se corrigio la tarjeta de demo 02 para que represente `Entrevista` (antes figuraba como Deportes con archivo de entrevista).
+- Se ampliaron demos de landing con assets reales en `frontend/public/landing-demos/`: `video4_generando_texto_hastag_IA.mp4`, `video5_subida_audio.mp4`, `video6_añade_audio_a_video.mp4`, `home_desktop.png`, `home_movile.png`.
+- Se actualizo `DemoSlot` para renderizar tanto videos como imagenes (capturas) dentro de la misma grilla responsive.
+- Se removieron las capturas `home_desktop.png` y `home_movile.png` de la grilla de landing por ruido visual.
+- Se separaron `Timeline` y `Audio Editor` en una seccion destacada con layout en dos columnas y reproduccion automatica (`autoplay + muted + loop`) para mostrar ambos flujos lado a lado.
+- Se incorporo base de theming claro/oscuro en todo el frontend con `ThemeProvider` + toggle global persistido en `localStorage` (`hc-theme`).
+- Se migraron tokens globales de `frontend/src/app/globals.css` a variables CSS para soportar Catppuccin Mocha (dark) y Latte (light) sin romper la paleta principal del producto.
+- Se ajusto contraste del modo light en acciones criticas (ej. boton `Cerrar sesion`) y mensajes de error en tonos rose para mejorar legibilidad sobre fondos claros.
+- Se ajusto paleta del `HaceloCortoLogo` para modo light usando variables CSS dedicadas, mejorando contraste del isotipo y gradientes en navbar/landing.
+- QA final light mode: se reforzaron variantes `rose-300/rose-400` (texto/borde/fondo) y placeholders para evitar combinaciones de bajo contraste en auth, alerts y acciones destructivas.
+- Se ajustaron FAQ y CTA para incluir integracion YouTube + metadata IA, audio editor y biblioteca de audios.
 
 ### Commits de esta rama (frontend)
 
-- `feat(frontend): persist audio editor session and expose mix progress`
-- `fix(frontend): surface audio-mix clips in library while keeping home scoped to reframe`
-- `feat(frontend): add ai metadata suggestions to youtube share flow`
+- `feat(frontend): refresh landing to reflect full production workflow`
+- `docs(frontend): log landing production refresh updates`
 
 ### Validaciones locales
 

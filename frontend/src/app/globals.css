@@ -5,18 +5,18 @@
   --font-sans: "Space Grotesk", "Segoe UI", sans-serif;
   --font-display: "Sora", "Segoe UI", sans-serif;
 
-  --color-night-950: #11111b;
-  --color-night-900: #181825;
-  --color-night-800: #1e1e2e;
-  --color-night-700: #313244;
+  --color-night-950: var(--hc-night-950);
+  --color-night-900: var(--hc-night-900);
+  --color-night-800: var(--hc-night-800);
+  --color-night-700: var(--hc-night-700);
 
-  --color-neon-cyan: #89dceb;
-  --color-neon-magenta: #f5c2e7;
-  --color-neon-violet: #cba6f7;
-  --color-neon-mint: #a6e3a1;
+  --color-neon-cyan: var(--hc-neon-cyan);
+  --color-neon-magenta: var(--hc-neon-magenta);
+  --color-neon-violet: var(--hc-neon-violet);
+  --color-neon-mint: var(--hc-neon-mint);
 
-  --shadow-glow: 0 10px 35px rgba(137, 220, 235, 0.26);
-  --shadow-panel: 0 20px 60px rgba(17, 17, 27, 0.62);
+  --shadow-glow: var(--hc-shadow-glow);
+  --shadow-panel: var(--hc-shadow-panel);
 
   --animate-fade-up: fade-up 0.55s ease-out both;
   --animate-drift: drift 5s ease-in-out infinite;
@@ -46,17 +46,69 @@
 }
 
 :root {
+  --hc-night-950: #11111b;
+  --hc-night-900: #181825;
+  --hc-night-800: #1e1e2e;
+  --hc-night-700: #313244;
+
+  --hc-neon-cyan: #89dceb;
+  --hc-neon-magenta: #f5c2e7;
+  --hc-neon-violet: #cba6f7;
+  --hc-neon-mint: #a6e3a1;
+
+  --hc-text-strong: #cdd6f4;
+  --hc-text-soft: #bac2de;
+  --hc-border-soft: rgba(186, 194, 222, 0.2);
+  --hc-panel-veil: rgba(17, 17, 27, 0.62);
+  --hc-shadow-glow: 0 10px 35px rgba(137, 220, 235, 0.26);
+  --hc-shadow-panel: 0 20px 60px rgba(17, 17, 27, 0.62);
+
+  --hc-logo-a-start: #89b4fa;
+  --hc-logo-a-mid: #89dceb;
+  --hc-logo-a-end: #cba6f7;
+  --hc-logo-b-start: #f5c2e7;
+  --hc-logo-b-mid: #89dceb;
+  --hc-logo-b-end: #a6e3a1;
+  --hc-logo-node: #1e1e2e;
+
   font-family: "Space Grotesk", "Segoe UI", sans-serif;
-  color: #cdd6f4;
-  background: #11111b;
+  color: var(--hc-text-strong);
+  background: var(--hc-night-950);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+html.light {
+  --hc-night-950: #eff1f5;
+  --hc-night-900: #e6e9ef;
+  --hc-night-800: #dce0e8;
+  --hc-night-700: #ccd0da;
+
+  --hc-neon-cyan: #04a5e5;
+  --hc-neon-magenta: #ea76cb;
+  --hc-neon-violet: #8839ef;
+  --hc-neon-mint: #40a02b;
+
+  --hc-text-strong: #4c4f69;
+  --hc-text-soft: #5c5f77;
+  --hc-border-soft: rgba(76, 79, 105, 0.25);
+  --hc-panel-veil: rgba(220, 224, 232, 0.72);
+  --hc-shadow-glow: 0 10px 35px rgba(4, 165, 229, 0.24);
+  --hc-shadow-panel: 0 22px 55px rgba(140, 143, 161, 0.3);
+
+  --hc-logo-a-start: #1e66f5;
+  --hc-logo-a-mid: #04a5e5;
+  --hc-logo-a-end: #8839ef;
+  --hc-logo-b-start: #d20f39;
+  --hc-logo-b-mid: #04a5e5;
+  --hc-logo-b-end: #40a02b;
+  --hc-logo-node: #eff1f5;
+}
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: #45475a #1e1e2e;
+  scrollbar-color: var(--hc-night-700) var(--hc-night-800);
 }
 
 *::-webkit-scrollbar {
@@ -65,12 +117,12 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #45475a;
+  background: var(--hc-night-700);
   border-radius: 999px;
 }
 
 *::-webkit-scrollbar-track {
-  background: #1e1e2e;
+  background: var(--hc-night-800);
 }
 
 body {
@@ -78,9 +130,100 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 12% 20%, rgba(203, 166, 247, 0.24), transparent 40%),
-    radial-gradient(circle at 84% 14%, rgba(245, 194, 231, 0.18), transparent 45%),
-    radial-gradient(circle at 50% 90%, rgba(137, 220, 235, 0.2), transparent 48%),
-    #11111b;
-  color: #cdd6f4;
+    radial-gradient(circle at 12% 20%, color-mix(in srgb, var(--hc-neon-violet) 28%, transparent), transparent 40%),
+    radial-gradient(circle at 84% 14%, color-mix(in srgb, var(--hc-neon-magenta) 22%, transparent), transparent 45%),
+    radial-gradient(circle at 50% 90%, color-mix(in srgb, var(--hc-neon-cyan) 24%, transparent), transparent 48%),
+    var(--hc-night-950);
+  color: var(--hc-text-strong);
+}
+
+html.light .text-white {
+  color: rgb(76 79 105 / 1);
+}
+
+html.light .text-white\/90 {
+  color: rgb(76 79 105 / 0.9);
+}
+
+html.light .text-white\/85,
+html.light .text-white\/80,
+html.light .text-white\/78,
+html.light .text-white\/75,
+html.light .text-white\/72,
+html.light .text-white\/70,
+html.light .text-white\/65,
+html.light .text-white\/60,
+html.light .text-white\/55 {
+  color: rgb(92 95 119 / 0.95);
+}
+
+html.light .border-white\/20,
+html.light .border-white\/15,
+html.light .border-white\/12,
+html.light .border-white\/10 {
+  border-color: var(--hc-border-soft);
+}
+
+html.light .bg-white\/10,
+html.light .bg-white\/5 {
+  background-color: rgb(76 79 105 / 0.08);
+}
+
+html.light .bg-night-900\/90,
+html.light .bg-night-900\/70,
+html.light .bg-night-900\/60,
+html.light .bg-night-900\/55,
+html.light .bg-night-900\/50,
+html.light .bg-night-900\/45,
+html.light .bg-night-800\/80,
+html.light .bg-night-800\/70,
+html.light .bg-night-800\/65,
+html.light .bg-night-800\/55,
+html.light .bg-night-800\/45 {
+  background-color: color-mix(in srgb, var(--hc-night-800) 75%, transparent);
+}
+
+html.light .shadow-panel {
+  box-shadow: var(--hc-shadow-panel);
+}
+
+html.light .text-rose-200,
+html.light .text-rose-300 {
+  color: rgb(159 18 57 / 0.95);
+}
+
+html.light .border-rose-400\/35 {
+  border-color: rgb(244 63 94 / 0.45);
+}
+
+html.light .border-rose-300\/45 {
+  border-color: rgb(244 114 182 / 0.45);
+}
+
+html.light .bg-rose-400\/10 {
+  background-color: rgb(251 113 133 / 0.16);
+}
+
+html.light .bg-rose-300\/10 {
+  background-color: rgb(249 168 212 / 0.2);
+}
+
+html.light .logout-btn {
+  color: rgb(159 18 57 / 0.95);
+  border-color: rgb(244 63 94 / 0.45);
+  background-color: rgb(251 113 133 / 0.16);
+}
+
+html.light .logout-btn:hover {
+  background-color: rgb(251 113 133 / 0.24);
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: rgb(92 95 119 / 0.55);
+}
+
+html.light input[class*="placeholder:text-white/35"]::placeholder,
+html.light textarea[class*="placeholder:text-white/35"]::placeholder {
+  color: rgb(92 95 119 / 0.55);
 }

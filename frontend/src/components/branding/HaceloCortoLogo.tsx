@@ -20,13 +20,13 @@ interface HaceloCortoLogoProps {
 }
 
 const defaultPalette: LogoPalette = {
-  gradientAStart: "#89B4FA",
-  gradientAMid: "#89DCEB",
-  gradientAEnd: "#CBA6F7",
-  gradientBStart: "#F5C2E7",
-  gradientBMid: "#89DCEB",
-  gradientBEnd: "#A6E3A1",
-  nodeFill: "#1E1E2E"
+  gradientAStart: "var(--hc-logo-a-start, #89B4FA)",
+  gradientAMid: "var(--hc-logo-a-mid, #89DCEB)",
+  gradientAEnd: "var(--hc-logo-a-end, #CBA6F7)",
+  gradientBStart: "var(--hc-logo-b-start, #F5C2E7)",
+  gradientBMid: "var(--hc-logo-b-mid, #89DCEB)",
+  gradientBEnd: "var(--hc-logo-b-end, #A6E3A1)",
+  nodeFill: "var(--hc-logo-node, #1E1E2E)"
 };
 
 export function HaceloCortoLogo({
