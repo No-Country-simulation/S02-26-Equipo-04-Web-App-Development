@@ -80,30 +80,30 @@
 }
 
 html.light {
-  --hc-night-950: #181926;
-  --hc-night-900: #1e2030;
-  --hc-night-800: #24273a;
-  --hc-night-700: #363a4f;
+  --hc-night-950: #eff1f5;
+  --hc-night-900: #e6e9ef;
+  --hc-night-800: #dce0e8;
+  --hc-night-700: #ccd0da;
 
-  --hc-neon-cyan: #91d7e3;
-  --hc-neon-magenta: #f5bde6;
-  --hc-neon-violet: #c6a0f6;
-  --hc-neon-mint: #a6da95;
+  --hc-neon-cyan: #04a5e5;
+  --hc-neon-magenta: #ea76cb;
+  --hc-neon-violet: #8839ef;
+  --hc-neon-mint: #40a02b;
 
-  --hc-text-strong: #cad3f5;
-  --hc-text-soft: #b8c0e0;
-  --hc-border-soft: rgba(184, 192, 224, 0.28);
-  --hc-panel-veil: rgba(24, 25, 38, 0.7);
-  --hc-shadow-glow: 0 10px 35px rgba(145, 215, 227, 0.24);
-  --hc-shadow-panel: 0 22px 55px rgba(24, 25, 38, 0.52);
+  --hc-text-strong: #4c4f69;
+  --hc-text-soft: #5c5f77;
+  --hc-border-soft: rgba(76, 79, 105, 0.25);
+  --hc-panel-veil: rgba(220, 224, 232, 0.72);
+  --hc-shadow-glow: 0 10px 35px rgba(4, 165, 229, 0.24);
+  --hc-shadow-panel: 0 22px 55px rgba(140, 143, 161, 0.3);
 
-  --hc-logo-a-start: #8aadf4;
-  --hc-logo-a-mid: #91d7e3;
-  --hc-logo-a-end: #c6a0f6;
-  --hc-logo-b-start: #ed8796;
-  --hc-logo-b-mid: #91d7e3;
-  --hc-logo-b-end: #a6da95;
-  --hc-logo-node: #24273a;
+  --hc-logo-a-start: #1e66f5;
+  --hc-logo-a-mid: #04a5e5;
+  --hc-logo-a-end: #8839ef;
+  --hc-logo-b-start: #d20f39;
+  --hc-logo-b-mid: #04a5e5;
+  --hc-logo-b-end: #40a02b;
+  --hc-logo-node: #eff1f5;
 }
 
 * {
@@ -135,4 +135,77 @@ body {
     radial-gradient(circle at 50% 90%, color-mix(in srgb, var(--hc-neon-cyan) 24%, transparent), transparent 48%),
     var(--hc-night-950);
   color: var(--hc-text-strong);
+}
+
+html.light .text-white,
+html.light [class~="text-white"],
+html.light [class*="text-white/"] {
+  color: rgb(76 79 105 / 0.94) !important;
+}
+
+html.light [class*="text-white/55"],
+html.light [class*="text-white/50"],
+html.light [class*="text-white/45"] {
+  color: rgb(92 95 119 / 0.9) !important;
+}
+
+html.light .border-white\/20,
+html.light .border-white\/15,
+html.light .border-white\/12,
+html.light .border-white\/10 {
+  border-color: var(--hc-border-soft) !important;
+}
+
+html.light .bg-white\/10,
+html.light .bg-white\/5 {
+  background-color: rgb(76 79 105 / 0.08) !important;
+}
+
+html.light .bg-night-900\/90,
+html.light .bg-night-900\/80,
+html.light .bg-night-900\/70,
+html.light .bg-night-900\/60,
+html.light .bg-night-900\/55,
+html.light .bg-night-900\/50,
+html.light .bg-night-900\/45,
+html.light .bg-night-800\/80,
+html.light .bg-night-800\/70,
+html.light .bg-night-800\/65,
+html.light .bg-night-800\/55,
+html.light .bg-night-800\/45 {
+  background-color: color-mix(in srgb, var(--hc-night-800) 76%, transparent);
+}
+
+html.light .shadow-panel {
+  box-shadow: var(--hc-shadow-panel);
+}
+
+html.light .text-rose-200,
+html.light .text-rose-300 {
+  color: rgb(159 18 57 / 0.95);
+}
+
+html.light .border-rose-400\/35 {
+  border-color: rgb(244 63 94 / 0.45);
+}
+
+html.light .bg-rose-400\/10 {
+  background-color: rgb(251 113 133 / 0.16);
+}
+
+html.light .logout-btn {
+  color: rgb(159 18 57 / 0.95);
+  border-color: rgb(244 63 94 / 0.45);
+  background-color: rgb(251 113 133 / 0.16);
+}
+
+html.light .logout-btn:hover {
+  background-color: rgb(251 113 133 / 0.24);
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder,
+html.light input[class*="placeholder:text-white/35"]::placeholder,
+html.light textarea[class*="placeholder:text-white/35"]::placeholder {
+  color: rgb(92 95 119 / 0.68);
 }
