@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     OPENROUTER_MODEL: str = Field(default="meta-llama/llama-3.1-8b-instruct:free")
     OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
 
+    # === FACEBOOK OAUTH ===
+    FACEBOOK_APP_ID: str = Field(default="")
+    FACEBOOK_APP_SECRET: str = Field(default="")
+    FACEBOOK_REDIRECT_URI: str = Field(default="http://localhost:8000/api/v1/auth/facebook/callback")
+
     @field_validator("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET")
     @classmethod
     def validate_google_credentials(cls, v, info):
