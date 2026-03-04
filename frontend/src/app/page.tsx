@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { HaceloCortoLogo } from "@/src/components/branding/HaceloCortoLogo";
 
 export default function HomePage() {
@@ -37,63 +36,45 @@ export default function HomePage() {
     detalle: string;
     filename: string;
     path: string;
-    media: "video" | "image";
   }> = [
     {
       titulo: "Demo 01 - Upload 9:16 modo Musica",
       detalle: "Flujo Home: upload + perfil Musica.",
       filename: "video1_musica.mp4",
-      path: "/landing-demos/video1_musica.mp4",
-      media: "video"
+      path: "/landing-demos/video1_musica.mp4"
     },
     {
       titulo: "Demo 02 - Upload 9:16 modo Entrevista",
       detalle: "Framing estable para talking head y dialogo con perfil Entrevista.",
       filename: "video2_entrevista.mp4",
-      path: "/landing-demos/video2_entrevista.mp4",
-      media: "video"
-    },
-    {
-      titulo: "Demo 03 - Ajuste manual en Timeline",
-      detalle: "Recorte manual y envio de job desde timeline.",
-      filename: "video3_timeline.mp4",
-      path: "/landing-demos/video3_timeline.mp4",
-      media: "video"
+      path: "/landing-demos/video2_entrevista.mp4"
     },
     {
       titulo: "Demo 04 - Metadata IA para YouTube",
       detalle: "Sugerencias automaticas de titulo, descripcion, hashtags y tags.",
       filename: "video4_generando_texto_hastag_IA.mp4",
-      path: "/landing-demos/video4_generando_texto_hastag_IA.mp4",
-      media: "video"
+      path: "/landing-demos/video4_generando_texto_hastag_IA.mp4"
     },
     {
       titulo: "Demo 05 - Biblioteca de audios",
       detalle: "Subida y gestion de pistas para reutilizar en el editor de audio.",
       filename: "video5_subida_audio.mp4",
-      path: "/landing-demos/video5_subida_audio.mp4",
-      media: "video"
+      path: "/landing-demos/video5_subida_audio.mp4"
+    }
+  ];
+
+  const studioDemos = [
+    {
+      titulo: "Timeline Editor",
+      detalle: "Ajuste manual de rango temporal, control de parametros y envio directo del job de recorte.",
+      filename: "video3_timeline.mp4",
+      path: "/landing-demos/video3_timeline.mp4"
     },
     {
-      titulo: "Demo 06 - Mezcla de audio sobre video",
-      detalle: "Audio Editor con offset, volumen y render final del clip mezclado.",
+      titulo: "Audio Editor",
+      detalle: "Mezcla de audio sobre video con control de offset, rango, volumen y preview del render final.",
       filename: "video6_añade_audio_a_video.mp4",
-      path: "/landing-demos/video6_añade_audio_a_video.mp4",
-      media: "video"
-    },
-    {
-      titulo: "Captura - Home desktop",
-      detalle: "Vista general del panel principal con estado de proyecto y acciones clave.",
-      filename: "home_desktop.png",
-      path: "/landing-demos/home_desktop.png",
-      media: "image"
-    },
-    {
-      titulo: "Captura - Home mobile",
-      detalle: "Experiencia responsive del panel en mobile.",
-      filename: "home_movile.png",
-      path: "/landing-demos/home_movile.png",
-      media: "image"
+      path: "/landing-demos/video6_añade_audio_a_video.mp4"
     }
   ];
 
@@ -254,12 +235,41 @@ export default function HomePage() {
         </section>
 
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel sm:p-7 [animation-delay:320ms]">
+          <h3 className="text-center font-display text-[clamp(1.9rem,3.1vw,3rem)] text-white">Edicion avanzada en accion</h3>
+          <p className="mx-auto mt-2 max-w-3xl text-center text-sm text-white/72">
+            Dos espacios clave para cerrar el workflow: timeline para recorte fino y audio editor para mezcla final del clip.
+          </p>
+
+          <div className="mt-7 grid gap-5 lg:grid-cols-2">
+            {studioDemos.map((demo) => (
+              <article key={demo.titulo} className="rounded-2xl border border-white/12 bg-night-800/70 p-4">
+                <div className="overflow-hidden rounded-xl border border-neon-violet/25 bg-black/45">
+                  <video
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    controls
+                    preload="metadata"
+                    src={demo.path}
+                    className="aspect-video w-full object-cover"
+                  />
+                </div>
+                <h4 className="mt-3 text-xl font-semibold text-white">{demo.titulo}</h4>
+                <p className="mt-2 text-sm text-white/72">{demo.detalle}</p>
+                <p className="mt-2 text-xs text-neon-violet/80">Archivo demo: {demo.filename}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel sm:p-7 [animation-delay:340ms]">
           <h3 className="text-center font-display text-[clamp(1.7rem,2.7vw,2.7rem)] text-white">Demos reales del producto</h3>
           <p className="mx-auto mt-2 max-w-3xl text-center text-sm text-white/72">
             Flujos capturados sobre la app actual: perfiles por contenido, timeline, metadata con IA, audio editor y experiencia responsive.
           </p>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {demos.map((demo) => (
               <DemoSlot
                 key={demo.titulo}
@@ -267,7 +277,6 @@ export default function HomePage() {
                 detalle={demo.detalle}
                 filename={demo.filename}
                 videoPath={demo.path}
-                media={demo.media}
               />
             ))}
           </div>
@@ -398,30 +407,17 @@ function DemoSlot({
   titulo,
   detalle,
   filename,
-  videoPath,
-  media
+  videoPath
 }: {
   titulo: string;
   detalle: string;
   filename: string;
   videoPath: string;
-  media: "video" | "image";
 }) {
   return (
     <article className="rounded-2xl border border-white/12 bg-night-800/70 p-4">
       <div className="overflow-hidden rounded-xl border border-neon-cyan/25 bg-black/45">
-        {media === "video" ? (
-          <video controls preload="metadata" src={videoPath} className="aspect-video w-full object-cover" />
-        ) : (
-          <Image
-            src={videoPath}
-            alt={titulo}
-            width={1280}
-            height={720}
-            className="aspect-video w-full object-cover"
-            loading="lazy"
-          />
-        )}
+        <video controls preload="metadata" src={videoPath} className="aspect-video w-full object-cover" />
       </div>
       <div>
         <h4 className="mt-3 text-base font-semibold text-white">{titulo}</h4>
