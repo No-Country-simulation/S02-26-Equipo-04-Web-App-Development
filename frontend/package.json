@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@swc/helpers": "^0.5.19",
     "lucide-react": "^0.576.0",
     "next": "16.1.6",
     "next-intl": "^4.8.3",
