@@ -13,6 +13,7 @@ import {
   videoApi
 } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
+import { useLocale } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 
 const HOME_DRAFT_KEY = "home:uploaded-video-draft";
@@ -126,14 +127,14 @@ function isAudioFile(file: File) {
   return [".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma", ".opus"].some((ext) => lowerName.endsWith(ext));
 }
 
-function normalizeVideoError(error: unknown, fallbackMessage: string) {
+function normalizeVideoError(error: unknown, fallbackMessage: string, isEn: boolean) {
   if (error instanceof VideoApiError) {
     if (error.status === 400) {
-      return error.message || "El archivo es invalido o no cumple los requisitos.";
+      return error.message || (isEn ? "The file is invalid or does not meet requirements." : "El archivo es invalido o no cumple los requisitos.");
     }
 
     if (error.status === 401) {
-      return "Tu sesion expiro. Vuelve a iniciar sesion para continuar.";
+      return isEn ? "Your session expired. Please sign in again." : "Tu sesion expiro. Vuelve a iniciar sesion para continuar.";
     }
 
     return error.message;
@@ -142,7 +143,9 @@ function normalizeVideoError(error: unknown, fallbackMessage: string) {
   if (error instanceof Error) {
     const normalizedMessage = error.message.toLowerCase();
     if (normalizedMessage.includes("failed to fetch") || normalizedMessage.includes("networkerror")) {
-      return "No pudimos conectar con el servidor. Intenta de nuevo en unos segundos.";
+      return isEn
+        ? "We could not connect to the server. Please try again in a few seconds."
+        : "No pudimos conectar con el servidor. Intenta de nuevo en unos segundos.";
     }
 
     return error.message;
@@ -152,6 +155,8 @@ function normalizeVideoError(error: unknown, fallbackMessage: string) {
 }
 
 export default function AppHomePage() {
+  const locale = useLocale();
+  const isEn = locale === "en";
   const token = useAuthStore((state) => state.token);
   const [isUploading, setIsUploading] = useState(false);
   const [isCreatingJobs, setIsCreatingJobs] = useState(false);
@@ -377,7 +382,7 @@ export default function AppHomePage() {
         setIsPollingStatuses(shouldContinuePolling);
       } catch {
         if (!cancelled) {
-          setJobError((prev) => prev ?? "No pudimos actualizar el estado de algunos clips generados.");
+          setJobError((prev) => prev ?? (isEn ? "We could not refresh some generated clip statuses." : "No pudimos actualizar el estado de algunos clips generados."));
         }
       }
     };
@@ -393,7 +398,7 @@ export default function AppHomePage() {
       window.clearInterval(intervalId);
       setIsPollingStatuses(false);
     };
-  }, [createdJobs, orchestratorJobId, token]);
+  }, [createdJobs, orchestratorJobId, token, isEn]);
 
   const handleUpload = async (file: File) => {
     const isAudio = isAudioFile(file);
@@ -422,7 +427,7 @@ export default function AppHomePage() {
         uploadedVideoResponse = await videoApi.upload(file, token);
       }
     } catch (error) {
-      setUploadError(normalizeVideoError(error, "No pudimos subir el archivo."));
+      setUploadError(normalizeVideoError(error, isEn ? "We could not upload the file." : "No pudimos subir el archivo.", isEn));
       setIsUploading(false);
       return;
     }
@@ -435,7 +440,7 @@ export default function AppHomePage() {
     }
 
     if (!uploadedVideoResponse) {
-      setUploadError("No pudimos determinar el tipo de archivo subido.");
+      setUploadError(isEn ? "We could not determine the uploaded file type." : "No pudimos determinar el tipo de archivo subido.");
       setIsUploading(false);
       return;
     }
@@ -444,7 +449,7 @@ export default function AppHomePage() {
     setIsUploading(false);
 
     if (!token) {
-      setJobError("No encontramos tu sesion para crear clips automaticos. Volve a iniciar sesion.");
+      setJobError(isEn ? "No active session found to create automatic clips. Please sign in again." : "No encontramos tu sesion para crear clips automaticos. Volve a iniciar sesion.");
       return;
     }
 
@@ -467,7 +472,7 @@ export default function AppHomePage() {
       });
       setJobStatusMap(initialMap);
     } catch (error) {
-      setJobError(normalizeVideoError(error, "No pudimos crear los clips automaticos."));
+      setJobError(normalizeVideoError(error, isEn ? "We could not create automatic clips." : "No pudimos crear los clips automaticos.", isEn));
     } finally {
       setIsCreatingJobs(false);
     }
@@ -547,10 +552,10 @@ export default function AppHomePage() {
       <div className="grid gap-5 xl:grid-cols-[1.55fr_0.95fr]">
         <Panel variant="accent" className="p-4 sm:p-5">
           <div className="mb-4 rounded-xl border border-white/12 bg-white/5 p-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/60">Opciones de procesamiento</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-white/60">{isEn ? "Processing options" : "Opciones de procesamiento"}</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
               <label className="flex items-center justify-between rounded-lg border border-white/15 bg-night-900/70 px-3 py-2 text-sm text-white/85">
-                <span>Subtitulos automaticos</span>
+                <span>{isEn ? "Automatic subtitles" : "Subtitulos automaticos"}</span>
                 <input
                   type="checkbox"
                   checked={withSubtitles}
@@ -569,7 +574,7 @@ export default function AppHomePage() {
               </label>
             </div>
 
-            <p className="mt-4 text-xs uppercase tracking-[0.18em] text-white/60">Estilo de clip</p>
+            <p className="mt-4 text-xs uppercase tracking-[0.18em] text-white/60">{isEn ? "Clip style" : "Estilo de clip"}</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
@@ -580,7 +585,7 @@ export default function AppHomePage() {
                     : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
                 }`}
               >
-                Vertical clasico 9:16
+                {isEn ? "Classic vertical 9:16" : "Vertical clasico 9:16"}
               </button>
               <button
                 type="button"
@@ -591,12 +596,12 @@ export default function AppHomePage() {
                     : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
                 }`}
               >
-                Split speaker (arriba foco, abajo plano general)
+                {isEn ? "Speaker split (focus top, wide shot bottom)" : "Split speaker (arriba foco, abajo plano general)"}
               </button>
             </div>
 
             <div className="mt-3">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/55">Perfil de contenido (auto en Home)</p>
+               <p className="text-xs uppercase tracking-[0.18em] text-white/55">{isEn ? "Content profile (auto in Home)" : "Perfil de contenido (auto en Home)"}</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <button
                   type="button"
@@ -607,7 +612,7 @@ export default function AppHomePage() {
                       : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
                   }`}
                 >
-                  Auto detectar
+                   {isEn ? "Auto detect" : "Auto detectar"}
                 </button>
                 <button
                   type="button"
@@ -618,7 +623,7 @@ export default function AppHomePage() {
                       : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
                   }`}
                 >
-                  Entrevista
+                   {isEn ? "Interview" : "Entrevista"}
                 </button>
                 <button
                   type="button"
@@ -629,7 +634,7 @@ export default function AppHomePage() {
                       : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
                   }`}
                 >
-                  Deportes
+                   {isEn ? "Sports" : "Deportes"}
                 </button>
                 <button
                   type="button"
@@ -640,17 +645,19 @@ export default function AppHomePage() {
                       : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
                   }`}
                 >
-                  Musica
+                   {isEn ? "Music" : "Musica"}
                 </button>
               </div>
             </div>
 
             {outputStyle === "speaker_split" && (
               <div className="mt-3">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/55">Ajuste de layout speaker split</p>
-                <div className="mt-2 text-xs text-white/70">
-                  En `Auto detectar`, si el backend clasifica como `deportes`, aplica framing mas abierto.
-                </div>
+                 <p className="text-xs uppercase tracking-[0.18em] text-white/55">{isEn ? "Speaker split layout tweak" : "Ajuste de layout speaker split"}</p>
+                 <div className="mt-2 text-xs text-white/70">
+                   {isEn
+                     ? "In `Auto detect`, if backend classifies as `sports`, it applies a wider framing."
+                     : "En `Auto detectar`, si el backend clasifica como `deportes`, aplica framing mas abierto."}
+                 </div>
               </div>
             )}
           </div>
@@ -662,7 +669,9 @@ export default function AppHomePage() {
           />
           {hasAudio ? (
             <div className="mt-4 rounded-xl border border-neon-mint/35 bg-neon-mint/10 p-3 text-xs text-neon-mint">
-              Audio cargado correctamente. Ya podes verlo en Biblioteca - Audios y usarlo en los proximos flujos de mezcla.
+              {isEn
+                ? "Audio uploaded successfully. You can now find it in Library - Audios and use it in upcoming mixing flows."
+                : "Audio cargado correctamente. Ya podes verlo en Biblioteca - Audios y usarlo en los proximos flujos de mezcla."}
             </div>
           ) : null}
         </Panel>
@@ -691,8 +700,8 @@ export default function AppHomePage() {
           isRefreshingStatuses={isPollingStatuses}
           emptyMessage={
             uploadedMediaType === "audio"
-              ? "Subiste un audio. Los clips se generan cuando subis un video en este panel."
-              : "Todavia no hay clips generados. Subi un video para empezar."
+              ? (isEn ? "You uploaded audio. Clips are generated when you upload a video in this panel." : "Subiste un audio. Los clips se generan cuando subis un video en este panel.")
+              : (isEn ? "No clips generated yet. Upload a video to start." : "Todavia no hay clips generados. Subi un video para empezar.")
           }
         />
       </Panel>

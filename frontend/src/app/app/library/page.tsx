@@ -6,7 +6,8 @@ import { videoApi, type UserAudioItem, type UserClipItem, type UserVideoItem } f
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { AudioLines, Check, Clock3, Download, PencilLine, Search, Share2, Tag, Trash2, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useLocale } from "next-intl";
+import { useCallback, useEffect, useState } from "react";
 
 const PAGE_SIZE = 12;
 type LibraryView = "clips" | "videos" | "audios";
@@ -39,6 +40,9 @@ function toClipTypeLabel(jobType: string) {
 }
 
 export default function LibraryPage() {
+  const locale = useLocale();
+  const isEn = locale === "en";
+  const tr = useCallback((es: string, en: string) => (isEn ? en : es), [isEn]);
   const token = useAuthStore((state) => state.token);
   const [view, setView] = useState<LibraryView>("clips");
   const [clips, setClips] = useState<UserClipItem[]>([]);
@@ -64,7 +68,7 @@ export default function LibraryPage() {
   useEffect(() => {
     if (!token) {
       setIsLoading(false);
-      setError("No encontramos una sesion activa para traer la biblioteca.");
+      setError(tr("No encontramos una sesion activa para traer la biblioteca.", "No active session found to load library."));
       return;
     }
 
@@ -107,7 +111,7 @@ export default function LibraryPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "No pudimos cargar la biblioteca.");
+          setError(loadError instanceof Error ? loadError.message : tr("No pudimos cargar la biblioteca.", "We could not load the library."));
         }
       } finally {
         if (!cancelled) {
@@ -121,7 +125,7 @@ export default function LibraryPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, page, query, view]);
+  }, [token, page, query, view, tr]);
 
   const totalItems = view === "clips" ? totalClips : view === "videos" ? totalVideos : totalAudios;
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
@@ -143,7 +147,7 @@ export default function LibraryPage() {
 
     const cleanedFilename = draftFilename.trim();
     if (!cleanedFilename) {
-      setError("El nombre del video no puede estar vacio.");
+      setError(tr("El nombre del video no puede estar vacio.", "Video name cannot be empty."));
       return;
     }
 
@@ -155,7 +159,7 @@ export default function LibraryPage() {
       setVideos((prev) => prev.map((item) => (item.video_id === videoId ? updated : item)));
       handleCancelRename();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "No pudimos actualizar el nombre del video.");
+      setError(saveError instanceof Error ? saveError.message : tr("No pudimos actualizar el nombre del video.", "We could not update the video name."));
     } finally {
       setIsSavingVideo(false);
     }
@@ -166,7 +170,9 @@ export default function LibraryPage() {
       return;
     }
 
-    const confirmed = window.confirm(`Vas a eliminar ${video.filename}. Esta accion no se puede deshacer.`);
+    const confirmed = window.confirm(
+      tr(`Vas a eliminar ${video.filename}. Esta accion no se puede deshacer.`, `You are about to delete ${video.filename}. This action cannot be undone.`)
+    );
     if (!confirmed) {
       return;
     }
@@ -187,7 +193,7 @@ export default function LibraryPage() {
         setPage((prev) => Math.max(1, prev - 1));
       }
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "No pudimos eliminar el video.");
+      setError(deleteError instanceof Error ? deleteError.message : tr("No pudimos eliminar el video.", "We could not delete the video."));
     } finally {
       setDeletingVideoId(null);
     }
@@ -198,7 +204,12 @@ export default function LibraryPage() {
       return;
     }
 
-    const confirmed = window.confirm(`Vas a eliminar el clip ${clip.job_id.slice(0, 8)}. Esta accion no se puede deshacer.`);
+    const confirmed = window.confirm(
+      tr(
+        `Vas a eliminar el clip ${clip.job_id.slice(0, 8)}. Esta accion no se puede deshacer.`,
+        `You are about to delete clip ${clip.job_id.slice(0, 8)}. This action cannot be undone.`
+      )
+    );
     if (!confirmed) {
       return;
     }
@@ -219,7 +230,7 @@ export default function LibraryPage() {
         setPage((prev) => Math.max(1, prev - 1));
       }
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "No pudimos eliminar el clip.");
+      setError(deleteError instanceof Error ? deleteError.message : tr("No pudimos eliminar el clip.", "We could not delete the clip."));
     } finally {
       setDeletingClipId(null);
     }
@@ -241,7 +252,7 @@ export default function LibraryPage() {
       const response = await videoApi.getAudioUrl(audioId, token);
       setAudioUrlMap((prev) => ({ ...prev, [audioId]: response.url }));
     } catch (resolveError) {
-      setError(resolveError instanceof Error ? resolveError.message : "No pudimos cargar la URL del audio.");
+      setError(resolveError instanceof Error ? resolveError.message : tr("No pudimos cargar la URL del audio.", "We could not load the audio URL."));
     } finally {
       setLoadingAudioId(null);
     }
@@ -252,7 +263,9 @@ export default function LibraryPage() {
       return;
     }
 
-    const confirmed = window.confirm(`Vas a eliminar ${audio.filename}. Esta accion no se puede deshacer.`);
+    const confirmed = window.confirm(
+      tr(`Vas a eliminar ${audio.filename}. Esta accion no se puede deshacer.`, `You are about to delete ${audio.filename}. This action cannot be undone.`)
+    );
     if (!confirmed) {
       return;
     }
@@ -278,7 +291,7 @@ export default function LibraryPage() {
         setPage((prev) => Math.max(1, prev - 1));
       }
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "No pudimos eliminar el audio.");
+      setError(deleteError instanceof Error ? deleteError.message : tr("No pudimos eliminar el audio.", "We could not delete the audio."));
     } finally {
       setDeletingAudioId(null);
     }
@@ -291,10 +304,13 @@ export default function LibraryPage() {
         <div className="pointer-events-none absolute -bottom-16 left-1/4 h-44 w-44 rounded-full bg-neon-magenta/15 blur-3xl" />
 
         <div className="relative animate-fade-up">
-          <p className="text-xs uppercase tracking-[0.25em] text-neon-cyan/80">biblioteca</p>
-          <h1 className="mt-2 font-display text-2xl text-white sm:text-3xl">Tus clips, videos y audios</h1>
+          <p className="text-xs uppercase tracking-[0.25em] text-neon-cyan/80">{tr("biblioteca", "library")}</p>
+          <h1 className="mt-2 font-display text-2xl text-white sm:text-3xl">{tr("Tus clips, videos y audios", "Your clips, videos and audios")}</h1>
           <p className="mt-2 max-w-2xl text-sm text-white/70">
-            Cambia entre clips generados, videos subidos y audios. La busqueda se hace en backend por nombre o ID.
+            {tr(
+              "Cambia entre clips generados, videos subidos y audios. La busqueda se hace en backend por nombre o ID.",
+              "Switch between generated clips, uploaded videos and audios. Search is handled by backend using name or ID."
+            )}
           </p>
         </div>
 
@@ -323,7 +339,7 @@ export default function LibraryPage() {
               setPage(1);
             }}
           >
-            Videos originales
+            {tr("Videos originales", "Original videos")}
           </button>
           <button
             type="button"
@@ -336,7 +352,7 @@ export default function LibraryPage() {
               setPage(1);
             }}
           >
-            Audios
+            {tr("Audios", "Audios")}
           </button>
         </div>
 
@@ -346,10 +362,10 @@ export default function LibraryPage() {
             <input
               placeholder={
                 view === "clips"
-                  ? "Buscar por id de job o archivo fuente..."
+                  ? tr("Buscar por id de job o archivo fuente...", "Search by job id or source file...")
                   : view === "videos"
-                    ? "Buscar por id de video o archivo subido..."
-                    : "Buscar por id de audio o nombre de archivo..."
+                    ? tr("Buscar por id de video o archivo subido...", "Search by video id or uploaded file...")
+                    : tr("Buscar por id de audio o nombre de archivo...", "Search by audio id or filename...")
               }
               className="w-full bg-transparent text-sm text-white/90 outline-none placeholder:text-white/40"
               value={query}
@@ -370,25 +386,25 @@ export default function LibraryPage() {
 
       {isLoading ? (
         <Panel className="mt-5">
-          <p className="text-sm text-white/70">Cargando elementos de biblioteca...</p>
+          <p className="text-sm text-white/70">{tr("Cargando elementos de biblioteca...", "Loading library items...")}</p>
         </Panel>
       ) : null}
 
       {!isLoading && !error && view === "clips" && clips.length === 0 ? (
         <Panel className="mt-5">
-          <p className="text-sm text-white/70">No encontramos clips para esa busqueda.</p>
+          <p className="text-sm text-white/70">{tr("No encontramos clips para esa busqueda.", "No clips found for that search.")}</p>
         </Panel>
       ) : null}
 
       {!isLoading && !error && view === "videos" && videos.length === 0 ? (
         <Panel className="mt-5">
-          <p className="text-sm text-white/70">No encontramos videos subidos para esa busqueda.</p>
+          <p className="text-sm text-white/70">{tr("No encontramos videos subidos para esa busqueda.", "No uploaded videos found for that search.")}</p>
         </Panel>
       ) : null}
 
       {!isLoading && !error && view === "audios" && audios.length === 0 ? (
         <Panel className="mt-5">
-          <p className="text-sm text-white/70">No encontramos audios subidos para esa busqueda.</p>
+          <p className="text-sm text-white/70">{tr("No encontramos audios subidos para esa busqueda.", "No uploaded audios found for that search.")}</p>
         </Panel>
       ) : null}
 
@@ -450,17 +466,17 @@ export default function LibraryPage() {
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neon-cyan transition hover:bg-neon-cyan/20"
                 >
                   <Download size={13} />
-                  Abrir clip
+                  {tr("Abrir clip", "Open clip")}
                 </a>
               ) : (
                 <span className="inline-flex flex-1 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/65">
-                  Sin URL disponible
+                  {tr("Sin URL disponible", "No URL available")}
                 </span>
               )}
             </div>
 
             {clip.output_path && brokenClipPreviewIds[clip.job_id] ? (
-              <p className="mt-2 text-xs text-amber-200">No pudimos reproducir el preview en el navegador. Abri el clip desde el boton para verificarlo.</p>
+              <p className="mt-2 text-xs text-amber-200">{tr("No pudimos reproducir el preview en el navegador. Abri el clip desde el boton para verificarlo.", "We could not play preview in browser. Open the clip using the button to verify it.")}</p>
             ) : null}
 
             <div className="mt-2 grid grid-cols-2 gap-2">
@@ -468,13 +484,13 @@ export default function LibraryPage() {
                 href={`/app/timeline?videoId=${clip.video_id}&clipId=${clip.job_id}`}
                 className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan"
               >
-                <PencilLine size={12} /> Abrir Timeline
+                <PencilLine size={12} /> {tr("Abrir Timeline", "Open Timeline")}
               </Link>
               <Link
                 href={`/app/share/${clip.job_id}`}
                 className="inline-flex items-center justify-center gap-1 rounded-lg border border-neon-mint/40 bg-neon-mint/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-mint transition hover:bg-neon-mint/20"
               >
-                <Share2 size={12} /> Compartir
+                <Share2 size={12} /> {tr("Compartir", "Share")}
               </Link>
               <button
                 type="button"
@@ -482,13 +498,13 @@ export default function LibraryPage() {
                 disabled={deletingClipId === clip.job_id}
                 onClick={() => void handleDeleteClip(clip)}
               >
-                <Trash2 size={12} /> {deletingClipId === clip.job_id ? "Eliminando..." : "Eliminar"}
+                <Trash2 size={12} /> {deletingClipId === clip.job_id ? tr("Eliminando...", "Deleting...") : tr("Eliminar", "Delete")}
               </button>
               <Link
                 href={`/app/audio_editor?videoId=${clip.video_id}&clipId=${clip.job_id}`}
                 className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-neon-mint/40 bg-neon-mint/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-mint transition hover:bg-neon-mint/20"
               >
-                <AudioLines size={12} /> Abrir en Audio Editor
+                <AudioLines size={12} /> {tr("Abrir en Audio Editor", "Open in Audio Editor")}
               </Link>
             </div>
           </article>
@@ -508,7 +524,7 @@ export default function LibraryPage() {
                   <video controls preload="metadata" className="aspect-[16/9] w-full object-cover" src={video.preview_url} />
                 ) : (
                   <div className="aspect-[16/9] grid place-items-center bg-[radial-gradient(circle_at_20%_20%,rgba(53,208,255,0.22),transparent_45%),#0d1630] text-xs text-white/65">
-                    Sin preview disponible
+                    {tr("Sin preview disponible", "No preview available")}
                   </div>
                 )}
               </div>
@@ -532,7 +548,7 @@ export default function LibraryPage() {
                       disabled={isSavingVideo}
                       onClick={() => void handleSaveRename(video.video_id)}
                     >
-                      <Check size={12} /> Guardar
+                      <Check size={12} /> {tr("Guardar", "Save")}
                     </button>
                     <button
                       type="button"
@@ -540,7 +556,7 @@ export default function LibraryPage() {
                       disabled={isSavingVideo}
                       onClick={handleCancelRename}
                     >
-                      <X size={12} /> Cancelar
+                      <X size={12} /> {tr("Cancelar", "Cancel")}
                     </button>
                   </div>
                 </div>
@@ -548,7 +564,7 @@ export default function LibraryPage() {
                 <p className="mt-2 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/70">{video.filename}</p>
               )}
               <p className="mt-2 inline-flex rounded-full border border-neon-cyan/35 bg-neon-cyan/10 px-2 py-1 text-xs text-neon-cyan">
-                Estado: {video.status ?? "uploaded"}
+                {tr("Estado", "Status")}: {video.status ?? "uploaded"}
               </p>
 
               <div className="mt-4 flex items-center gap-2">
@@ -560,11 +576,11 @@ export default function LibraryPage() {
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neon-cyan transition hover:bg-neon-cyan/20"
                   >
                     <Download size={13} />
-                    Abrir video
+                    {tr("Abrir video", "Open video")}
                   </a>
                 ) : (
                   <span className="inline-flex flex-1 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/65">
-                    Sin URL disponible
+                    {tr("Sin URL disponible", "No URL available")}
                   </span>
                 )}
               </div>
@@ -575,20 +591,20 @@ export default function LibraryPage() {
                     href={`/app/timeline?videoId=${video.video_id}`}
                     className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-cyan transition hover:bg-neon-cyan/20"
                   >
-                    <PencilLine size={12} /> Abrir Timeline
+                    <PencilLine size={12} /> {tr("Abrir Timeline", "Open Timeline")}
                   </Link>
                   <Link
                     href={`/app/audio_editor?videoId=${video.video_id}`}
                     className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-neon-mint/40 bg-neon-mint/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-mint transition hover:bg-neon-mint/20"
                   >
-                    <AudioLines size={12} /> Abrir en Audio Editor
+                    <AudioLines size={12} /> {tr("Abrir en Audio Editor", "Open in Audio Editor")}
                   </Link>
                   <button
                     type="button"
                     className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/20 bg-white/5 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75 transition hover:border-neon-cyan/40 hover:text-neon-cyan"
                     onClick={() => handleStartRename(video)}
                   >
-                    <PencilLine size={12} /> Renombrar
+                    <PencilLine size={12} /> {tr("Renombrar", "Rename")}
                   </button>
                   <button
                     type="button"
@@ -596,7 +612,7 @@ export default function LibraryPage() {
                     disabled={deletingVideoId === video.video_id}
                     onClick={() => void handleDeleteVideo(video)}
                   >
-                    <Trash2 size={12} /> {deletingVideoId === video.video_id ? "Eliminando..." : "Eliminar"}
+                    <Trash2 size={12} /> {deletingVideoId === video.video_id ? tr("Eliminando...", "Deleting...") : tr("Eliminar", "Delete")}
                   </button>
                 </div>
               ) : null}
@@ -619,7 +635,7 @@ export default function LibraryPage() {
                   <div className="absolute -bottom-9 left-6 h-20 w-20 rounded-full bg-neon-magenta/20 blur-2xl" />
                   <div className="relative z-10 p-4">
                     <div className="inline-flex items-center gap-2 rounded-full border border-neon-violet/40 bg-neon-violet/15 px-3 py-1 text-xs text-neon-violet">
-                    <AudioLines size={13} /> Audio
+                    <AudioLines size={13} /> {tr("Audio", "Audio")}
                     </div>
                     <div className="mt-4 flex h-16 items-end gap-1.5">
                       {Array.from({ length: 18 }).map((_, barIndex) => {
@@ -639,12 +655,12 @@ export default function LibraryPage() {
                 <h2 className="font-display text-lg text-white">Audio {audio.audio_id.slice(0, 8)}</h2>
                 <p className="mt-2 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/70">{audio.filename}</p>
                 <p className="mt-2 inline-flex rounded-full border border-neon-violet/35 bg-neon-violet/10 px-2 py-1 text-xs text-neon-violet">
-                  Estado: {audio.status ?? "uploaded"}
+                  {tr("Estado", "Status")}: {audio.status ?? "uploaded"}
                 </p>
 
                 {audioUrl ? (
                   <div className="mt-4 rounded-xl border border-white/12 bg-night-900/70 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">Preview</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">{tr("Preview", "Preview")}</p>
                     <AudioPlayer key={audio.audio_id} src={audioUrl} className="mt-2" />
                   </div>
                 ) : (
@@ -654,7 +670,7 @@ export default function LibraryPage() {
                     disabled={loadingAudioId === audio.audio_id}
                     onClick={() => void handleResolveAudioUrl(audio.audio_id)}
                   >
-                    <Download size={13} /> {loadingAudioId === audio.audio_id ? "Cargando..." : "Cargar preview"}
+                    <Download size={13} /> {loadingAudioId === audio.audio_id ? tr("Cargando...", "Loading...") : tr("Cargar preview", "Load preview")}
                   </button>
                 )}
 
@@ -669,7 +685,7 @@ export default function LibraryPage() {
                       }
                     }}
                   >
-                    <Download size={12} /> Abrir
+                    <Download size={12} /> {tr("Abrir", "Open")}
                   </button>
                   <button
                     type="button"
@@ -677,7 +693,7 @@ export default function LibraryPage() {
                     disabled={deletingAudioId === audio.audio_id}
                     onClick={() => void handleDeleteAudio(audio)}
                   >
-                    <Trash2 size={12} /> {deletingAudioId === audio.audio_id ? "Eliminando..." : "Eliminar"}
+                    <Trash2 size={12} /> {deletingAudioId === audio.audio_id ? tr("Eliminando...", "Deleting...") : tr("Eliminar", "Delete")}
                   </button>
                 </div>
               </article>
@@ -689,7 +705,7 @@ export default function LibraryPage() {
       {totalPages > 1 ? (
         <Panel className="mt-5">
           <div className="flex items-center justify-between text-sm text-white/80">
-            <span>Pagina {page} de {totalPages}</span>
+            <span>{tr("Pagina", "Page")} {page} {tr("de", "of")} {totalPages}</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -697,7 +713,7 @@ export default function LibraryPage() {
                 disabled={page <= 1 || isLoading}
                 onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               >
-                Anterior
+                {tr("Anterior", "Previous")}
               </button>
               <button
                 type="button"
@@ -705,7 +721,7 @@ export default function LibraryPage() {
                 disabled={page >= totalPages || isLoading}
                 onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               >
-                Siguiente
+                {tr("Siguiente", "Next")}
               </button>
             </div>
           </div>
