@@ -8,7 +8,8 @@ import { useAuthStore } from "@/src/store/useAuthStore";
 import { Music2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AudioTimeLine } from "@/src/components/home/videoEditAudioTimeLine/AudioTimeLine";
 
 const MIN_AUDIO_SEGMENT_SECONDS = 5;
 const AUDIO_EDITOR_DRAFT_KEY = "audio-editor:draft";
@@ -94,7 +95,6 @@ export default function AudioEditorPage() {
   const [audioVolume, setAudioVolume] = useState(1);
   const [videoDurationSec, setVideoDurationSec] = useState(0);
   const [audioDurationSec, setAudioDurationSec] = useState(0);
-
   const [isSubmittingAudio, setIsSubmittingAudio] = useState(false);
   const [audioSubmitInfo, setAudioSubmitInfo] = useState<string | null>(null);
   const [audioSubmitError, setAudioSubmitError] = useState<string | null>(null);
@@ -433,9 +433,11 @@ export default function AudioEditorPage() {
     if (videoDurationSec <= 0) {
       return 0;
     }
+    //  setDuracionVideo(Math.max(Math.floor(videoDurationSec)))
     return Math.max(Math.floor(videoDurationSec) - MIN_AUDIO_SEGMENT_SECONDS, 0);
   }, [videoDurationSec]);
 
+ 
   const maxAudioStartSec = useMemo(() => {
     if (audioDurationSec <= 0) {
       return 0;
@@ -443,11 +445,11 @@ export default function AudioEditorPage() {
     return Math.max(Math.floor(audioDurationSec) - MIN_AUDIO_SEGMENT_SECONDS, 0);
   }, [audioDurationSec]);
 
-  const maxAudioEndSec = useMemo(() => {
-    const byAudio = audioDurationSec > 0 ? Math.floor(audioDurationSec) : Number.POSITIVE_INFINITY;
-    const byVideo = videoDurationSec > 0 ? Math.floor(videoDurationSec) : Number.POSITIVE_INFINITY;
-    return Math.min(byAudio, byVideo);
-  }, [audioDurationSec, videoDurationSec]);
+  // const maxAudioEndSec = useMemo(() => {
+  //   const byAudio = audioDurationSec > 0 ? Math.floor(audioDurationSec) : Number.POSITIVE_INFINITY;
+  //   const byVideo = videoDurationSec > 0 ? Math.floor(videoDurationSec) : Number.POSITIVE_INFINITY;
+  //   return Math.min(byAudio, byVideo);
+  // }, [audioDurationSec, videoDurationSec]);
 
   useEffect(() => {
     const nextOffset = clamp(audioOffsetSec, 0, maxOffsetSec);
@@ -480,8 +482,8 @@ export default function AudioEditorPage() {
     selectedSegmentDurationSec >= MIN_AUDIO_SEGMENT_SECONDS &&
     (videoDurationSec <= 0 || audioOffsetSec + selectedSegmentDurationSec <= Math.floor(videoDurationSec));
 
-  const audioOffsetPct = videoDurationSec > 0 ? Math.min((audioOffsetSec / videoDurationSec) * 100, 100) : 0;
-  const audioWidthPct = videoDurationSec > 0 ? Math.min((selectedSegmentDurationSec / videoDurationSec) * 100, 100 - audioOffsetPct) : 0;
+  // const audioOffsetPct = videoDurationSec > 0 ? Math.min((audioOffsetSec / videoDurationSec) * 100, 100) : 0;
+  // const audioWidthPct = videoDurationSec > 0 ? Math.min((selectedSegmentDurationSec / videoDurationSec) * 100, 100 - audioOffsetPct) : 0;
 
   const handleAddAudioToVideo = async () => {
     if (!token || !selectedVideoId || !selectedAudioId) {
@@ -524,6 +526,12 @@ export default function AudioEditorPage() {
     }
   };
 
+const isTimelineReady = selectedAudioUrl !== null &&videoDurationSec > 0;
+
+const handleRegionChange = useCallback((start: number, end: number) => {
+  setAudioStartSec(start)
+  setAudioEndSec(end)
+}, [])
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
@@ -551,33 +559,19 @@ export default function AudioEditorPage() {
           ) : (
             <p className="mt-4 text-sm text-white/70">Selecciona un video con preview disponible.</p>
           )}
-
-          <div className="mt-4 rounded-xl border border-neon-violet/30 bg-neon-violet/5 p-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-neon-violet/85">Pistas</p>
-            <div className="mt-2 grid gap-2">
-              <div className="rounded-lg border border-white/10 bg-night-900/80 p-2">
-                <p className="text-[11px] text-white/65">Track video</p>
-                <div className="mt-2 h-6 rounded bg-gradient-to-r from-sky-400/25 to-sky-300/60" />
-              </div>
-              <div className="rounded-lg border border-white/10 bg-night-900/80 p-2">
-                <div className="flex items-center justify-between text-[11px] text-white/65">
-                  <span>Track audio</span>
-                  <span>
-                    {toTimeLabel(audioStartSec)} - {toTimeLabel(audioEndSec)}
-                  </span>
-                </div>
-                <div className="mt-2 h-6 overflow-hidden rounded bg-night-950/90">
-                  <div
-                    className="h-full rounded bg-gradient-to-r from-neon-violet/65 to-neon-magenta/75"
-                    style={{
-                      marginLeft: `${audioOffsetPct}%`,
-                      width: `${Math.max(audioWidthPct, 2)}%`
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          
+      {isTimelineReady&&(
+        <AudioTimeLine
+        videoDurationSec={videoDurationSec} 
+        selectedAudioUrl={selectedAudioUrl}
+        regionChange={handleRegionChange}
+          // (start, end) => {
+          // setAudioStartSec(start)
+          // setAudioEndSec(end)
+          //             }}
+                      
+                      />
+        )}
 
           {!isLoadingVideos && !selectedVideoId ? (
             <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
@@ -631,16 +625,16 @@ export default function AudioEditorPage() {
                 Duracion de video: {videoDurationSec > 0 ? toTimeLabel(videoDurationSec) : "-"} · Duracion de audio: {audioDurationSec > 0 ? toTimeLabel(audioDurationSec) : "-"}
               </p>
 
-              <div className="mt-3 rounded-xl border border-white/12 bg-white/5 p-3 text-xs text-white/80">
+              {/* <div className="mt-3 rounded-xl border border-white/12 bg-white/5 p-3 text-xs text-white/80">
                 <p className="text-neon-violet">Referencia rapida</p>
                 <p className="mt-1">- `offset en video`: segundo del video donde empieza a sonar el audio.</p>
                 <p>- `inicio audio`: desde que segundo del archivo de audio recortas.</p>
                 <p>- `fin audio`: hasta que segundo del archivo de audio usas.</p>
                 <p>- `volumen`: ganancia del audio agregado (1 = normal, 2 = fuerte).</p>
-              </div>
+              </div> */}
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <label className="text-xs text-white/75">
+                {/* <label className="text-xs text-white/75">
                   Offset en video (seg)
                   <input
                     type="number"
@@ -650,7 +644,7 @@ export default function AudioEditorPage() {
                     onChange={(event) => setAudioOffsetSec(clamp(Number(event.target.value || 0), 0, maxOffsetSec))}
                     className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
                   />
-                </label>
+                </label> */}
                  <label className="text-xs text-white/75">
                    Volumen (1 - 2)
                    <input
@@ -663,7 +657,7 @@ export default function AudioEditorPage() {
                      className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
                    />
                  </label>
-                <label className="text-xs text-white/75">
+                {/* <label className="text-xs text-white/75">
                   Inicio audio (seg)
                   <input
                     type="number"
@@ -692,7 +686,7 @@ export default function AudioEditorPage() {
                     }
                     className="mt-1 w-full rounded-lg border border-white/20 bg-night-900/80 px-3 py-2 text-xs text-white outline-none focus:border-neon-violet/50"
                   />
-                </label>
+                </label> */}
               </div>
 
               {!canSubmitAudioJob ? (
