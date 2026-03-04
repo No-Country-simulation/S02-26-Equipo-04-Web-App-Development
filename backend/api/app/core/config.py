@@ -70,8 +70,12 @@ class Settings(BaseSettings):
         return v
 
     ALLOWED_ORIGINS: list[str] = Field(
-        default=["http://localhost:3000", "http://localhost:5173"]
-    )
+    default=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://s02-26-equipo-04-web-app-developmen.vercel.app"
+    ]
+)
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
