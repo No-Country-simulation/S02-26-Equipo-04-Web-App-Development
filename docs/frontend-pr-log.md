@@ -2,7 +2,7 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feat/frontend-landing-prod-refresh`
+Rama de trabajo actual: `feat/frontend-light-latte-seo-hardening`
 
 ### Objetivo
 
@@ -23,11 +23,26 @@ Actualizar la landing para reflejar el alcance real actual de la app web, mostra
 - Se ajusto paleta del `HaceloCortoLogo` para modo light usando variables CSS dedicadas, mejorando contraste del isotipo y gradientes en navbar/landing.
 - QA final light mode: se reforzaron variantes `rose-300/rose-400` (texto/borde/fondo) y placeholders para evitar combinaciones de bajo contraste en auth, alerts y acciones destructivas.
 - Se ajustaron FAQ y CTA para incluir integracion YouTube + metadata IA, audio editor y biblioteca de audios.
+- Se cambio la variante `light` a paleta Catppuccin Macchiato en `frontend/src/app/globals.css`, ajustando tokens base (`night`, `neon`, texto, bordes, sombras y logo) para evaluar un look mas consistente con el resto del dashboard.
+- Se limpiaron overrides globales agresivos del modo light (`text-white/*`, `bg-night-*`, placeholders y variantes rose) que estaban forzando colores fuera de la paleta y generaban contraste irregular.
+- Se descarto el experimento Macchiato para light y se restauro Catppuccin Latte en `frontend/src/app/globals.css`, manteniendo el modo claro realmente claro.
+- Se reforzaron overrides de contraste para light (`text-white*`, `border-white*`, `bg-white*`, placeholders y `logout-btn`) para evitar texto blanco sobre fondos claros en auth y dashboard.
+- Se reforzo SEO tecnico base en `frontend/src/app/layout.tsx` con `metadataBase`, canonical, Open Graph, Twitter cards y robots global.
+- Se agregaron `frontend/src/app/robots.ts` y `frontend/src/app/sitemap.ts` para exponer reglas de rastreo e indice XML.
+- Se agrego control de indexacion para secciones privadas (`/app` y `/auth`) mediante `head.tsx` dedicados con `noindex,nofollow`.
+- Se agrego metadata especifica de Home en `frontend/src/app/page.tsx` para alinear title/description/OG con el objetivo SEO principal de la landing.
+- Se reemplazo la imagen social generica por endpoints dedicados `frontend/src/app/opengraph-image.tsx` y `frontend/src/app/twitter-image.tsx` (1200x630) para previews consistentes al compartir.
 
 ### Commits de esta rama (frontend)
 
 - `feat(frontend): refresh landing to reflect full production workflow`
 - `docs(frontend): log landing production refresh updates`
+- `style(frontend): switch light theme to catppuccin macchiato and simplify overrides`
+- `feat(frontend): add metadata, robots and sitemap for seo baseline`
+- `docs(frontend): log macchiato light theme and seo baseline updates`
+- `fix(frontend): restore latte light theme and enforce readable contrast`
+- `feat(frontend): harden home seo metadata and social preview images`
+- `docs(frontend): log latte light pass and seo image hardening updates`
 
 ### Validaciones locales
 
