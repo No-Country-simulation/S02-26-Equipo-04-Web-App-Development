@@ -1,5 +1,35 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { HaceloCortoLogo } from "@/src/components/branding/HaceloCortoLogo";
+
+export const metadata: Metadata = {
+  title: "Convierte videos largos en shorts listos para publicar",
+  description:
+    "Transforma videos largos en shorts para redes: recorte automatico, timeline manual, editor de audio, biblioteca y exportacion desde una sola app web.",
+  alternates: {
+    canonical: "/"
+  },
+  openGraph: {
+    title: "Hacelo Corto | Convierte videos largos en shorts",
+    description:
+      "Recorta, edita y exporta clips para redes sociales en minutos con un flujo web completo.",
+    url: "/",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Hacelo Corto - App web para crear shorts"
+      }
+    ]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hacelo Corto | Convierte videos largos en shorts",
+    description: "App web para crear shorts con upload, timeline, audio y exportacion.",
+    images: ["/twitter-image"]
+  }
+};
 
 export default function HomePage() {
   const snapshot = [

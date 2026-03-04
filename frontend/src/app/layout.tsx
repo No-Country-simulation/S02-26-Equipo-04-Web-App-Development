@@ -47,10 +47,10 @@ export const metadata: Metadata = {
       "Plataforma web para crear shorts desde videos largos con recorte inteligente, timeline manual, audio editor y exportacion.",
     images: [
       {
-        url: "/icon.svg",
-        width: 512,
-        height: 512,
-        alt: "Logo de Hacelo Corto"
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Hacelo Corto - Convierte videos largos en shorts"
       }
     ]
   },
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     title: "Hacelo Corto | Convierte videos largos en shorts",
     description:
       "Upload, recorte, audio y exportacion en una sola app para creadores que publican shorts.",
-    images: ["/icon.svg"]
+    images: ["/twitter-image"]
   },
   icons: {
     icon: "/icon.svg"
