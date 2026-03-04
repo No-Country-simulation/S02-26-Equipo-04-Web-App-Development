@@ -1,5 +1,6 @@
-"""Schemas para Google OAuth"""
+"""Schemas para Google OAuth y Facebook OAuth"""
 from pydantic import BaseModel, HttpUrl
+from typing import Optional
 
 
 class GoogleAuthURL(BaseModel):
@@ -22,5 +23,27 @@ class GoogleUserInfo(BaseModel):
 
 class GoogleCallbackRequest(BaseModel):
     """Request del frontend con el authorization code"""
+    code: str
+    state: str
+
+
+# === FACEBOOK OAUTH ===
+
+class FacebookAuthURL(BaseModel):
+    """URL de autorización de Facebook + state token para CSRF protection"""
+    authorization_url: str
+    state: str
+
+
+class FacebookUserInfo(BaseModel):
+    """Información del usuario obtenida desde Facebook Graph API"""
+    id: str
+    name: Optional[str] = None
+    email: Optional[str] = None       # Puede ser None si el usuario lo rechaza
+    picture_url: Optional[str] = None  # URL de foto de perfil
+
+
+class FacebookCallbackRequest(BaseModel):
+    """Request del frontend con el authorization code de Facebook"""
     code: str
     state: str
