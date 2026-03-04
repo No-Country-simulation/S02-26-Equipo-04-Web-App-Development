@@ -1,62 +1,84 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getLocale } from "next-intl/server";
+import { useLocale } from "next-intl";
 import { HaceloCortoLogo } from "@/src/components/branding/HaceloCortoLogo";
 
-export const metadata: Metadata = {
-  title: "Convierte videos largos en shorts listos para publicar",
-  description:
-    "Transforma videos largos en shorts para redes: recorte automatico, timeline manual, editor de audio, biblioteca y exportacion desde una sola app web.",
-  alternates: {
-    canonical: "/"
-  },
-  openGraph: {
-    title: "Hacelo Corto | Convierte videos largos en shorts",
-    description:
-      "Recorta, edita y exporta clips para redes sociales en minutos con un flujo web completo.",
-    url: "/",
-    images: [
-      {
-        url: "/opengraph-image",
-        width: 1200,
-        height: 630,
-        alt: "Hacelo Corto - App web para crear shorts"
-      }
-    ]
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Hacelo Corto | Convierte videos largos en shorts",
-    description: "App web para crear shorts con upload, timeline, audio y exportacion.",
-    images: ["/twitter-image"]
-  }
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const isEn = locale === "en";
+
+  return {
+    title: isEn ? "Turn long videos into publish-ready shorts" : "Convierte videos largos en shorts listos para publicar",
+    description: isEn
+      ? "Transform long videos into social-ready shorts: auto-cut, manual timeline, audio editor, library and export in one web app."
+      : "Transforma videos largos en shorts para redes: recorte automatico, timeline manual, editor de audio, biblioteca y exportacion desde una sola app web.",
+    alternates: {
+      canonical: "/"
+    },
+    openGraph: {
+      title: isEn ? "Hacelo Corto | Turn long videos into shorts" : "Hacelo Corto | Convierte videos largos en shorts",
+      description: isEn
+        ? "Trim, edit and export social clips in minutes with one complete web workflow."
+        : "Recorta, edita y exporta clips para redes sociales en minutos con un flujo web completo.",
+      url: "/",
+      images: [
+        {
+          url: "/opengraph-image",
+          width: 1200,
+          height: 630,
+          alt: isEn ? "Hacelo Corto - Web app to create shorts" : "Hacelo Corto - App web para crear shorts"
+        }
+      ]
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: isEn ? "Hacelo Corto | Turn long videos into shorts" : "Hacelo Corto | Convierte videos largos en shorts",
+      description: isEn
+        ? "Web app to create shorts with upload, timeline, audio and export."
+        : "App web para crear shorts con upload, timeline, audio y exportacion.",
+      images: ["/twitter-image"]
+    }
+  };
+}
 
 export default function HomePage() {
+  const locale = useLocale();
+  const isEn = locale === "en";
+
   const snapshot = [
-    { label: "Estado", value: "Web app operativa" },
-    { label: "Flujo", value: "Upload -> Edit -> Export" },
-    { label: "Salida", value: "Clips listos para compartir" }
+    { label: isEn ? "Status" : "Estado", value: isEn ? "Web app live" : "Web app operativa" },
+    { label: isEn ? "Flow" : "Flujo", value: "Upload -> Edit -> Export" },
+    { label: isEn ? "Output" : "Salida", value: isEn ? "Clips ready to share" : "Clips listos para compartir" }
   ];
 
   const perfiles = [
     {
-      titulo: "Auto detectar",
-      descripcion: "Perfil por defecto en Home. Crea clips automaticos sin configurar reglas manuales.",
+      titulo: isEn ? "Auto detect" : "Auto detectar",
+      descripcion: isEn
+        ? "Default profile in Home. Creates automatic clips without manual rules."
+        : "Perfil por defecto en Home. Crea clips automaticos sin configurar reglas manuales.",
       tono: "cyan" as const
     },
     {
-      titulo: "Entrevista",
-      descripcion: "Prioriza tomas estables para dialogo y contenido tipo talking head.",
+      titulo: isEn ? "Interview" : "Entrevista",
+      descripcion: isEn
+        ? "Prioritizes stable framing for dialogue and talking-head content."
+        : "Prioriza tomas estables para dialogo y contenido tipo talking head.",
       tono: "mint" as const
     },
     {
-      titulo: "Deportes",
-      descripcion: "Usa framing mas abierto para no perder accion en escenas rapidas.",
+      titulo: isEn ? "Sports" : "Deportes",
+      descripcion: isEn
+        ? "Uses a wider framing to keep fast action in frame."
+        : "Usa framing mas abierto para no perder accion en escenas rapidas.",
       tono: "violet" as const
     },
     {
-      titulo: "Musica",
-      descripcion: "Ajuste para clips ritmicos y momentos destacados de performance.",
+      titulo: isEn ? "Music" : "Musica",
+      descripcion: isEn
+        ? "Tuned for rhythmic clips and highlighted performance moments."
+        : "Ajuste para clips ritmicos y momentos destacados de performance.",
       tono: "magenta" as const
     }
   ];
@@ -68,26 +90,32 @@ export default function HomePage() {
     path: string;
   }> = [
     {
-      titulo: "Demo 01 - Upload 9:16 modo Musica",
-      detalle: "Flujo Home: upload + perfil Musica.",
+      titulo: isEn ? "Demo 01 - Upload 9:16 Music mode" : "Demo 01 - Upload 9:16 modo Musica",
+      detalle: isEn ? "Home flow: upload + Music profile." : "Flujo Home: upload + perfil Musica.",
       filename: "video1_musica.mp4",
       path: "/landing-demos/video1_musica.mp4"
     },
     {
-      titulo: "Demo 02 - Upload 9:16 modo Entrevista",
-      detalle: "Framing estable para talking head y dialogo con perfil Entrevista.",
+      titulo: isEn ? "Demo 02 - Upload 9:16 Interview mode" : "Demo 02 - Upload 9:16 modo Entrevista",
+      detalle: isEn
+        ? "Stable framing for talking-head dialogue with the Interview profile."
+        : "Framing estable para talking head y dialogo con perfil Entrevista.",
       filename: "video2_entrevista.mp4",
       path: "/landing-demos/video2_entrevista.mp4"
     },
     {
-      titulo: "Demo 04 - Metadata IA para YouTube",
-      detalle: "Sugerencias automaticas de titulo, descripcion, hashtags y tags.",
+      titulo: isEn ? "Demo 04 - AI metadata for YouTube" : "Demo 04 - Metadata IA para YouTube",
+      detalle: isEn
+        ? "Automatic suggestions for title, description, hashtags and tags."
+        : "Sugerencias automaticas de titulo, descripcion, hashtags y tags.",
       filename: "video4_generando_texto_hastag_IA.mp4",
       path: "/landing-demos/video4_generando_texto_hastag_IA.mp4"
     },
     {
-      titulo: "Demo 05 - Biblioteca de audios",
-      detalle: "Subida y gestion de pistas para reutilizar en el editor de audio.",
+      titulo: isEn ? "Demo 05 - Audio library" : "Demo 05 - Biblioteca de audios",
+      detalle: isEn
+        ? "Upload and manage tracks for reuse in the audio editor."
+        : "Subida y gestion de pistas para reutilizar en el editor de audio.",
       filename: "video5_subida_audio.mp4",
       path: "/landing-demos/video5_subida_audio.mp4"
     }
@@ -95,14 +123,18 @@ export default function HomePage() {
 
   const studioDemos = [
     {
-      titulo: "Timeline Editor",
-      detalle: "Ajuste manual de rango temporal, control de parametros y envio directo del job de recorte.",
+      titulo: isEn ? "Timeline Editor" : "Timeline Editor",
+      detalle: isEn
+        ? "Manual range adjustment, parameter controls and direct trim job submission."
+        : "Ajuste manual de rango temporal, control de parametros y envio directo del job de recorte.",
       filename: "video3_timeline.mp4",
       path: "/landing-demos/video3_timeline.mp4"
     },
     {
-      titulo: "Audio Editor",
-      detalle: "Mezcla de audio sobre video con control de offset, rango, volumen y preview del render final.",
+      titulo: isEn ? "Audio Editor" : "Audio Editor",
+      detalle: isEn
+        ? "Mix audio over video with offset, range, volume and final render preview controls."
+        : "Mezcla de audio sobre video con control de offset, rango, volumen y preview del render final.",
       filename: "video6_añade_audio_a_video.mp4",
       path: "/landing-demos/video6_añade_audio_a_video.mp4"
     }
@@ -110,20 +142,28 @@ export default function HomePage() {
 
   const faq = [
     {
-      q: "Que esta funcionando hoy en la app?",
-      a: "Login/registro, upload de video, jobs automaticos por perfiles, edicion manual en timeline, biblioteca de clips/videos/audios, audio editor y centro de exportacion."
+      q: isEn ? "What is working today in the app?" : "Que esta funcionando hoy en la app?",
+      a: isEn
+        ? "Login/signup, video upload, automatic jobs by profile, manual timeline editing, clip/video/audio library, audio editor and export center."
+        : "Login/registro, upload de video, jobs automaticos por perfiles, edicion manual en timeline, biblioteca de clips/videos/audios, audio editor y centro de exportacion."
     },
     {
-      q: "La app ya se integra con YouTube?",
-      a: "Si. Incluye conexion OAuth con Google, sugerencias de metadata con IA y flujo de publicacion desde la vista de compartir."
+      q: isEn ? "Does the app already integrate with YouTube?" : "La app ya se integra con YouTube?",
+      a: isEn
+        ? "Yes. It includes Google OAuth connection, AI metadata suggestions and a publishing flow from the share view."
+        : "Si. Incluye conexion OAuth con Google, sugerencias de metadata con IA y flujo de publicacion desde la vista de compartir."
     },
     {
-      q: "Puedo usar perfiles de contenido?",
-      a: "Si. En Home hay perfiles Auto, Entrevista, Deportes y Musica, junto con estilo Vertical o Speaker Split."
+      q: isEn ? "Can I use content profiles?" : "Puedo usar perfiles de contenido?",
+      a: isEn
+        ? "Yes. Home includes Auto, Interview, Sports and Music profiles, along with Vertical or Speaker Split style."
+        : "Si. En Home hay perfiles Auto, Entrevista, Deportes y Musica, junto con estilo Vertical o Speaker Split."
     },
     {
-      q: "Donde veo los resultados de cada job?",
-      a: "En Panel y Biblioteca, con estados de cola/proceso/listo/error y acceso a vista de compartir/exportar."
+      q: isEn ? "Where can I see each job result?" : "Donde veo los resultados de cada job?",
+      a: isEn
+        ? "In Panel and Library, with queued/processing/ready/error states and direct access to share/export views."
+        : "En Panel y Biblioteca, con estados de cola/proceso/listo/error y acceso a vista de compartir/exportar."
     }
   ];
 
@@ -137,7 +177,7 @@ export default function HomePage() {
 
       <div className="relative mx-auto w-full max-w-[1220px] space-y-12">
         <header className="animate-fade-up flex items-center justify-between rounded-2xl border border-white/10 bg-night-900/60 px-4 py-3 backdrop-blur-xl">
-          <Link href="/" className="inline-flex items-center" aria-label="Ir al home">
+          <Link href="/" className="inline-flex items-center" aria-label={isEn ? "Go to home" : "Ir al home"}>
             <HaceloCortoLogo variant="wordmark" className="h-8 w-auto text-white sm:h-9" title="Hacelo Corto" />
           </Link>
           <div className="flex items-center gap-2">
@@ -145,13 +185,13 @@ export default function HomePage() {
               href="/auth/login"
               className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
             >
-              Ingresar
+              {isEn ? "Log in" : "Ingresar"}
             </Link>
             <Link
               href="/auth/register"
               className="inline-flex items-center gap-2 rounded-xl border border-neon-cyan/45 bg-neon-cyan/15 px-4 py-2 text-sm font-semibold text-neon-cyan transition hover:bg-neon-cyan/25"
             >
-              Crear cuenta
+              {isEn ? "Create account" : "Crear cuenta"}
               <span aria-hidden="true">*</span>
             </Link>
           </div>
@@ -160,32 +200,35 @@ export default function HomePage() {
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-7 shadow-panel sm:p-10 [animation-delay:80ms]">
           <div className="mx-auto max-w-5xl text-center">
             <div className="mb-5 flex flex-wrap gap-2">
-              <Tag label="App web operativa" color="cyan" />
-              <Tag label="Flujo end-to-end" color="mint" />
+              <Tag label={isEn ? "Web app live" : "App web operativa"} color="cyan" />
+              <Tag label={isEn ? "End-to-end flow" : "Flujo end-to-end"} color="mint" />
               <Tag label="Catppuccin UI" color="violet" />
             </div>
 
             <h1 className="font-display text-[clamp(2.4rem,7.5vw,6.6rem)] leading-[0.96] tracking-tight text-white">
-              Convierte videos largos en
+              {isEn ? "Turn long videos into" : "Convierte videos largos en"}
               <span className="bg-gradient-to-r from-neon-cyan via-neon-magenta to-neon-violet bg-clip-text text-transparent">
-                {" "}shorts listos para publicar
+                {isEn ? " shorts ready to publish" : " shorts listos para publicar"}
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-3xl text-[clamp(1rem,1.35vw,1.24rem)] leading-relaxed text-white/78">
-              Hacelo Corto concentra en una sola app web el flujo completo: subir video, generar clips con perfiles de
-              contenido, editar en timeline, mezclar audio, gestionar biblioteca y exportar resultados.
+              {isEn
+                ? "Hacelo Corto brings the full workflow into one web app: upload your video, generate clips with content profiles, edit in timeline, mix audio, manage your library and export results."
+                : "Hacelo Corto concentra en una sola app web el flujo completo: subir video, generar clips con perfiles de contenido, editar en timeline, mezclar audio, gestionar biblioteca y exportar resultados."}
             </p>
 
             <article className="mx-auto mt-8 max-w-3xl rounded-2xl border border-white/15 bg-night-800/65 p-3">
               <div className="flex flex-col gap-3 md:flex-row">
                 <div className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/70">
-                  Home: upload, estilo de clip, perfil de contenido, estado de jobs y acceso directo a biblioteca, timeline y export.
+                  {isEn
+                    ? "Home: upload, clip style, content profile, job status and direct access to library, timeline and export."
+                    : "Home: upload, estilo de clip, perfil de contenido, estado de jobs y acceso directo a biblioteca, timeline y export."}
                 </div>
                 <Link
                   href="/auth/register"
                   className="inline-flex h-12 items-center justify-center rounded-xl border border-neon-cyan/45 bg-neon-cyan/15 px-6 text-sm font-semibold text-neon-cyan transition hover:bg-neon-cyan/25"
                 >
-                  Crear cuenta y probar
+                  {isEn ? "Create account and try it" : "Crear cuenta y probar"}
                 </Link>
               </div>
               <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs text-white/60">
@@ -207,35 +250,45 @@ export default function HomePage() {
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel sm:p-7 [animation-delay:130ms]">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/55">Flujo MVP</p>
-              <h2 className="font-display text-[clamp(1.7rem,2.6vw,2.6rem)] text-white">Como se usa hoy en el producto</h2>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/55">{isEn ? "MVP flow" : "Flujo MVP"}</p>
+              <h2 className="font-display text-[clamp(1.7rem,2.6vw,2.6rem)] text-white">
+                {isEn ? "How the product is used today" : "Como se usa hoy en el producto"}
+              </h2>
             </div>
             <span className="inline-flex items-center gap-2 rounded-lg border border-neon-cyan/45 bg-neon-cyan/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-neon-cyan">
               <span aria-hidden="true">*</span>
-              basado en flujo real
+              {isEn ? "based on real flow" : "basado en flujo real"}
             </span>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <StepBox
               step="01"
-              title="Sube video"
-              detail="Desde Panel, cargas un archivo y el backend registra el video para procesamiento."
+              title={isEn ? "Upload video" : "Sube video"}
+              detail={isEn
+                ? "From Panel, you upload a file and the backend registers the video for processing."
+                : "Desde Panel, cargas un archivo y el backend registra el video para procesamiento."}
             />
             <StepBox
               step="02"
-              title="Genera jobs"
-              detail="Seleccionas estilo (vertical o speaker split) y perfil (auto, entrevista, deportes, musica)."
+              title={isEn ? "Generate jobs" : "Genera jobs"}
+              detail={isEn
+                ? "Select style (vertical or speaker split) and profile (auto, interview, sports, music)."
+                : "Seleccionas estilo (vertical o speaker split) y perfil (auto, entrevista, deportes, musica)."}
             />
             <StepBox
               step="03"
-              title="Sigue estado"
-              detail="Ves cola/proceso/listo/error en panel y biblioteca con polling y refresco de resultados."
+              title={isEn ? "Track status" : "Sigue estado"}
+              detail={isEn
+                ? "See queued/processing/ready/error in panel and library with polling and refreshed results."
+                : "Ves cola/proceso/listo/error en panel y biblioteca con polling y refresco de resultados."}
             />
               <StepBox
                 step="04"
-                title="Edita, mezcla y exporta"
-                detail="Puedes ajustar timeline, usar audio editor y cerrar flujo desde biblioteca o centro de exportacion."
+                title={isEn ? "Edit, mix and export" : "Edita, mezcla y exporta"}
+                detail={isEn
+                  ? "Adjust timeline, use the audio editor and complete the flow from library or export center."
+                  : "Puedes ajustar timeline, usar audio editor y cerrar flujo desde biblioteca o centro de exportacion."}
               />
           </div>
         </section>
@@ -243,12 +296,14 @@ export default function HomePage() {
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel sm:p-7 [animation-delay:260ms]">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/55">Perfiles y estilos</p>
-              <h3 className="font-display text-[clamp(1.7rem,2.8vw,2.35rem)] text-white">Configuraciones activas en Home</h3>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/55">{isEn ? "Profiles and styles" : "Perfiles y estilos"}</p>
+              <h3 className="font-display text-[clamp(1.7rem,2.8vw,2.35rem)] text-white">
+                {isEn ? "Active Home settings" : "Configuraciones activas en Home"}
+              </h3>
             </div>
             <span className="inline-flex items-center gap-2 rounded-lg border border-neon-cyan/45 bg-neon-cyan/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-neon-cyan">
               <span aria-hidden="true">#</span>
-              sincronizado con app
+              {isEn ? "synced with app" : "sincronizado con app"}
             </span>
           </div>
 
@@ -259,15 +314,20 @@ export default function HomePage() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-white/12 bg-night-800/70 p-4 text-sm text-white/75">
-            El panel prioriza `Auto detectar`; en timeline puedes ajustar rango temporal y opciones avanzadas para recorte
-            manual cuando el caso necesita mas control.
+            {isEn
+              ? "The panel prioritizes `Auto detect`; in timeline you can adjust time range and advanced settings when a case needs more control."
+              : "El panel prioriza `Auto detectar`; en timeline puedes ajustar rango temporal y opciones avanzadas para recorte manual cuando el caso necesita mas control."}
           </div>
         </section>
 
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel sm:p-7 [animation-delay:320ms]">
-          <h3 className="text-center font-display text-[clamp(1.9rem,3.1vw,3rem)] text-white">Edicion avanzada en accion</h3>
+          <h3 className="text-center font-display text-[clamp(1.9rem,3.1vw,3rem)] text-white">
+            {isEn ? "Advanced editing in action" : "Edicion avanzada en accion"}
+          </h3>
           <p className="mx-auto mt-2 max-w-3xl text-center text-sm text-white/72">
-            Dos espacios clave para cerrar el workflow: timeline para recorte fino y audio editor para mezcla final del clip.
+            {isEn
+              ? "Two key spaces to close the workflow: timeline for fine trimming and audio editor for final clip mix."
+              : "Dos espacios clave para cerrar el workflow: timeline para recorte fino y audio editor para mezcla final del clip."}
           </p>
 
           <div className="mt-7 grid gap-4 md:grid-cols-2">
@@ -287,16 +347,22 @@ export default function HomePage() {
                 </div>
                 <h4 className="mt-3 text-xl font-semibold text-white">{demo.titulo}</h4>
                 <p className="mt-2 text-sm text-white/72">{demo.detalle}</p>
-                <p className="mt-2 text-xs text-neon-violet/80">Archivo demo: {demo.filename}</p>
+                <p className="mt-2 text-xs text-neon-violet/80">
+                  {isEn ? "Demo file" : "Archivo demo"}: {demo.filename}
+                </p>
               </article>
             ))}
           </div>
         </section>
 
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel sm:p-7 [animation-delay:340ms]">
-          <h3 className="text-center font-display text-[clamp(1.7rem,2.7vw,2.7rem)] text-white">Demos reales del producto</h3>
+          <h3 className="text-center font-display text-[clamp(1.7rem,2.7vw,2.7rem)] text-white">
+            {isEn ? "Real product demos" : "Demos reales del producto"}
+          </h3>
           <p className="mx-auto mt-2 max-w-3xl text-center text-sm text-white/72">
-            Flujos capturados sobre la app actual: perfiles por contenido, timeline, metadata con IA, audio editor y experiencia responsive.
+            {isEn
+              ? "Flows captured on the current app: content profiles, timeline, AI metadata, audio editor and responsive experience."
+              : "Flujos capturados sobre la app actual: perfiles por contenido, timeline, metadata con IA, audio editor y experiencia responsive."}
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -307,6 +373,7 @@ export default function HomePage() {
                 detalle={demo.detalle}
                 filename={demo.filename}
                 videoPath={demo.path}
+                demoFileLabel={isEn ? "Demo file" : "Archivo demo"}
               />
             ))}
           </div>
@@ -314,7 +381,7 @@ export default function HomePage() {
 
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel sm:p-7 [animation-delay:360ms]">
           <div className="grid gap-5 lg:grid-cols-[0.52fr_1fr]">
-            <h3 className="font-display text-[clamp(1.6rem,3vw,2.7rem)] text-white">Preguntas frecuentes</h3>
+            <h3 className="font-display text-[clamp(1.6rem,3vw,2.7rem)] text-white">{isEn ? "Frequently asked questions" : "Preguntas frecuentes"}</h3>
             <div className="space-y-3">
               {faq.map((item) => (
                 <details key={item.q} className="rounded-xl border border-white/12 bg-night-800/70 px-4 py-3 text-white/85">
@@ -328,15 +395,17 @@ export default function HomePage() {
 
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/70 p-8 shadow-panel [animation-delay:420ms]">
           <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-neon-violet/12 via-neon-cyan/10 to-neon-mint/12 p-8 text-center">
-            <h3 className="font-display text-[clamp(2rem,4vw,3.2rem)] text-white">Crea clips profesionales hoy</h3>
+            <h3 className="font-display text-[clamp(2rem,4vw,3.2rem)] text-white">{isEn ? "Create pro clips today" : "Crea clips profesionales hoy"}</h3>
             <p className="mx-auto mt-3 max-w-2xl text-white/75">
-              Ya puedes usar el flujo end-to-end en produccion y validar resultados con demos reales del equipo.
+              {isEn
+                ? "You can already use the end-to-end production flow and validate results with real team demos."
+                : "Ya puedes usar el flujo end-to-end en produccion y validar resultados con demos reales del equipo."}
             </p>
             <Link
               href="/auth/register"
               className="mx-auto mt-6 inline-flex h-12 items-center justify-center rounded-xl border border-neon-cyan/45 bg-neon-cyan/15 px-7 text-sm font-semibold text-neon-cyan transition hover:bg-neon-cyan/25"
             >
-              Crear cuenta y empezar
+              {isEn ? "Create account and start" : "Crear cuenta y empezar"}
             </Link>
           </div>
         </section>
@@ -344,27 +413,31 @@ export default function HomePage() {
         <footer className="grid gap-5 rounded-3xl border border-white/10 bg-night-900/55 p-6 md:grid-cols-3">
           <div>
             <p className="font-display text-xl text-white">Hacelo Corto</p>
-            <p className="mt-2 text-sm text-white/65">Producto en evolucion continua con foco en recorte vertical, edicion y publicacion asistida.</p>
+            <p className="mt-2 text-sm text-white/65">
+              {isEn
+                ? "Product in continuous evolution focused on vertical trimming, editing and assisted publishing."
+                : "Producto en evolucion continua con foco en recorte vertical, edicion y publicacion asistida."}
+            </p>
           </div>
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-white/70">Producto</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-white/70">{isEn ? "Product" : "Producto"}</p>
             <ul className="mt-2 space-y-1 text-sm text-white/70">
-              <li>Panel de upload y jobs</li>
-              <li>Timeline para recorte manual</li>
-              <li>Biblioteca, audio editor y exportacion</li>
+              <li>{isEn ? "Upload and jobs panel" : "Panel de upload y jobs"}</li>
+              <li>{isEn ? "Timeline for manual trimming" : "Timeline para recorte manual"}</li>
+              <li>{isEn ? "Library, audio editor and export" : "Biblioteca, audio editor y exportacion"}</li>
             </ul>
           </div>
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-white/70">Acceso</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-white/70">{isEn ? "Access" : "Acceso"}</p>
             <ul className="mt-2 space-y-1 text-sm text-white/70">
               <li>
                 <Link href="/auth/login" className="hover:text-white">
-                  Ingresar
+                  {isEn ? "Log in" : "Ingresar"}
                 </Link>
               </li>
               <li>
                 <Link href="/auth/register" className="hover:text-white">
-                  Crear cuenta
+                  {isEn ? "Create account" : "Crear cuenta"}
                 </Link>
               </li>
             </ul>
@@ -437,12 +510,14 @@ function DemoSlot({
   titulo,
   detalle,
   filename,
-  videoPath
+  videoPath,
+  demoFileLabel
 }: {
   titulo: string;
   detalle: string;
   filename: string;
   videoPath: string;
+  demoFileLabel: string;
 }) {
   return (
     <article className="rounded-2xl border border-white/12 bg-night-800/70 p-4">
@@ -452,7 +527,7 @@ function DemoSlot({
       <div>
         <h4 className="mt-3 text-base font-semibold text-white">{titulo}</h4>
         <p className="mt-2 text-sm text-white/72">{detalle}</p>
-        <p className="mt-2 text-xs text-neon-cyan/80">Archivo demo: {filename}</p>
+        <p className="mt-2 text-xs text-neon-cyan/80">{demoFileLabel}: {filename}</p>
       </div>
     </article>
   );

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CircleCheckBig, Mail, Rocket, UserRound } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { Button } from "@/src/components/ui/Button";
@@ -11,6 +12,7 @@ import Image from "next/image";
 import { AuthApiError, authApi } from "@/src/services/authApi";
 
 export default function RegisterPage() {
+  const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
@@ -44,7 +46,7 @@ export default function RegisterPage() {
     event.preventDefault();
 
     if (password !== repeatPassword) {
-      setLocalError("Las contrasenas no coinciden.");
+      setLocalError(t("passwordMismatch"));
       return;
     }
 
@@ -65,7 +67,7 @@ export default function RegisterPage() {
       window.sessionStorage.setItem("google_oauth_state", state);
       window.location.href = authorization_url;
     } catch (requestError) {
-      const message = requestError instanceof AuthApiError ? requestError.message : "No pudimos iniciar sesion con Google.";
+      const message = requestError instanceof AuthApiError ? requestError.message : t("googleStartError");
       setLocalError(message);
       setIsGoogleLoading(false);
     }
@@ -87,10 +89,10 @@ export default function RegisterPage() {
         <article className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel backdrop-blur-xl [animation-delay:120ms] sm:p-8">
           <p className="inline-flex items-center gap-2 rounded-full border border-neon-violet/35 bg-neon-violet/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-neon-violet">
             <Rocket className="h-3.5 w-3.5" />
-            Registro inicial
+            {t("registerStart")}
           </p>
 
-          <h1 className="mt-5 font-display text-[clamp(2rem,3.2vw,3rem)] leading-tight text-white">Crear cuenta</h1>
+          <h1 className="mt-5 font-display text-[clamp(2rem,3.2vw,3rem)] leading-tight text-white">{t("registerTitle")}</h1>
           {/* <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">
             Esta pantalla queda lista para integrar validaciones, API de registro y activacion por email.
           </p> */}
@@ -100,26 +102,26 @@ export default function RegisterPage() {
               href="/auth/login"
               className="   rounded-lg px-3 py-2 text-center text-sm font-semibold text-white/70 transition hover:bg-white/5 hover:text-white"
             >
-              Iniciar sesión
+              {t("tabsLogin")}
             </Link>
 
             <Link
               href="/auth/register"
               className="rounded-lg bg-neon-cyan/15 px-3 py-2 text-center text-sm font-semibold text-neon-cyan transition "
             >
-              Registrate
+              {t("tabsRegister")}
             </Link>
 
           </div>
 
           <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
             <label className="block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Correo</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">{t("email")}</span>
               <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
                 <UserRound className="h-4 w-4 text-neon-mint" />
                 <input
                   type="email"
-                  placeholder="usuario@hacelocorto.com"
+                  placeholder={t("emailPlaceholder")}
                   value={email}
                   onChange={(event) => {
                     setEmail(event.target.value);
@@ -135,7 +137,7 @@ export default function RegisterPage() {
             </label>
 
             <label className="block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Contraseña</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">{t("password")}</span>
               <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
                 <Mail className="h-4 w-4 text-neon-cyan" />
                 <input
@@ -157,7 +159,7 @@ export default function RegisterPage() {
 
             </label>
             <label className="block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Repetir contraseña</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">{t("repeatPassword")}</span>
               <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
                 <Mail className="h-4 w-4 text-neon-cyan" />
                 <input
@@ -181,11 +183,11 @@ export default function RegisterPage() {
             {formError ? <p className="text-sm font-medium text-rose-300">{formError}</p> : null}
 
             <Button type="submit" variant="violet" className="mt-6" disabled={isLoading}>
-              {isLoading ? "Creando cuenta..." : "Crear cuenta"}
+              {isLoading ? t("creatingAccount") : t("registerAction")}
             </Button>
 
             <Button type="button" variant="neutral" className="mt-3" onClick={handleGoogleLogin} disabled={isLoading || isGoogleLoading}>
-              {isGoogleLoading ? "Redirigiendo a Google..." : "Continuar con Google"}
+              {isGoogleLoading ? t("redirectingGoogle") : t("continueGoogle")}
               <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo" />
             </Button>
           </form>
@@ -200,19 +202,19 @@ export default function RegisterPage() {
 
             <Link href="/" className="inline-flex items-center gap-2 text-white/70 transition hover:text-neon-mint">
               <ArrowLeft className="h-4 w-4" />
-              Volver a la landing
+              {t("backToLanding")}
             </Link>
           </div>
         </article>
         <aside className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/50 p-6 shadow-panel sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neon-violet/80">Onboarding</p>
-          <h2 className="mt-3 font-display text-[clamp(1.8rem,2.8vw,2.6rem)] text-white">Activa tu cuenta en minutos</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neon-violet/80">{t("onboarding")}</p>
+          <h2 className="mt-3 font-display text-[clamp(1.8rem,2.8vw,2.6rem)] text-white">{t("activateAccount")}</h2>
 
           <ul className="mt-6 space-y-3 text-sm text-white/80">
             {[
-              "Configura perfil y preferencias de salida por red social.",
-              "Conecta tu flujo de upload y procesamiento automatizado.",
-              "Escala de pruebas a produccion sin cambiar la UI base."
+              t("onboardingItem1"),
+              t("onboardingItem2"),
+              t("onboardingItem3")
             ].map((item) => (
               <li key={item} className="flex items-start gap-3 rounded-xl border border-white/12 bg-white/5 px-4 py-3">
                 <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0 text-neon-mint" />
