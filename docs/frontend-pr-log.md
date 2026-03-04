@@ -2,7 +2,7 @@
 
 ## Seguimiento activo (rama actual)
 
-Rama de trabajo actual: `feat/frontend-landing-prod-refresh`
+Rama de trabajo actual: `feat/frontend-light-latte-seo-hardening`
 
 ### Objetivo
 
