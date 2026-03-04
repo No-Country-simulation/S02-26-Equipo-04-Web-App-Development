@@ -2,6 +2,35 @@
 
 ## Seguimiento activo (rama actual)
 
+Rama de trabajo actual: `feature/i18n-multidioma`
+
+### Objetivo
+
+Incorporar infraestructura de internacionalizacion en Next.js (es/en) y aplicar una primera ronda completa en landing, auth y shell del dashboard sin romper el flujo actual de rutas.
+
+### Cambios implementados en curso
+
+- Se integro `next-intl` en `frontend/next.config.ts` con `request config` en `frontend/src/i18n/request.ts` y locales base en `frontend/src/i18n/locales.ts`.
+- Se agregaron catálogos iniciales en `frontend/src/messages/es.json` y `frontend/src/messages/en.json` para `common`, `auth` y `dashboard`.
+- Se incorporo `LanguageSwitcher` global en `frontend/src/components/i18n/LanguageSwitcher.tsx` con persistencia de `NEXT_LOCALE` via server action en `frontend/src/app/actions/setLocale.ts`.
+- Se adapto `frontend/src/app/layout.tsx` para envolver la app con `NextIntlClientProvider` y resolver metadata base dinamica por locale (`es_AR`/`en_US`).
+- Se internacionalizo `frontend/src/app/page.tsx` (landing) incluyendo metadata SEO/OpenGraph/Twitter por idioma y traduccion completa de secciones visibles.
+- Se internacionalizaron pantallas de autenticacion en `frontend/src/app/auth/login/page.tsx`, `frontend/src/app/auth/register/page.tsx` y `frontend/src/app/auth/callback/GoogleCallbackClient.tsx`.
+- Se internacionalizo el shell principal del dashboard en `frontend/src/components/layout/NavBar.tsx` y `frontend/src/components/layout/Sidebar.tsx`.
+
+### Commits de esta rama (frontend)
+
+- `feat(frontend): add next-intl foundation and translate landing/auth shell`
+- `docs(frontend): log i18n rollout for landing auth and shell`
+
+### Validaciones locales
+
+- `npm run lint` -> OK
+- `npm run test` -> OK
+- `npm run build` -> OK
+
+## Seguimiento activo (rama actual)
+
 Rama de trabajo actual: `feat/frontend-light-latte-seo-hardening`
 
 ### Objetivo
