@@ -39,7 +39,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     return saved === "light" || saved === "dark" ? saved : readSystemTheme();
   });
-
   useEffect(() => {
     applyThemeToDom(theme);
   }, [theme]);

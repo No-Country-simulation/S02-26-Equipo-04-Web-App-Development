@@ -1,6 +1,6 @@
 "use client";
 
-import { MoonStar, SunMedium } from "lucide-react";
+import { SunMoon } from "lucide-react";
 import { useTheme } from "@/src/components/theme/ThemeProvider";
 
 type ThemeToggleProps = {
@@ -8,8 +8,7 @@ type ThemeToggleProps = {
 };
 
 export function ThemeToggle({ compact = false }: ThemeToggleProps) {
-  const { resolvedTheme, toggleTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const { toggleTheme } = useTheme();
 
   return (
     <button
@@ -18,11 +17,11 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
       className={`inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/10 ${
         compact ? "h-10" : ""
       }`}
-      aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-      title={isDark ? "Modo claro" : "Modo oscuro"}
+      aria-label="Cambiar tema"
+      title="Cambiar tema"
     >
-      {isDark ? <SunMedium size={16} /> : <MoonStar size={16} />}
-      {!compact ? <span>{isDark ? "Claro" : "Oscuro"}</span> : null}
+      <SunMoon size={16} />
+      {!compact ? <span>Tema</span> : null}
     </button>
   );
 }
