@@ -42,7 +42,7 @@ const regionRef = useRef<ReturnType<
     regionsRef.current = regions
 
     return () => {
-    //   ws.destroy()
+      ws.destroy()
       wsRef.current = null
       regionsRef.current = null
     }
@@ -58,17 +58,25 @@ const regionRef = useRef<ReturnType<
     ws.load(selectedAudioUrl)
 
     ws.once("ready", () => {
+      const audioDuration = ws.getDuration()
+      if (!Number.isFinite(audioDuration) || audioDuration <= 0) {
+        return
+      }
+
       regionsRef.current?.clearRegions()
+
+      const maxRegionLength = Math.max(Math.min(videoDurationSec, audioDuration), 0.5)
+      const minRegionLength = Math.min(5, maxRegionLength)
 
       const region =regionsRef.current?.addRegion({
         start: 0,
-        end: videoDurationSec,
-        minLength: videoDurationSec - 0.1,
-        maxLength: videoDurationSec,
-        content: "Resize me",
+        end: maxRegionLength,
+        minLength: minRegionLength,
+        maxLength: maxRegionLength,
+        content: "Selecciona tramo",
         color: "rgba(180, 120, 255, 0.25)",
         drag: true,
-        resize: false,
+        resize: true,
       })
       if(region){
         regionRef.current = region
@@ -79,6 +87,8 @@ const regionRef = useRef<ReturnType<
         const { start, end } = region
         regionChange?.(Math.floor(start),Math.floor( end))
       })
+
+      regionChange?.(0, Math.floor(maxRegionLength))
     })
   }, [selectedAudioUrl,videoDurationSec,regionChange]) 
  const playRegion = () => {
