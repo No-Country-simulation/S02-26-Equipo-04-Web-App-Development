@@ -15,6 +15,8 @@ Actualizar la landing para reflejar el alcance real actual de la app web, mostra
 - Se corrigio la tarjeta de demo 02 para que represente `Entrevista` (antes figuraba como Deportes con archivo de entrevista).
 - Se ampliaron demos de landing con assets reales en `frontend/public/landing-demos/`: `video4_generando_texto_hastag_IA.mp4`, `video5_subida_audio.mp4`, `video6_añade_audio_a_video.mp4`, `home_desktop.png`, `home_movile.png`.
 - Se actualizo `DemoSlot` para renderizar tanto videos como imagenes (capturas) dentro de la misma grilla responsive.
+- Se removieron las capturas `home_desktop.png` y `home_movile.png` de la grilla de landing por ruido visual.
+- Se separaron `Timeline` y `Audio Editor` en una seccion destacada con layout en dos columnas y reproduccion automatica (`autoplay + muted + loop`) para mostrar ambos flujos lado a lado.
 - Se ajustaron FAQ y CTA para incluir integracion YouTube + metadata IA, audio editor y biblioteca de audios.
 
 ### Commits de esta rama (frontend)
