@@ -17,6 +17,8 @@ Actualizar la landing para reflejar el alcance real actual de la app web, mostra
 - Se actualizo `DemoSlot` para renderizar tanto videos como imagenes (capturas) dentro de la misma grilla responsive.
 - Se removieron las capturas `home_desktop.png` y `home_movile.png` de la grilla de landing por ruido visual.
 - Se separaron `Timeline` y `Audio Editor` en una seccion destacada con layout en dos columnas y reproduccion automatica (`autoplay + muted + loop`) para mostrar ambos flujos lado a lado.
+- Se incorporo base de theming claro/oscuro en todo el frontend con `ThemeProvider` + toggle global persistido en `localStorage` (`hc-theme`).
+- Se migraron tokens globales de `frontend/src/app/globals.css` a variables CSS para soportar Catppuccin Mocha (dark) y Latte (light) sin romper la paleta principal del producto.
 - Se ajustaron FAQ y CTA para incluir integracion YouTube + metadata IA, audio editor y biblioteca de audios.
 
 ### Commits de esta rama (frontend)
