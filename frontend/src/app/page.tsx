@@ -1,11 +1,12 @@
 import Link from "next/link";
+import Image from "next/image";
 import { HaceloCortoLogo } from "@/src/components/branding/HaceloCortoLogo";
 
 export default function HomePage() {
   const snapshot = [
-    { label: "Estado", value: "MVP funcional" },
-    { label: "Flujo", value: "Upload -> Jobs -> Library" },
-    { label: "Salida", value: "Clips verticales 9:16" }
+    { label: "Estado", value: "Web app operativa" },
+    { label: "Flujo", value: "Upload -> Edit -> Export" },
+    { label: "Salida", value: "Clips listos para compartir" }
   ];
 
   const perfiles = [
@@ -31,35 +32,79 @@ export default function HomePage() {
     }
   ];
 
-  const demos = [
+  const demos: Array<{
+    titulo: string;
+    detalle: string;
+    filename: string;
+    path: string;
+    media: "video" | "image";
+  }> = [
     {
       titulo: "Demo 01 - Upload 9:16 modo Musica",
       detalle: "Flujo Home: upload + perfil Musica.",
       filename: "video1_musica.mp4",
-      path: "/landing-demos/video1_musica.mp4"
+      path: "/landing-demos/video1_musica.mp4",
+      media: "video"
     },
     {
-      titulo: "Demo 02 - Upload 9:16 modo Deportes",
-      detalle: "Diferencias de framing con perfil Deportes.",
+      titulo: "Demo 02 - Upload 9:16 modo Entrevista",
+      detalle: "Framing estable para talking head y dialogo con perfil Entrevista.",
       filename: "video2_entrevista.mp4",
-      path: "/landing-demos/video2_entrevista.mp4"
+      path: "/landing-demos/video2_entrevista.mp4",
+      media: "video"
     },
     {
       titulo: "Demo 03 - Ajuste manual en Timeline",
       detalle: "Recorte manual y envio de job desde timeline.",
       filename: "video3_timeline.mp4",
-      path: "/landing-demos/video3_timeline.mp4"
+      path: "/landing-demos/video3_timeline.mp4",
+      media: "video"
+    },
+    {
+      titulo: "Demo 04 - Metadata IA para YouTube",
+      detalle: "Sugerencias automaticas de titulo, descripcion, hashtags y tags.",
+      filename: "video4_generando_texto_hastag_IA.mp4",
+      path: "/landing-demos/video4_generando_texto_hastag_IA.mp4",
+      media: "video"
+    },
+    {
+      titulo: "Demo 05 - Biblioteca de audios",
+      detalle: "Subida y gestion de pistas para reutilizar en el editor de audio.",
+      filename: "video5_subida_audio.mp4",
+      path: "/landing-demos/video5_subida_audio.mp4",
+      media: "video"
+    },
+    {
+      titulo: "Demo 06 - Mezcla de audio sobre video",
+      detalle: "Audio Editor con offset, volumen y render final del clip mezclado.",
+      filename: "video6_añade_audio_a_video.mp4",
+      path: "/landing-demos/video6_añade_audio_a_video.mp4",
+      media: "video"
+    },
+    {
+      titulo: "Captura - Home desktop",
+      detalle: "Vista general del panel principal con estado de proyecto y acciones clave.",
+      filename: "home_desktop.png",
+      path: "/landing-demos/home_desktop.png",
+      media: "image"
+    },
+    {
+      titulo: "Captura - Home mobile",
+      detalle: "Experiencia responsive del panel en mobile.",
+      filename: "home_movile.png",
+      path: "/landing-demos/home_movile.png",
+      media: "image"
     }
   ];
 
   const faq = [
     {
       q: "Que esta funcionando hoy en la app?",
-      a: "Login/registro, upload, jobs automaticos, edicion por timeline, biblioteca de clips/videos y centro de exportacion."
+      a: "Login/registro, upload de video, jobs automaticos por perfiles, edicion manual en timeline, biblioteca de clips/videos/audios, audio editor y centro de exportacion."
     },
     {
-      q: "La app ya publica en redes automaticamente?",
-      a: "Todavia no. Hoy llega hasta generar y organizar clips; la parte de publicacion social sigue en preparacion."
+      q: "La app ya se integra con YouTube?",
+      a: "Si. Incluye conexion OAuth con Google, sugerencias de metadata con IA y flujo de publicacion desde la vista de compartir."
     },
     {
       q: "Puedo usar perfiles de contenido?",
@@ -104,27 +149,26 @@ export default function HomePage() {
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-7 shadow-panel sm:p-10 [animation-delay:80ms]">
           <div className="mx-auto max-w-5xl text-center">
             <div className="mb-5 flex flex-wrap gap-2">
-              <Tag label="MVP en produccion interna" color="cyan" />
-              <Tag label="Dashboard operativo" color="mint" />
-              <Tag label="Iteracion semanal" color="violet" />
+              <Tag label="App web operativa" color="cyan" />
+              <Tag label="Flujo end-to-end" color="mint" />
+              <Tag label="Catppuccin UI" color="violet" />
             </div>
 
             <h1 className="font-display text-[clamp(2.4rem,7.5vw,6.6rem)] leading-[0.96] tracking-tight text-white">
-              Estado Real de
+              Convierte videos largos en
               <span className="bg-gradient-to-r from-neon-cyan via-neon-magenta to-neon-violet bg-clip-text text-transparent">
-                {" "}
-                Hacelo Corto
+                {" "}shorts listos para publicar
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-3xl text-[clamp(1rem,1.35vw,1.24rem)] leading-relaxed text-white/78">
-              Esta landing refleja lo que existe hoy en la app: subir video, generar clips automaticos con perfiles,
-              ajustar en timeline, revisar en biblioteca y exportar.
+              Hacelo Corto concentra en una sola app web el flujo completo: subir video, generar clips con perfiles de
+              contenido, editar en timeline, mezclar audio, gestionar biblioteca y exportar resultados.
             </p>
 
             <article className="mx-auto mt-8 max-w-3xl rounded-2xl border border-white/15 bg-night-800/65 p-3">
               <div className="flex flex-col gap-3 md:flex-row">
                 <div className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/70">
-                  Home: upload + estilo de clip + perfil de contenido + estado de jobs.
+                  Home: upload, estilo de clip, perfil de contenido, estado de jobs y acceso directo a biblioteca, timeline y export.
                 </div>
                 <Link
                   href="/auth/register"
@@ -157,7 +201,7 @@ export default function HomePage() {
             </div>
             <span className="inline-flex items-center gap-2 rounded-lg border border-neon-cyan/45 bg-neon-cyan/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-neon-cyan">
               <span aria-hidden="true">*</span>
-              basado en rutas reales
+              basado en flujo real
             </span>
           </div>
 
@@ -177,11 +221,11 @@ export default function HomePage() {
               title="Sigue estado"
               detail="Ves cola/proceso/listo/error en panel y biblioteca con polling y refresco de resultados."
             />
-            <StepBox
-              step="04"
-              title="Edita y exporta"
-              detail="Puedes ajustar timeline manual y cerrar flujo desde biblioteca o centro de exportacion."
-            />
+              <StepBox
+                step="04"
+                title="Edita, mezcla y exporta"
+                detail="Puedes ajustar timeline, usar audio editor y cerrar flujo desde biblioteca o centro de exportacion."
+              />
           </div>
         </section>
 
@@ -204,19 +248,18 @@ export default function HomePage() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-white/12 bg-night-800/70 p-4 text-sm text-white/75">
-            Hoy el panel prioriza `Auto detectar`; en timeline puedes ajustar rango temporal y opciones avanzadas para recorte
+            El panel prioriza `Auto detectar`; en timeline puedes ajustar rango temporal y opciones avanzadas para recorte
             manual cuando el caso necesita mas control.
           </div>
         </section>
 
         <section className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel sm:p-7 [animation-delay:320ms]">
-          <h3 className="text-center font-display text-[clamp(1.7rem,2.7vw,2.7rem)] text-white">Espacios para demos de producto</h3>
+          <h3 className="text-center font-display text-[clamp(1.7rem,2.7vw,2.7rem)] text-white">Demos reales del producto</h3>
           <p className="mx-auto mt-2 max-w-3xl text-center text-sm text-white/72">
-            Esta seccion queda preparada para que subas capturas o videos cortos de flujos reales, por ejemplo modo Musica y
-            modo Deportes en salida 9:16.
+            Flujos capturados sobre la app actual: perfiles por contenido, timeline, metadata con IA, audio editor y experiencia responsive.
           </p>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {demos.map((demo) => (
               <DemoSlot
                 key={demo.titulo}
@@ -224,6 +267,7 @@ export default function HomePage() {
                 detalle={demo.detalle}
                 filename={demo.filename}
                 videoPath={demo.path}
+                media={demo.media}
               />
             ))}
           </div>
@@ -247,7 +291,7 @@ export default function HomePage() {
           <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-neon-violet/12 via-neon-cyan/10 to-neon-mint/12 p-8 text-center">
             <h3 className="font-display text-[clamp(2rem,4vw,3.2rem)] text-white">Crea clips profesionales hoy</h3>
             <p className="mx-auto mt-3 max-w-2xl text-white/75">
-              Hoy ya puedes probar el flujo end-to-end del MVP y acompañar el progreso con demos reales de tu equipo.
+              Ya puedes usar el flujo end-to-end en produccion y validar resultados con demos reales del equipo.
             </p>
             <Link
               href="/auth/register"
@@ -261,14 +305,14 @@ export default function HomePage() {
         <footer className="grid gap-5 rounded-3xl border border-white/10 bg-night-900/55 p-6 md:grid-cols-3">
           <div>
             <p className="font-display text-xl text-white">Hacelo Corto</p>
-            <p className="mt-2 text-sm text-white/65">Producto en evolucion continua con foco en recorte vertical y flujo de trabajo real.</p>
+            <p className="mt-2 text-sm text-white/65">Producto en evolucion continua con foco en recorte vertical, edicion y publicacion asistida.</p>
           </div>
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-white/70">Producto</p>
             <ul className="mt-2 space-y-1 text-sm text-white/70">
               <li>Panel de upload y jobs</li>
               <li>Timeline para recorte manual</li>
-              <li>Biblioteca y exportacion</li>
+              <li>Biblioteca, audio editor y exportacion</li>
             </ul>
           </div>
           <div>
@@ -354,22 +398,35 @@ function DemoSlot({
   titulo,
   detalle,
   filename,
-  videoPath
+  videoPath,
+  media
 }: {
   titulo: string;
   detalle: string;
   filename: string;
   videoPath: string;
+  media: "video" | "image";
 }) {
   return (
     <article className="rounded-2xl border border-white/12 bg-night-800/70 p-4">
       <div className="overflow-hidden rounded-xl border border-neon-cyan/25 bg-black/45">
-        <video controls preload="metadata" src={videoPath} className="aspect-video w-full object-cover" />
+        {media === "video" ? (
+          <video controls preload="metadata" src={videoPath} className="aspect-video w-full object-cover" />
+        ) : (
+          <Image
+            src={videoPath}
+            alt={titulo}
+            width={1280}
+            height={720}
+            className="aspect-video w-full object-cover"
+            loading="lazy"
+          />
+        )}
       </div>
       <div>
         <h4 className="mt-3 text-base font-semibold text-white">{titulo}</h4>
         <p className="mt-2 text-sm text-white/72">{detalle}</p>
-        <p className="mt-2 text-xs text-neon-cyan/80">Archivo esperado: {filename}</p>
+        <p className="mt-2 text-xs text-neon-cyan/80">Archivo demo: {filename}</p>
       </div>
     </article>
   );
