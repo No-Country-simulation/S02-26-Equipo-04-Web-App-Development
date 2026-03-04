@@ -15,11 +15,13 @@ export function AudioTimeLine({
   regionChange
 }: PropTimeLine) {
   const wsRef = useRef<WaveSurfer | null>(null)
-  const regionsRef = useRef<any>(null)
+  const regionsRef = useRef<InstanceType<typeof RegionsPlugin> | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
     const [isPlaying, setIsPlaying] = useState(false);
   
-const regionRef = useRef<any>(null)
+const regionRef = useRef<ReturnType<
+  InstanceType<typeof RegionsPlugin>["addRegion"]
+> | null>(null)
   // ✅ 1️⃣ Crear instancia SOLO una vez
   useEffect(() => {
     if (!containerRef.current) return
@@ -68,17 +70,20 @@ const regionRef = useRef<any>(null)
         drag: true,
         resize: false,
       })
-      regionRef.current = region
+      if(region){
+        regionRef.current = region
+
+      }
       // 🔥 Escuchar cuando el usuario termina de mover
       region?.on("update-end", () => {
         const { start, end } = region
         regionChange?.(Math.floor(start),Math.floor( end))
       })
     })
-  }, [selectedAudioUrl]) // 👈 ambas dependencias
+  }, [selectedAudioUrl,videoDurationSec,regionChange]) 
  const playRegion = () => {
-    const regions = regionsRef.current?.getRegions()
-    const firstRegion = regions ? Object.values(regions)[0] : null
+    // const regions = regionsRef.current?.getRegions()
+    // const firstRegion = regions ? Object.values(regions)[0] : null
   const ws = wsRef.current
 
     if (ws?.isPlaying()) {
@@ -87,8 +92,8 @@ const regionRef = useRef<any>(null)
   } else {
     setIsPlaying(true)
     ws?.play(
-      regionRef.current.start,
-      regionRef.current.end
+      regionRef.current?.start,
+      regionRef.current?.end
     )
   }
   }

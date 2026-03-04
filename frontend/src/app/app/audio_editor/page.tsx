@@ -8,7 +8,7 @@ import { useAuthStore } from "@/src/store/useAuthStore";
 import { Music2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AudioTimeLine } from "@/src/components/home/videoEditAudioTimeLine/AudioTimeLine";
 
 const MIN_AUDIO_SEGMENT_SECONDS = 5;
@@ -325,11 +325,11 @@ export default function AudioEditorPage() {
     return Math.max(Math.floor(audioDurationSec) - MIN_AUDIO_SEGMENT_SECONDS, 0);
   }, [audioDurationSec]);
 
-  const maxAudioEndSec = useMemo(() => {
-    const byAudio = audioDurationSec > 0 ? Math.floor(audioDurationSec) : Number.POSITIVE_INFINITY;
-    const byVideo = videoDurationSec > 0 ? Math.floor(videoDurationSec) : Number.POSITIVE_INFINITY;
-    return Math.min(byAudio, byVideo);
-  }, [audioDurationSec, videoDurationSec]);
+  // const maxAudioEndSec = useMemo(() => {
+  //   const byAudio = audioDurationSec > 0 ? Math.floor(audioDurationSec) : Number.POSITIVE_INFINITY;
+  //   const byVideo = videoDurationSec > 0 ? Math.floor(videoDurationSec) : Number.POSITIVE_INFINITY;
+  //   return Math.min(byAudio, byVideo);
+  // }, [audioDurationSec, videoDurationSec]);
 
   useEffect(() => {
     const nextOffset = clamp(audioOffsetSec, 0, maxOffsetSec);
@@ -361,8 +361,8 @@ export default function AudioEditorPage() {
     selectedSegmentDurationSec >= MIN_AUDIO_SEGMENT_SECONDS &&
     (videoDurationSec <= 0 || audioOffsetSec + selectedSegmentDurationSec <= Math.floor(videoDurationSec));
 
-  const audioOffsetPct = videoDurationSec > 0 ? Math.min((audioOffsetSec / videoDurationSec) * 100, 100) : 0;
-  const audioWidthPct = videoDurationSec > 0 ? Math.min((selectedSegmentDurationSec / videoDurationSec) * 100, 100 - audioOffsetPct) : 0;
+  // const audioOffsetPct = videoDurationSec > 0 ? Math.min((audioOffsetSec / videoDurationSec) * 100, 100) : 0;
+  // const audioWidthPct = videoDurationSec > 0 ? Math.min((selectedSegmentDurationSec / videoDurationSec) * 100, 100 - audioOffsetPct) : 0;
 
   const handleAddAudioToVideo = async () => {
     if (!token || !selectedVideoId || !selectedAudioId) {
@@ -405,7 +405,10 @@ export default function AudioEditorPage() {
 
 const isTimelineReady = selectedAudioUrl !== null &&videoDurationSec > 0;
 
- console.log(videoDurationSec)
+const handleRegionChange = useCallback((start: number, end: number) => {
+  setAudioStartSec(start)
+  setAudioEndSec(end)
+}, [])
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
@@ -431,12 +434,13 @@ const isTimelineReady = selectedAudioUrl !== null &&videoDurationSec > 0;
         <AudioTimeLine
         videoDurationSec={videoDurationSec} 
         selectedAudioUrl={selectedAudioUrl}
-        regionChange={(start, end) => {
-          console.log("Inicio:", start)
-          setAudioStartSec(start)
-          setAudioEndSec(end)
-              console.log("Fin:", end)
-                      }}/>
+        regionChange={handleRegionChange}
+          // (start, end) => {
+          // setAudioStartSec(start)
+          // setAudioEndSec(end)
+          //             }}
+                      
+                      />
         )}
 
           {!isLoadingVideos && !selectedVideoId ? (
