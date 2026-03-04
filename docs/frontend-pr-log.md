@@ -28,6 +28,7 @@ Incorporar infraestructura de internacionalizacion en Next.js (es/en) y aplicar 
 - Se agrego persistencia de metadata YouTube por clip+locale en `frontend/src/app/app/share/[clipId]/page.tsx` para que titulo/descripcion/hashtags/tags no se pierdan al recargar.
 - Se agrego limpieza de borradores de sesion al logout en `frontend/src/store/useAuthStore.ts` (Home, Timeline, Audio editor, Share metadata y estado OAuth temporal).
 - Se resolvio fallo de CI en `npm ci` sincronizando lockfile y fijando `@swc/helpers@0.5.19` en `frontend/package.json` + `frontend/package-lock.json`.
+- Se ajusto `frontend/src/components/home/videoEditAudioTimeLine/AudioTimeLine.tsx` para que la region sea realmente redimensionable y visible: `resize: true`, longitudes min/max coherentes con duracion de audio/video y cleanup correcto de `WaveSurfer`.
 
 ### Commits de esta rama (frontend)
 
@@ -38,6 +39,7 @@ Incorporar infraestructura de internacionalizacion en Next.js (es/en) y aplicar 
 - `feat(frontend): translate share page and home reusable components`
 - `fix(frontend): persist share metadata drafts and clear session artifacts on logout`
 - `fix(frontend): pin swc helpers and sync lockfile for ci`
+- `fix(frontend): make audio timeline region resizable and stable`
 - `docs(frontend): log i18n rollout for landing auth and shell`
 - `docs(frontend): update i18n worklog with app view translation batch`
 - `docs(frontend): log sidebar label localization adjustment`
@@ -46,6 +48,7 @@ Incorporar infraestructura de internacionalizacion en Next.js (es/en) y aplicar 
 - `docs(frontend): log share metadata persistence and logout cleanup`
 - `docs(frontend): add smoke checklist for i18n share metadata flow`
 - `docs(frontend): log ci lockfile sync fix`
+- `docs(frontend): log audio timeline resize behavior fix`
 
 ### Validaciones locales
 
