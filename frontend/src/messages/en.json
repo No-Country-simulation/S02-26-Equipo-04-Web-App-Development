@@ -72,5 +72,32 @@
     "noEmail": "no-email",
     "loggingOut": "Signing out...",
     "logout": "Sign out"
+  },
+  "app": {
+    "unknownDate": "unknown date",
+    "exportTag": "export",
+    "exportTitle": "Clip export center",
+    "exportDescription": "Download your latest ready clips, copy share links and quickly track which items are still processing.",
+    "readyClips": "Ready clips",
+    "inProgress": "In progress",
+    "recentTotal": "Recent total",
+    "loadingExports": "Preparing exports...",
+    "noReadyClips": "There are no clips ready to export yet.",
+    "ready": "ready",
+    "download": "Download",
+    "copied": "Copied",
+    "copyLink": "Copy link",
+    "clipsInProgress": "Clips in progress",
+    "loadExportsNoSession": "No active session found to load exports.",
+    "loadExportsError": "We could not load your clips for export.",
+    "copyLinkError": "We could not copy the link to the clipboard.",
+    "shortDetailsTag": "short details",
+    "previewFormat": "Preview 9:16",
+    "quickActions": "quick actions",
+    "hashtags": "Hashtags",
+    "copyCaption": "Copy caption",
+    "scheduleUpload": "Schedule upload",
+    "publishNow": "Publish now",
+    "inspector": "Inspector"
   }
 }

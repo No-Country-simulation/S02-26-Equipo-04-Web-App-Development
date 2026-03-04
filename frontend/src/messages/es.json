@@ -72,5 +72,32 @@
     "noEmail": "sin-correo",
     "loggingOut": "Saliendo...",
     "logout": "Cerrar sesion"
+  },
+  "app": {
+    "unknownDate": "fecha desconocida",
+    "exportTag": "exportacion",
+    "exportTitle": "Centro de exportacion de clips",
+    "exportDescription": "Descarga tus ultimos clips listos, copia enlaces para compartir y controla rapidamente que piezas todavia siguen en proceso.",
+    "readyClips": "Clips listos",
+    "inProgress": "En proceso",
+    "recentTotal": "Total reciente",
+    "loadingExports": "Preparando exportaciones...",
+    "noReadyClips": "Todavia no hay clips listos para exportar.",
+    "ready": "listo",
+    "download": "Descargar",
+    "copied": "Copiado",
+    "copyLink": "Copiar link",
+    "clipsInProgress": "Clips en proceso",
+    "loadExportsNoSession": "No encontramos sesion activa para cargar exportaciones.",
+    "loadExportsError": "No pudimos cargar tus clips para exportacion.",
+    "copyLinkError": "No pudimos copiar el enlace al portapapeles.",
+    "shortDetailsTag": "detalle del short",
+    "previewFormat": "Preview 9:16",
+    "quickActions": "acciones rapidas",
+    "hashtags": "Hashtags",
+    "copyCaption": "Copiar caption",
+    "scheduleUpload": "Programar subida",
+    "publishNow": "Publicar ahora",
+    "inspector": "Inspector"
   }
 }
