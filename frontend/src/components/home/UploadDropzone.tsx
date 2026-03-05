@@ -3,6 +3,7 @@
 import { Button } from "@/src/components/ui/Button";
 import { Loader } from "@/src/components/ui/Loader";
 import { AudioLines, CloudUpload, Film } from "lucide-react";
+import { useLocale } from "next-intl";
 import { useRef, useState } from "react";
 
 type UploadDropzoneProps = {
@@ -13,6 +14,8 @@ type UploadDropzoneProps = {
 };
 
 export function UploadDropzone({ onUpload, isUploading, fileName, fileKind = "video" }: UploadDropzoneProps) {
+  const isEn = useLocale() === "en";
+  const tr = (es: string, en: string) => (isEn ? en : es);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -59,9 +62,9 @@ export function UploadDropzone({ onUpload, isUploading, fileName, fileKind = "vi
         {fileKind === "audio" ? <AudioLines size={18} /> : <Film size={18} />}
       </div>
 
-      <p className="text-xs uppercase tracking-[0.22em] text-neon-cyan/80">carga de media</p>
-      <h2 className="mt-2 font-display text-2xl text-white sm:text-3xl">Arrastra tu video o audio, o subilo con un click</h2>
-      <p className="mt-2 max-w-xl text-sm text-white/70">Soporta videos y audios. Recomendado para clips: mp4 horizontal 16:9.</p>
+      <p className="text-xs uppercase tracking-[0.22em] text-neon-cyan/80">{tr("carga de media", "media upload")}</p>
+      <h2 className="mt-2 font-display text-2xl text-white sm:text-3xl">{tr("Arrastra tu video o audio, o subilo con un click", "Drag your video or audio, or upload with one click")}</h2>
+      <p className="mt-2 max-w-xl text-sm text-white/70">{tr("Soporta videos y audios. Recomendado para clips: mp4 horizontal 16:9.", "Supports videos and audios. Recommended for clips: horizontal 16:9 mp4.")}</p>
 
       <Button
         className="mt-6 w-auto min-w-52"
@@ -69,13 +72,13 @@ export function UploadDropzone({ onUpload, isUploading, fileName, fileKind = "vi
         disabled={isUploading}
       >
         <CloudUpload size={16} />
-        {isUploading ? "Subiendo..." : "Seleccionar archivo"}
+        {isUploading ? tr("Subiendo...", "Uploading...") : tr("Seleccionar archivo", "Select file")}
       </Button>
 
-      {isUploading ? <Loader className="mt-4" label="Procesando archivo..." /> : null}
+      {isUploading ? <Loader className="mt-4" label={tr("Procesando archivo...", "Processing file...")} /> : null}
       {!isUploading && fileName ? (
         <p className="mt-4 text-sm text-neon-mint">
-          Archivo cargado ({fileKind === "audio" ? "audio" : "video"}): {fileName}
+          {tr("Archivo cargado", "Uploaded file")} ({fileKind === "audio" ? tr("audio", "audio") : tr("video", "video")}): {fileName}
         </p>
       ) : null}
     </div>

@@ -5,15 +5,16 @@ import { videoApi, type UserClipItem } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { Check, Clock3, Copy, Download, FolderOpen, Link2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 
 const PAGE_SIZE = 30;
 
-function formatDateLabel(raw: string) {
+function formatDateLabel(raw: string, locale: string, fallback: string) {
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) {
-    return "fecha desconocida";
+    return fallback;
   }
-  return new Intl.DateTimeFormat("es-AR", {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-AR", {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -27,6 +28,8 @@ function isClipReady(status: string) {
 }
 
 export default function ExportPage() {
+  const t = useTranslations("app");
+  const locale = useLocale();
   const token = useAuthStore((state) => state.token);
   const [clips, setClips] = useState<UserClipItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,7 +39,7 @@ export default function ExportPage() {
   useEffect(() => {
     if (!token) {
       setIsLoading(false);
-      setError("No encontramos sesion activa para cargar exportaciones.");
+      setError(t("loadExportsNoSession"));
       return;
     }
 
@@ -56,7 +59,7 @@ export default function ExportPage() {
         if (cancelled) {
           return;
         }
-        setError(loadError instanceof Error ? loadError.message : "No pudimos cargar tus clips para exportacion.");
+        setError(loadError instanceof Error ? loadError.message : t("loadExportsError"));
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -69,7 +72,7 @@ export default function ExportPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [t, token]);
 
   const readyClips = useMemo(
     () => clips.filter((clip) => isClipReady(clip.status) && Boolean(clip.output_path)),
@@ -87,7 +90,7 @@ export default function ExportPage() {
       setCopiedId(clip.job_id);
       window.setTimeout(() => setCopiedId((prev) => (prev === clip.job_id ? null : prev)), 1800);
     } catch {
-      setError("No pudimos copiar el enlace al portapapeles.");
+      setError(t("copyLinkError"));
     }
   };
 
@@ -98,24 +101,24 @@ export default function ExportPage() {
         <div className="pointer-events-none absolute -bottom-16 left-1/4 h-44 w-44 rounded-full bg-neon-mint/10 blur-3xl" />
 
         <div className="relative animate-fade-up">
-          <p className="text-xs uppercase tracking-[0.25em] text-neon-cyan/80">exportacion</p>
-          <h1 className="mt-2 font-display text-2xl text-white sm:text-3xl">Centro de exportacion de clips</h1>
+          <p className="text-xs uppercase tracking-[0.25em] text-neon-cyan/80">{t("exportTag")}</p>
+          <h1 className="mt-2 font-display text-2xl text-white sm:text-3xl">{t("exportTitle")}</h1>
           <p className="mt-2 max-w-2xl text-sm text-white/70">
-            Descarga tus ultimos clips listos, copia enlaces para compartir y controla rapidamente que piezas todavia siguen en proceso.
+            {t("exportDescription")}
           </p>
         </div>
 
         <div className="relative mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-neon-cyan/30 bg-neon-cyan/10 p-3">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-neon-cyan/85">Clips listos</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-neon-cyan/85">{t("readyClips")}</p>
             <p className="mt-1 font-display text-2xl text-white">{readyClips.length}</p>
           </div>
           <div className="rounded-xl border border-amber-300/30 bg-amber-300/10 p-3">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/85">En proceso</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/85">{t("inProgress")}</p>
             <p className="mt-1 font-display text-2xl text-white">{pendingClips.length}</p>
           </div>
           <div className="rounded-xl border border-white/15 bg-white/5 p-3">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/65">Total reciente</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/65">{t("recentTotal")}</p>
             <p className="mt-1 font-display text-2xl text-white">{clips.length}</p>
           </div>
         </div>
@@ -129,13 +132,13 @@ export default function ExportPage() {
 
       {isLoading ? (
         <Panel className="mt-5">
-          <p className="text-sm text-white/70">Preparando exportaciones...</p>
+          <p className="text-sm text-white/70">{t("loadingExports")}</p>
         </Panel>
       ) : null}
 
       {!isLoading && readyClips.length === 0 ? (
         <Panel className="mt-5">
-          <p className="text-sm text-white/70">Todavia no hay clips listos para exportar.</p>
+          <p className="text-sm text-white/70">{t("noReadyClips")}</p>
         </Panel>
       ) : null}
 
@@ -154,15 +157,15 @@ export default function ExportPage() {
                   <div className="aspect-[9/13] bg-night-900" />
                 )}
                 <span className="absolute right-3 top-3 rounded-full border border-emerald-300/40 bg-emerald-300/15 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-200">
-                  listo
+                  {t("ready")}
                 </span>
               </div>
 
               <h2 className="font-display text-lg text-white">Clip {clip.job_id.slice(0, 8)}</h2>
               <p className="mt-1 text-xs text-white/65">{clip.source_filename}</p>
-              <p className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white/70">
-                <Clock3 size={12} /> {formatDateLabel(clip.created_at)}
-              </p>
+                <p className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white/70">
+                 <Clock3 size={12} /> {formatDateLabel(clip.created_at, locale, t("unknownDate"))}
+                </p>
 
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <a
@@ -171,7 +174,7 @@ export default function ExportPage() {
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-1 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-cyan transition hover:bg-neon-cyan/20"
                 >
-                  <Download size={12} /> Descargar
+                  <Download size={12} /> {t("download")}
                 </a>
                 <button
                   type="button"
@@ -179,7 +182,7 @@ export default function ExportPage() {
                   className="inline-flex items-center justify-center gap-1 rounded-lg border border-neon-mint/40 bg-neon-mint/10 px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neon-mint transition hover:bg-neon-mint/20"
                 >
                   {copiedId === clip.job_id ? <Check size={12} /> : <Copy size={12} />}
-                  {copiedId === clip.job_id ? "Copiado" : "Copiar link"}
+                  {copiedId === clip.job_id ? t("copied") : t("copyLink")}
                 </button>
               </div>
             </article>
@@ -191,7 +194,7 @@ export default function ExportPage() {
         <Panel className="mt-5 border-white/12 bg-white/5 p-4 sm:p-5">
           <div className="flex items-center gap-2 text-white/85">
             <FolderOpen size={15} className="text-neon-cyan" />
-            <p className="text-sm font-medium">Clips en proceso</p>
+            <p className="text-sm font-medium">{t("clipsInProgress")}</p>
           </div>
 
           <div className="mt-3 space-y-2">

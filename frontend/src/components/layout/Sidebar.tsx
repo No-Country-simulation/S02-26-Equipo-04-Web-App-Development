@@ -1,14 +1,7 @@
 import { AudioLines, Film, Home, Upload, Waypoints, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const items = [
-  { icon: Home, label: "Panel", href: "/app" },
-  { icon: Waypoints, label: "Timeline editor", href: "/app/timeline" },
-  { icon: AudioLines, label: "Audio editor", href: "/app/audio_editor" },
-  { icon: Film, label: "Biblioteca clips", href: "/app/library" },
-  { icon: Upload, label: "Exportacion", href: "/app/export" }
-];
+import { useTranslations } from "next-intl";
 
 interface SidebarProps {
   mobileOpen: boolean;
@@ -17,6 +10,15 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen, closeMobile }: SidebarProps) {
   const pathname = usePathname();
+  const t = useTranslations("dashboard");
+  const items = [
+    { icon: Home, label: t("panel"), href: "/app" },
+    { icon: Waypoints, label: t("timeline"), href: "/app/timeline" },
+    { icon: AudioLines, label: t("audioEditor"), href: "/app/audio_editor" },
+    { icon: Film, label: t("library"), href: "/app/library" },
+    { icon: Upload, label: t("export"), href: "/app/export" }
+  ];
+
   return (
     <>
       <div
@@ -33,13 +35,13 @@ export function Sidebar({ mobileOpen, closeMobile }: SidebarProps) {
           <button
             className="rounded-lg border border-white/20 p-1 text-white/80 lg:hidden"
             onClick={closeMobile}
-            aria-label="Cerrar menu"
+            aria-label={t("closeMenu")}
           >
             <X size={16} />
           </button>
         </div>
 
-        <p className="mt-2 text-xs uppercase tracking-[0.25em] text-neon-cyan/70">video dashboard</p>
+        <p className="mt-2 text-xs uppercase tracking-[0.25em] text-neon-cyan/70">{t("videoDashboard")}</p>
 
         <nav className="mt-8 space-y-2">
           {items.map((item) => {

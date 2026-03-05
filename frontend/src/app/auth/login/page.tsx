@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { getPublicOnlyRedirect } from "@/src/router/redirects";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import Image from "next/image";
@@ -10,6 +11,7 @@ import { Button } from "@/src/components/ui/Button";
 import { AuthApiError, authApi } from "@/src/services/authApi";
 
 export default function LoginPage() {
+  const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -59,7 +61,7 @@ export default function LoginPage() {
       window.sessionStorage.setItem("google_oauth_state", state);
       window.location.href = authorization_url;
     } catch (requestError) {
-      const message = requestError instanceof AuthApiError ? requestError.message : "No pudimos iniciar sesion con Google.";
+      const message = requestError instanceof AuthApiError ? requestError.message : t("googleStartError");
       setLocalError(message);
       setIsGoogleLoading(false);
     }
@@ -79,10 +81,10 @@ export default function LoginPage() {
         <article className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/60 p-6 shadow-panel backdrop-blur-xl sm:p-8">
           <p className="inline-flex items-center gap-2 rounded-full border border-neon-cyan/35 bg-neon-cyan/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-neon-cyan">
             <Sparkles className="h-3.5 w-3.5" />
-            Acceso seguro
+            {t("secureAccess")}
           </p>
 
-          <h1 className="mt-5 font-display text-[clamp(2rem,3.2vw,3rem)] leading-tight text-white">Iniciar sesion</h1>
+          <h1 className="mt-5 font-display text-[clamp(2rem,3.2vw,3rem)] leading-tight text-white">{t("loginTitle")}</h1>
           {/* <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">
             Entra a tu workspace para gestionar subidas, monitorear jobs y descargar tus clips procesados.
           </p> */}
@@ -93,25 +95,25 @@ export default function LoginPage() {
               href="/auth/login"
               className="rounded-lg bg-neon-cyan/15 px-3 py-2 text-center text-sm font-semibold text-neon-cyan transition"
             >
-              Iniciar sesión
+              {t("tabsLogin")}
             </Link>
 
             <Link
               href="/auth/register"
               className="rounded-lg px-3 py-2 text-center text-sm font-semibold text-white/70 transition hover:bg-white/5 hover:text-white"
             >
-              Registrate
+              {t("tabsRegister")}
             </Link>
 
           </div>
           <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
             <label className="block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Email</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">{t("email")}</span>
               <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
                 <Mail className="h-4 w-4 text-neon-cyan" />
                 <input
                   type="email"
-                  placeholder="usuario@hacelocorto.com"
+                  placeholder={t("emailPlaceholder")}
                   value={email}
                   onChange={(event) => {
                     setEmail(event.target.value);
@@ -126,7 +128,7 @@ export default function LoginPage() {
             </label>
 
             <label className="block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Password</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">{t("password")}</span>
               <span className="flex h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3">
                 <KeyRound className="h-4 w-4 text-neon-violet" />
                 <input
@@ -147,7 +149,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword((currentValue) => !currentValue)}
                   className="text-white/55 transition hover:text-neon-cyan"
-                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={showPassword ? t("hidePassword") : t("showPassword")}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -157,35 +159,35 @@ export default function LoginPage() {
 
             <Button type="submit" className="mt-6" disabled={isLoading}>
               <ShieldCheck className="h-4 w-4" />
-              {isLoading ? "Entrando..." : "Entrar"}
+              {isLoading ? t("loggingIn") : t("loginAction")}
             </Button>
           </form>
           <Button type="button" variant="neutral" className="mt-6" onClick={handleGoogleLogin} disabled={isLoading || isGoogleLoading}>
-            {isGoogleLoading ? "Redirigiendo a Google..." : "Continuar con Google"}
+            {isGoogleLoading ? t("redirectingGoogle") : t("continueGoogle")}
             <Image loading="eager" width={20} height={20} src="https://img.icons8.com/fluency/48/google-logo.png" alt="google-logo" />
 
           </Button>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-white/65">
             <p>
               <Link href="" className="font-semibold text-neon-cyan underline decoration-neon-cyan/40 underline-offset-4">
-                Olvide mi contraseña
+                {t("forgotPassword")}
               </Link>
             </p>
 
             <Link href="/" className="inline-flex items-center gap-2 text-white/70 transition hover:text-neon-mint">
               <ArrowLeft className="h-4 w-4" />
-              Volver a la landing
+              {t("backToLanding")}
             </Link>
           </div>
         </article>
 
         <aside className="animate-fade-up rounded-3xl border border-white/10 bg-night-900/50 p-6 shadow-panel [animation-delay:120ms] sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neon-mint/80">Que incluye tu acceso</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neon-mint/80">{t("accessIncludes")}</p>
           <ul className="mt-5 space-y-3 text-sm text-white/80">
             {[
-              "Panel para monitorear estado de jobs en tiempo real.",
-              "Historial de clips procesados con descarga directa.",
-              "Base lista para integrar autenticacion real por API."
+              t("accessItem1"),
+              t("accessItem2"),
+              t("accessItem3")
             ].map((item) => (
               <li key={item} className="rounded-xl border border-white/12 bg-white/5 px-4 py-3">
                 {item}

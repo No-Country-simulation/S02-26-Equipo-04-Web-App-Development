@@ -42,6 +42,37 @@ function clearStoredToken() {
   window.localStorage.removeItem(authTokenStorageKey);
 }
 
+function clearSessionArtifacts() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const exactLocalStorageKeys = ["home:uploaded-video-draft", "timeline:editor-session"];
+  const localStoragePrefixes = ["audio-editor:draft:", "share:youtube-metadata:"];
+
+  exactLocalStorageKeys.forEach((key) => {
+    window.localStorage.removeItem(key);
+  });
+
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i);
+    if (!key) {
+      continue;
+    }
+
+    if (localStoragePrefixes.some((prefix) => key.startsWith(prefix))) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach((key) => {
+    window.localStorage.removeItem(key);
+  });
+
+  window.sessionStorage.removeItem("google_oauth_state");
+}
+
 function normalizeAuthError(error: unknown) {
   if (error instanceof AuthApiError) {
     if (error.status === 401) {
@@ -187,6 +218,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Ignore API errors: local session must always be cleared.
     } finally {
       clearStoredToken();
+      clearSessionArtifacts();
       set({
         user: null,
         token: null,

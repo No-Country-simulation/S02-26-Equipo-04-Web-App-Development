@@ -472,8 +472,16 @@ export const videoApi = {
     return parseResponse<YoutubePublishResponse>(response);
   },
 
-  async suggestYoutubeMetadata(jobId: string, token: string, tone: YoutubeMetadataSuggestionTone = "neutral") {
+  async suggestYoutubeMetadata(
+    jobId: string,
+    token: string,
+    tone: YoutubeMetadataSuggestionTone = "neutral",
+    locale?: string
+  ) {
     const params = new URLSearchParams({ tone });
+    if (locale && locale.trim().length > 0) {
+      params.set("lang", locale.trim().toLowerCase());
+    }
     const response = await fetch(`${apiBaseUrl}/api/v1/youtube/metadata/${jobId}?${params.toString()}`, {
       method: "GET",
       headers: {

@@ -2,6 +2,71 @@
 
 ## Seguimiento activo (rama actual)
 
+Rama de trabajo actual: `feature/i18n-multidioma`
+
+### Objetivo
+
+Incorporar infraestructura de internacionalizacion en Next.js (es/en) y aplicar una primera ronda completa en landing, auth y shell del dashboard sin romper el flujo actual de rutas.
+
+### Cambios implementados en curso
+
+- Se integro `next-intl` en `frontend/next.config.ts` con `request config` en `frontend/src/i18n/request.ts` y locales base en `frontend/src/i18n/locales.ts`.
+- Se agregaron catálogos iniciales en `frontend/src/messages/es.json` y `frontend/src/messages/en.json` para `common`, `auth` y `dashboard`.
+- Se incorporo `LanguageSwitcher` global en `frontend/src/components/i18n/LanguageSwitcher.tsx` con persistencia de `NEXT_LOCALE` via server action en `frontend/src/app/actions/setLocale.ts`.
+- Se adapto `frontend/src/app/layout.tsx` para envolver la app con `NextIntlClientProvider` y resolver metadata base dinamica por locale (`es_AR`/`en_US`).
+- Se internacionalizo `frontend/src/app/page.tsx` (landing) incluyendo metadata SEO/OpenGraph/Twitter por idioma y traduccion completa de secciones visibles.
+- Se internacionalizaron pantallas de autenticacion en `frontend/src/app/auth/login/page.tsx`, `frontend/src/app/auth/register/page.tsx` y `frontend/src/app/auth/callback/GoogleCallbackClient.tsx`.
+- Se internacionalizo el shell principal del dashboard en `frontend/src/components/layout/NavBar.tsx` y `frontend/src/components/layout/Sidebar.tsx`.
+- Se internacionalizaron vistas del modulo app en `frontend/src/app/app/export/page.tsx` y `frontend/src/app/app/shortDetails/page.tsx`, incluyendo etiquetas, estados y acciones.
+- Se ajustaron etiquetas de sidebar en espanol para navegacion mas natural: `Editor de tiempo` y `Editor de audio`.
+- Se internacionalizo `frontend/src/app/app/page.tsx` para el flujo Home (opciones de procesamiento, perfiles, mensajes de estado/upload y errores principales en es/en).
+- Se internacionalizo `frontend/src/app/app/library/page.tsx` (copy principal, busquedas, estados vacios, acciones de cards y paginacion en es/en).
+- Se internacionalizaron `frontend/src/app/app/timeline/page.tsx` y `frontend/src/app/app/audio_editor/page.tsx` en sus textos de UI, mensajes de estado y errores mas frecuentes.
+- Se internacionalizo `frontend/src/app/app/share/[clipId]/page.tsx` (estado de conexion/publicacion YouTube, asistente IA, metadata, errores y feedback de publicacion en es/en).
+- Se internacionalizaron componentes reutilizados de Home (`frontend/src/components/home/ProjectStatusPanel.tsx`, `frontend/src/components/home/GeneratedClipsSection.tsx`, `frontend/src/components/home/UploadDropzone.tsx`, `frontend/src/components/home/VideoSettings.tsx`) para evitar mezcla de idioma en el dashboard.
+- Se ajusto generacion de metadata YouTube para enviar locale actual (`lang`) al backend desde `frontend/src/services/videoApi.ts`, permitiendo que el proveedor IA reciba contexto de idioma (`es`/`en`).
+- Se agrego persistencia de metadata YouTube por clip+locale en `frontend/src/app/app/share/[clipId]/page.tsx` para que titulo/descripcion/hashtags/tags no se pierdan al recargar.
+- Se agrego limpieza de borradores de sesion al logout en `frontend/src/store/useAuthStore.ts` (Home, Timeline, Audio editor, Share metadata y estado OAuth temporal).
+- Se resolvio fallo de CI en `npm ci` sincronizando lockfile y fijando `@swc/helpers@0.5.19` en `frontend/package.json` + `frontend/package-lock.json`.
+- Se ajusto `frontend/src/components/home/videoEditAudioTimeLine/AudioTimeLine.tsx` para que la region sea realmente redimensionable y visible: `resize: true`, longitudes min/max coherentes con duracion de audio/video y cleanup correcto de `WaveSurfer`.
+
+### Commits de esta rama (frontend)
+
+- `feat(frontend): add next-intl foundation and translate landing/auth shell`
+- `feat(frontend): translate export and short details app views`
+- `fix(frontend): localize sidebar editor labels in spanish`
+- `feat(frontend): translate app home library timeline and audio editor`
+- `feat(frontend): translate share page and home reusable components`
+- `fix(frontend): persist share metadata drafts and clear session artifacts on logout`
+- `fix(frontend): pin swc helpers and sync lockfile for ci`
+- `fix(frontend): make audio timeline region resizable and stable`
+- `docs(frontend): log i18n rollout for landing auth and shell`
+- `docs(frontend): update i18n worklog with app view translation batch`
+- `docs(frontend): log sidebar label localization adjustment`
+- `docs(frontend): log i18n translation pass for main app screens`
+- `docs(frontend): log i18n sweep for share route and home components`
+- `docs(frontend): log share metadata persistence and logout cleanup`
+- `docs(frontend): add smoke checklist for i18n share metadata flow`
+- `docs(frontend): log ci lockfile sync fix`
+- `docs(frontend): log audio timeline resize behavior fix`
+
+### Validaciones locales
+
+- `npm run lint` -> OK
+- `npm run test` -> OK
+- `npm run build` -> OK
+
+### Smoke checklist manual (i18n + metadata YouTube)
+
+- [ ] En `/app/share/[clipId]` con locale `es`, ejecutar `Generar datos con IA` y confirmar titulo/descripcion en espanol.
+- [ ] Recargar la pagina y validar que titulo/descripcion/hashtags/tags se restauran desde draft local.
+- [ ] Cambiar locale a `en`, volver a ejecutar sugerencia IA y validar salida en ingles.
+- [ ] Recargar nuevamente en `en` y confirmar persistencia por `clip + locale`.
+- [ ] Hacer `logout` y verificar que se limpian drafts de Home/Timeline/Audio editor/Share metadata.
+- [ ] Iniciar sesion otra vez y confirmar que Share abre con valores por defecto (sin draft previo).
+
+## Seguimiento activo (rama actual)
+
 Rama de trabajo actual: `feat/frontend-light-latte-seo-hardening`
 
 ### Objetivo

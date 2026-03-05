@@ -1,4 +1,5 @@
 import { useVideoSettingsStore, type VideoSettings as TimelineVideoSettings } from "@/src/store/useVideoSettingsStore";
+import { useLocale } from "next-intl";
 import { FormEvent, useState } from "react";
 import { Button } from "../ui/Button";
 
@@ -66,6 +67,8 @@ export function VideoSettings({
   selectedVideoId,
   handleCreateJob
 }: VideoSettingsProps) {
+  const isEn = useLocale() === "en";
+  const tr = (es: string, en: string) => (isEn ? en : es);
   const settings = useVideoSettingsStore((state) => state.settings);
   const saveSettings = useVideoSettingsStore((state) => state.saveSettings);
   const [draft, setDraft] = useState<TimelineVideoSettings>(settings);
@@ -82,7 +85,7 @@ export function VideoSettings({
     <>
       <form onSubmit={handleSubmit} className="mt-5 space-y-4 min-w-70">
         <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-white/60">Formato de salida</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-white/60">{tr("Formato de salida", "Output format")}</p>
           <div className="mt-2 grid gap-2">
             {clipOptions.map((option) => (
               <button
@@ -96,15 +99,21 @@ export function VideoSettings({
                     : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
                 ].join(" ")}
               >
-                <p className="text-sm font-semibold">{option.label}</p>
-                <p className="mt-0.5 text-xs text-white/65">{option.description}</p>
+                <p className="text-sm font-semibold">
+                  {option.value === "vertical" ? tr("Vertical 9:16", "Vertical 9:16") : tr("Speaker split", "Speaker split")}
+                </p>
+                 <p className="mt-0.5 text-xs text-white/65">
+                   {option.value === "vertical"
+                     ? tr("Formato clasico para Shorts, Reels y TikTok", "Classic format for Shorts, Reels and TikTok")
+                     : tr("Enfoque en hablante + plano general", "Focus speaker + wide shot")}
+                 </p>
               </button>
             ))}
           </div>
         </div>
 
         <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-white/60">Perfil de contenido</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-white/60">{tr("Perfil de contenido", "Content profile")}</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {profileOptions.map((option) => (
               <button
@@ -118,14 +127,20 @@ export function VideoSettings({
                     : "border-white/15 bg-night-900/70 text-white/80 hover:bg-white/10"
                 ].join(" ")}
               >
-                {option.label}
+                {option.value === "auto"
+                  ? tr("Auto", "Auto")
+                  : option.value === "interview"
+                    ? tr("Entrevista", "Interview")
+                    : option.value === "sports"
+                      ? tr("Deporte", "Sports")
+                      : tr("Musica", "Music")}
               </button>
             ))}
           </div>
         </div>
 
         <label className="block rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/90">
-          <span className="text-xs uppercase tracking-[0.12em] text-white/65">Watermark</span>
+          <span className="text-xs uppercase tracking-[0.12em] text-white/65">{tr("Watermark", "Watermark")}</span>
           <input
             type="text"
             value={draft.watermark}
@@ -139,7 +154,7 @@ export function VideoSettings({
         </label>
 
         <label className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/90">
-          <span>Subtitulos</span>
+          <span>{tr("Subtitulos", "Subtitles")}</span>
           <input
             type="checkbox"
             checked={draft.subtitles}
@@ -153,7 +168,7 @@ export function VideoSettings({
 
         {!videoEditarBool ? (
           <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
-            <label>Nombre</label>
+            <label>{tr("Nombre", "Name")}</label>
             <input
               value={draftFilename}
               onChange={(event) => setDraftFilename(event.target.value)}
@@ -168,18 +183,18 @@ export function VideoSettings({
 
         <div className="flex items-center justify-end gap-2 pt-2">
           <Button type="submit" className="h-10 w-auto px-4">
-            Guardar ajustes
+            {tr("Guardar ajustes", "Save settings")}
           </Button>
         </div>
 
         <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
-          <p>Recorte seleccionado: {Math.floor(trimStart)}s - {Math.ceil(trimEnd)}s</p>
-          <p className="mt-1 text-xs text-white/60">Duracion estimada: {selectedDuration}s (minimo {minClipDurationSec}s)</p>
+          <p>{tr("Recorte seleccionado", "Selected trim")}: {Math.floor(trimStart)}s - {Math.ceil(trimEnd)}s</p>
+          <p className="mt-1 text-xs text-white/60">{tr("Duracion estimada", "Estimated duration")}: {selectedDuration}s ({tr("minimo", "minimum")} {minClipDurationSec}s)</p>
           <Button className="mt-3 w-auto px-4" onClick={handleCreateJob} disabled={isSubmitting || !canCreateClip}>
-            {isSubmitting ? "Creando clip..." : "Generar clip con timeline"}
+            {isSubmitting ? tr("Creando clip...", "Creating clip...") : tr("Generar clip con timeline", "Generate clip from timeline")}
           </Button>
           {!canCreateClip ? (
-            <p className="mt-2 text-xs text-amber-200">Ajusta el recorte para que tenga al menos {minClipDurationSec}s.</p>
+            <p className="mt-2 text-xs text-amber-200">{tr(`Ajusta el recorte para que tenga al menos ${minClipDurationSec}s.`, `Adjust trim so it is at least ${minClipDurationSec}s.`)}</p>
           ) : null}
           {submitInfo ? <p className="mt-2 text-xs text-neon-mint">{submitInfo}</p> : null}
           {submitError ? <p className="mt-2 text-xs text-rose-200">{submitError}</p> : null}
