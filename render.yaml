@@ -41,13 +41,11 @@ services:
       - key: LOG_FORMAT
         value: json
       - key: GOOGLE_CLIENT_ID
-        value: 939772059867-58er330m27e7h4gm8c3i7mvj1rpff634.apps.googleusercontent.com
+        sync: false  
       - key: GOOGLE_CLIENT_SECRET
-        value: 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
-      - key: GOOGLE_REDIRECT_URI
-        value: https://no-country-api.onrender.com/auth/callback
+        sync: false 
       - key: OPENROUTER_API_KEY
-        value: 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
+        sync: false
       - key: OPENROUTER_MODEL
         value: arcee-ai/trinity-large-preview:free
       - key: OPENROUTER_BASE_URL
@@ -100,7 +98,7 @@ services:
       - key: MINIO_ROOT_USER
         value: minio
       - key: MINIO_ROOT_PASSWORD
-        value: u9F#kL2p$R8wXq1Z
+        sync: false  
     disk:
       name: minio-data
       mountPath: /data
@@ -109,14 +107,14 @@ services:
 databases:
   # ----- 4. POSTGRESQL -----
   - name: no-country-postgres
+    databaseType: postgresql
     plan: starter
     region: ohio
     ipAllowList: []
 
   # ----- 5. REDIS -----
   - name: no-country-redis
-    type: redis
+    databaseType: redis
     plan: starter
     region: ohio
-    maxmemoryPolicy: allkeys-lru
     ipAllowList: []
