@@ -1,0 +1,122 @@
+# render.yaml - Configuración completa para el stack NoCountry Video Platform
+
+services:
+  # ----- 1. API (FastAPI) -----
+  - type: web
+    name: no-country-api
+    runtime: python
+    repo: https://github.com/No-Country-simulation/S02-26-Equipo-04-Web-App-Development
+    branch: develop
+    plan: starter  
+    region: ohio
+    buildCommand: cd backend/api && pip install -r requirements.txt
+    startCommand: cd backend/api && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: no-country-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: no-country-redis
+          property: connectionString
+      - key: MINIO_ENDPOINT
+        value: no-country-minio
+      - key: MINIO_PUBLIC_ENDPOINT
+        sync: false  # Se completa después del deploy con la URL pública de MinIO
+      - key: MINIO_ACCESS_KEY
+        value: r5h7bgYfvL47XZB0inrhTPceuA6QnyL9
+      - key: MINIO_SECRET_KEY
+        value: nc3iypeaLdMS1AfFBwmkw4lZhHJVOISCzFffPZrDgF3OUxp4
+      - key: MINIO_BUCKET_VIDEOS
+        value: videos
+      - key: MINIO_USE_SSL
+        value: false
+      - key: MINIO_PUBLIC_SECURE
+        value: true
+      - key: DEBUG
+        value: false
+      - key: LOG_FORMAT
+        value: json
+      - key: GOOGLE_CLIENT_ID
+        value: 939772059867-58er330m27e7h4gm8c3i7mvj1rpff634.apps.googleusercontent.com
+      - key: GOOGLE_CLIENT_SECRET
+        value: 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
+      - key: GOOGLE_REDIRECT_URI
+        value: https://no-country-api.onrender.com/auth/callback
+      - key: OPENROUTER_API_KEY
+        value: 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
+      - key: OPENROUTER_MODEL
+        value: arcee-ai/trinity-large-preview:free
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+
+  # ----- 2. WORKER (Background worker) -----
+  - type: worker
+    name: no-country-worker
+    runtime: python
+    repo: https://github.com/No-Country-simulation/S02-26-Equipo-04-Web-App-Development
+    branch: develop
+    plan: starter
+    region: ohio
+    buildCommand: cd backend/worker && pip install -r requirements.txt
+    startCommand: cd backend/worker && python worker.py
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: no-country-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: no-country-redis
+          property: connectionString
+      - key: MINIO_ENDPOINT
+        value: no-country-minio
+      - key: MINIO_ACCESS_KEY
+        value: r5h7bgYfvL47XZB0inrhTPceuA6QnyL9
+      - key: MINIO_SECRET_KEY
+        value: nc3iypeaLdMS1AfFBwmkw4lZhHJVOISCzFffPZrDgF3OUxp4
+      - key: WORKER_PIPELINE_DEBUG
+        value: false
+      - key: WORKER_SOURCE_CACHE_DIR
+        value: /app/tmp/source_cache
+      - key: WORKER_SOURCE_CACHE_TTL_SECONDS
+        value: "1800"
+
+  # ----- 3. MINIO (Almacenamiento S3) -----
+  - type: web
+    name: no-country-minio
+    runtime: docker
+    repo: https://github.com/No-Country-simulation/S02-26-Equipo-04-Web-App-Development
+    branch: develop
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile.minio
+    healthCheckPath: /minio/health/live
+    envVars:
+      - key: MINIO_ROOT_USER
+        value: minio
+      - key: MINIO_ROOT_PASSWORD
+        value: u9F#kL2p$R8wXq1Z
+    disk:
+      name: minio-data
+      mountPath: /data
+      sizeGB: 10
+
+databases:
+  # ----- 4. POSTGRESQL -----
+  - name: no-country-postgres
+    plan: starter
+    region: ohio
+    ipAllowList: []
+
+  # ----- 5. REDIS -----
+  - name: no-country-redis
+    type: redis
+    plan: starter
+    region: ohio
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
