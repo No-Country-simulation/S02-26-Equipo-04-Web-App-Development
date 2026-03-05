@@ -35,6 +35,6 @@ USER appuser
 
 # ---- HEALTHCHECK ----
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import redis, os; redis.Redis(host=os.getenv('REDIS_HOST','redis')).ping()" || exit 1
+  CMD python -c "import os, redis; u=os.getenv('REDIS_URL'); c=redis.from_url(u) if u else redis.Redis(host=os.getenv('REDIS_HOST','redis'), port=int(os.getenv('REDIS_PORT','6379')), password=os.getenv('REDIS_PASSWORD') or None); c.ping()" || exit 1
 
 CMD ["python", "-m", "worker.app.worker"]

@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     REDIS_PORT: int = Field(default=6379)
     REDIS_DB: int = Field(default=0)
     REDIS_PASSWORD: str | None = Field(default=None)
+    REDIS_URL: str | None = Field(default=None)
+
+    @field_validator("REDIS_URL")
+    @classmethod
+    def validate_redis_url(cls, v):
+        if not v:
+            return v
+        if not (v.startswith("redis://") or v.startswith("rediss://")):
+            raise ValueError("REDIS_URL debe comenzar con redis:// o rediss://")
+        return v
 
     MINIO_ENDPOINT: str = Field(default="minio:9000")
     MINIO_ACCESS_KEY: str = Field(default="minio")
