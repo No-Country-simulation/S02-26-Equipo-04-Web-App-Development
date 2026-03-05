@@ -30,6 +30,7 @@ Incorporar infraestructura de internacionalizacion en Next.js (es/en) y aplicar 
 - Se resolvio fallo de CI en `npm ci` sincronizando lockfile y fijando `@swc/helpers@0.5.19` en `frontend/package.json` + `frontend/package-lock.json`.
 - Se ajusto `frontend/src/components/home/videoEditAudioTimeLine/AudioTimeLine.tsx` para que la region sea realmente redimensionable y visible: `resize: true`, longitudes min/max coherentes con duracion de audio/video y cleanup correcto de `WaveSurfer`.
 - Se refactorizo `AudioTimeLine` para un look mas profesional y consistente con dark/light (altura mas contenida, barra mas limpia, resumen de tramo seleccionado y CTA de play compacto), corrigiendo ademas `AbortError` en cleanup (`ws.destroy`) con manejo seguro.
+- Se reforzo el guard de cleanup en `AudioTimeLine` para no abortar render por errores de desmontaje de `WaveSurfer` (deteccion flexible de `AbortError` y warning no bloqueante para otros casos).
 
 ### Commits de esta rama (frontend)
 
@@ -42,6 +43,7 @@ Incorporar infraestructura de internacionalizacion en Next.js (es/en) y aplicar 
 - `fix(frontend): pin swc helpers and sync lockfile for ci`
 - `fix(frontend): make audio timeline region resizable and stable`
 - `fix(frontend): polish audio timeline ui and guard wavesurfer abort cleanup`
+- `fix(frontend): prevent audio timeline cleanup abort from crashing ui`
 - `docs(frontend): log i18n rollout for landing auth and shell`
 - `docs(frontend): update i18n worklog with app view translation batch`
 - `docs(frontend): log sidebar label localization adjustment`
@@ -52,6 +54,7 @@ Incorporar infraestructura de internacionalizacion en Next.js (es/en) y aplicar 
 - `docs(frontend): log ci lockfile sync fix`
 - `docs(frontend): log audio timeline resize behavior fix`
 - `docs(frontend): log audio timeline ui polish and aborterror fix`
+- `docs(frontend): log resilient cleanup guard for audio timeline`
 
 ### Validaciones locales
 
