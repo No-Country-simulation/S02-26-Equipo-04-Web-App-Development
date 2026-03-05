@@ -107,14 +107,14 @@ services:
 databases:
   # ----- 4. POSTGRESQL -----
   - name: no-country-postgres
-    databaseType: postgresql
+    type: postgresql
     plan: starter
     region: ohio
     ipAllowList: []
 
   # ----- 5. REDIS -----
   - name: no-country-redis
-    databaseType: redis
+    type: redis
     plan: starter
     region: ohio
     ipAllowList: []
