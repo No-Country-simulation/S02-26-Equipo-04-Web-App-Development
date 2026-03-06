@@ -10,8 +10,8 @@ from pathlib import Path
 import hashlib
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
-from worker.app.pipeline import process
-from worker.app.pipeline import process_add_audio
+from app.pipeline import process
+from app.pipeline import process_add_audio
 
 # imports del nodo1 /api
 from app.models.job import Job
