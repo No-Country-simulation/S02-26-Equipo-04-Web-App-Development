@@ -9,6 +9,13 @@ Objetivo: desplegar backend de HaceloCorto en cloud con esta arquitectura:
 
 Este plan esta pensado para staging/pruebas primero y luego produccion.
 
+Estado actual (2026-03-05):
+
+- Neon creado (`haceloCorto-backend`, region us-east-1).
+- Upstash Redis creado (`haceloCorto-redis`, TLS habilitado).
+- Cloudflare R2 creado (bucket `hacelocorto-videos`).
+- Siguiente paso: terminar Render (API + worker) con esta rama.
+
 ## 0) Rama de trabajo
 
 - Rama sugerida: `chore/deploy-render-upstash-r2`
@@ -136,10 +143,28 @@ Objetivo: compatibilidad dual local + cloud.
 
 ## 4) Render: servicios a crear
 
+Antes de crear servicios en Render:
+
+- Hacer commit y push de esta rama (`chore/deploy-render-upstash-r2`) para que Render pueda leer `render.yaml`.
+
 Crear 2 servicios en Render desde el repo:
 
 1. Web Service (API)
 2. Background Worker (worker)
+
+### 4.0 Opcion recomendada: Blueprint con `render.yaml`
+
+Archivo versionado en repo: `render.yaml`.
+
+Flujo recomendado:
+
+1. En Render: `New` -> `Blueprint`.
+2. Seleccionar el repo y rama `chore/deploy-render-upstash-r2`.
+3. Render detecta `render.yaml` y propone `hacelocorto-api` + `hacelocorto-worker`.
+4. Completar variables `sync: false` (secretos) directamente en panel.
+5. Deploy.
+
+Ventaja: infraestructura reproducible y facil de auditar por todo el equipo.
 
 ### 4.1 API service
 
@@ -147,6 +172,7 @@ Crear 2 servicios en Render desde el repo:
 - Runtime: Docker
 - Puerto: Render detecta automaticamente (app escucha en 8000)
 - Healthcheck path: `/api/v1/health`
+- Start command: definido en Dockerfile (`uvicorn` sin `--reload`, usando `${PORT:-8000}`)
 
 ### 4.2 Worker service
 
@@ -159,8 +185,16 @@ Crear 2 servicios en Render desde el repo:
 
 Correr migraciones una vez por release:
 
-- Usar `DATABASE_URL_DIRECT` para el job de migracion.
+- Usar `DATABASE_URL_DIRECT` para el job de migracion (conexion directa de Neon, sin pooler).
 - Comando esperado: `alembic upgrade head` (en entorno API).
+
+Sugerencia practica en Render:
+
+- Abrir `Shell` del servicio API.
+- Ejecutar temporalmente:
+  - `export DATABASE_URL="<DATABASE_URL_DIRECT>"`
+  - `alembic upgrade head`
+- Cerrar shell (el servicio sigue con `DATABASE_URL` pooled para runtime normal).
 
 Verificar:
 
@@ -168,6 +202,12 @@ Verificar:
 - Sin errores de permisos/SSL contra Neon.
 
 ## 6) Checklist de validacion post-deploy
+
+### 6.0 Infra/Config
+
+- Rama deploy pusheada y seleccionada en Render.
+- API y worker en estado `Live`.
+- Todas las variables obligatorias cargadas (sin usar `.env` en cloud).
 
 ### 6.1 API
 
