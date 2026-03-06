@@ -438,6 +438,7 @@ class JobService:
                 Job.user_id == user_id,
                 Job.job_type.in_([JobType.REFRAME, JobType.ADD_AUDIO]),
                 Job.output_path.isnot(None),
+                Job.output_path["video"].astext.isnot(None),
             )
         )
 
