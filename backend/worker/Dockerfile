@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- PYTHON DEPENDENCIES ----
-COPY worker/requirements.txt ./requirements.txt
+COPY requirements.txt ./requirements.txt
 
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir torch==2.1.0+cpu torchaudio==2.1.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
@@ -37,4 +37,4 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD python -c "import redis, os; redis.Redis(host=os.getenv('REDIS_HOST','redis')).ping()" || exit 1
 
-CMD ["python", "-m", "worker.app.worker"]
+CMD ["python", "app/worker.py"]
