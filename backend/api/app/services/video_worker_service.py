@@ -20,13 +20,15 @@ from app.utils.exceptions import (
 
 logger = setup_logging()
 
-class VideoWorkerService:
 
-    def __init__(self, db: Session, storage_service: StorageService, queue_service: QueueService):
+class VideoWorkerService:
+    def __init__(
+        self, db: Session, storage_service: StorageService, queue_service: QueueService
+    ):
         self.db = db
         self.storage = storage_service
         self.queue = queue_service
-    
+
     # ==================== AUTO REFRAME CALCS ==========================
     def _build_auto_clip_ranges(
         self,
@@ -38,15 +40,15 @@ class VideoWorkerService:
         list[tuple[int, int]], int | None, Literal["interview", "sports", "music"]
     ]:
         """
-            Depende de:
-                _resolve_video_duration
-                _get_source_url
-                _extract_nonsilent_segments
-                _extract_scene_change_timestamps
-                _resolve_content_profile
-                _resolve_auto_clips_count
-                _profile_duration_policy
-                _distributed_starts
+        Depende de:
+            _resolve_video_duration
+            _get_source_url
+            _extract_nonsilent_segments
+            _extract_scene_change_timestamps
+            _resolve_content_profile
+            _resolve_auto_clips_count
+            _profile_duration_policy
+            _distributed_starts
         """
         duration = self._resolve_video_duration(video)
 
@@ -175,16 +177,14 @@ class VideoWorkerService:
         return self._probe_duration_seconds(source_url)
 
     def _get_source_url(self, video: Video) -> str | None:
-            if not video.storage_path:
-                return None
-            try:
-                return self.storage.get_video_url(
-                    video.storage_path, expires_in=600
-                )
-            except Exception as exc:
-                logger.warning(f"No se pudo generar URL temporal para analisis: {exc}")
-                return None
-        
+        if not video.storage_path:
+            return None
+        try:
+            return self.storage.get_video_url(video.storage_path, expires_in=600)
+        except Exception as exc:
+            logger.warning(f"No se pudo generar URL temporal para analisis: {exc}")
+            return None
+
     def _extract_nonsilent_segments(
         self, source_url: str, duration_sec: int
     ) -> list[tuple[int, int]]:
@@ -389,7 +389,6 @@ class VideoWorkerService:
 
         return (start, end)
 
-
     # ==================== JOB PERSISTENCE ==========================
     def update_status(
         self,
@@ -398,7 +397,7 @@ class VideoWorkerService:
         error_message: str | None = None,
         video_path: Optional[str] = None,
         subtitles_path: Optional[str] = None,
-        child_jobs: Optional[List[str]] = None
+        child_jobs: Optional[List[str]] = None,
     ) -> bool:
         try:
             job = self.db.query(Job).filter(Job.id == job_id).first()
@@ -408,17 +407,21 @@ class VideoWorkerService:
 
             existing = job.output_path or {}
 
-            existing.update({
-                k: v for k, v in {
-                    "video": video_path,
-                    "subtitles": subtitles_path,
-                    "jobs": child_jobs
-                }.items() if v is not None
-            })
+            existing.update(
+                {
+                    k: v
+                    for k, v in {
+                        "video": video_path,
+                        "subtitles": subtitles_path,
+                        "jobs": child_jobs,
+                    }.items()
+                    if v is not None
+                }
+            )
 
             job.status = status
             job.error_message = error_message or None
-            job.output_path = existing
+            job.output_path = existing or None
 
             self.db.commit()
             return True
@@ -426,15 +429,13 @@ class VideoWorkerService:
         except Exception as exc:
             self.db.rollback()
             logger.error(f"❌ Could not persist state for job {job_id}: {exc}")
-            return False      
-
+            return False
 
     def get_by_id(self, job_id: UUID) -> Job | None:
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise NotFoundException("Job not found")
         return job
-    
 
     def create_reframe_job_for_worker(
         self,
@@ -446,7 +447,7 @@ class VideoWorkerService:
         subtitles: bool,
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
-        job_type: JobType = JobType.REFRAME
+        job_type: JobType = JobType.REFRAME,
     ) -> Job:
         """
         Crea un job en la DB y lo publica en Redis sin generar
@@ -474,7 +475,7 @@ class VideoWorkerService:
                 watermark=watermark,
                 subtitles=subtitles,
                 output_style=output_style,
-                content_profile=content_profile
+                content_profile=content_profile,
             )
         except Exception as e:
             job.status = JobStatus.FAILED
