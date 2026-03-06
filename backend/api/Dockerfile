@@ -19,6 +19,10 @@ RUN pip install --upgrade pip && \
 # Copiar código de la aplicación
 COPY . .
 
+# Copiar y dar permisos al entrypoint script (antes de cambiar usuario)
+COPY entrypoint.sh /app/
+RUN chmod +x /app/entrypoint.sh
+
 # Crear usuario non-root para seguridad
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
@@ -29,10 +33,6 @@ EXPOSE 8000
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/api/v1/health')"
-
-# Copy entrypoint script
-COPY entrypoint.sh /app/
-RUN chmod +x /app/entrypoint.sh
 
 # Comando de inicio
 CMD ["/app/entrypoint.sh"]
