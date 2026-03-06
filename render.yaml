@@ -1,0 +1,104 @@
+services:
+  - type: web
+    name: hacelocorto-api
+    runtime: docker
+    rootDir: backend/api
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "10080"
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_DB
+        value: "0"
+      - key: MINIO_ENDPOINT
+        sync: false
+      - key: MINIO_ACCESS_KEY
+        sync: false
+      - key: MINIO_SECRET_KEY
+        sync: false
+      - key: MINIO_BUCKET_VIDEOS
+        sync: false
+      - key: MINIO_SECURE
+        value: "true"
+      - key: MINIO_PUBLIC_ENDPOINT
+        sync: false
+      - key: MINIO_PUBLIC_SECURE
+        value: "true"
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: arcee-ai/trinity-large-preview:free
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+
+  - type: worker
+    name: hacelocorto-worker
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: worker/Dockerfile
+    plan: starter
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "10080"
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_DB
+        value: "0"
+      - key: MINIO_ENDPOINT
+        sync: false
+      - key: MINIO_ACCESS_KEY
+        sync: false
+      - key: MINIO_SECRET_KEY
+        sync: false
+      - key: MINIO_BUCKET_VIDEOS
+        sync: false
+      - key: MINIO_SECURE
+        value: "true"
+      - key: MINIO_PUBLIC_ENDPOINT
+        sync: false
+      - key: MINIO_PUBLIC_SECURE
+        value: "true"
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: arcee-ai/trinity-large-preview:free
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
