@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- PYTHON DEPENDENCIES ----
-COPY requirements.txt ./requirements.txt
+COPY worker/requirements.txt ./requirements.txt
 
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir torch==2.1.0+cpu torchaudio==2.1.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
@@ -27,7 +27,9 @@ RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # ---- APP CODE ----
-COPY . .
+COPY worker/app /app/app
+COPY api/app/models /app/app/models
+COPY api/app/database /app/app/database
 
 # ---- SECURITY ----
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
