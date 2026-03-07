@@ -20,7 +20,8 @@ from app.models.user import User
 from app.models.enums import JobStatus, JobType
 from app.services.storage_service import StorageService
 from app.services.queue_service import QueueService
-#from app.services.job_service import JobService
+
+# from app.services.job_service import JobService
 from app.services.video_worker_service import VideoWorkerService
 from app.database.base import SessionLocal
 from app.utils.redis_client import redis_client
@@ -57,6 +58,7 @@ SOURCE_CACHE_TTL_SECONDS = int(os.getenv("WORKER_SOURCE_CACHE_TTL_SECONDS", "180
 
 LOG_LEVEL = logging.INFO  # o configurable desde env
 
+
 def setup_worker_logger(name: str = None) -> logging.Logger:
     """
     Inicializa el logger del worker.
@@ -70,7 +72,7 @@ def setup_worker_logger(name: str = None) -> logging.Logger:
         handler = logging.StreamHandler(sys.stdout)
         formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
@@ -181,7 +183,6 @@ def check_dependencies():
         logger.info(f"{k}: {v}")
 
 
-
 ######################## WORKER METHODS #########################
 
 
@@ -197,9 +198,9 @@ def _get_video_from_job(job, job_service, storage_service):
             logger.error(f"❌ Video {job.video_id} has no filename")
             job_service.update_status(job.id, JobStatus.FAILED, "No filename")
             return None
-        
+
         video_storage_path = video.storage_path
-        
+
         return video, filename, video_storage_path
 
     except Exception as e:
@@ -223,7 +224,7 @@ def handle_job(payload, job_service, queue_service, storage_service):
         return
 
     if job.status not in [JobStatus.PENDING, JobStatus.FAILED]:
-        #logger.warning(f"Invalid job state {job.status}")
+        # logger.warning(f"Invalid job state {job.status}")
         return
 
     job_service.update_status(job.id, JobStatus.RUNNING)
@@ -231,11 +232,11 @@ def handle_job(payload, job_service, queue_service, storage_service):
     if job.job_type == JobType.AUTO_REFRAME:
         handle_auto_reframe(job, payload, job_service, storage_service)
         return
-    
+
     if job.job_type == JobType.REFRAME:
         handle_reframe(job, payload, job_service, storage_service)
         return
-    
+
     if job.job_type == JobType.ADD_AUDIO:
         handle_add_audio(job, payload, job_service, storage_service)
         return
@@ -265,21 +266,20 @@ def handle_add_audio_pipeline(job, payload, filename, video_url):
     audio_url = storage_service.get_video_url(audio_storage_path)
 
     video_local_path = process_add_audio(
-    video_url,
-    filename,
-    audio_url,
-    audio_offset_sec,
-    audio_start_sec,
-    audio_end_sec,
-    audio_volume
+        video_url,
+        filename,
+        audio_url,
+        audio_offset_sec,
+        audio_start_sec,
+        audio_end_sec,
+        audio_volume,
     )
     return video_local_path
-        
+
 
 def handle_reframe_pipeline(job, payload, filename, video_url):
     # ejecutar pipeline
     try:
-
         logger.info(f"⚙️  Processing REFRAME job {job.id}")
 
         start_sec = payload.get("start_sec")
@@ -300,7 +300,7 @@ def handle_reframe_pipeline(job, payload, filename, video_url):
             content_profile=content_profile,
         )
         return video_local_path, srt_local_path
-    
+
     except Exception as e:
         logger.error(f"❌ Job {job.id} failed during pipeline execution: {e}")
         raise
@@ -313,24 +313,23 @@ def handle_add_audio(job, payload, job_service, storage_service):
     if not result:
         return
     video, filename, video_storage_path = result
-    
+
     try:
         video_cached_path = _resolve_source_video_path(video_storage_path)
-        video_local_path = handle_add_audio_pipeline(job, payload, filename, video_cached_path)
+        video_local_path = handle_add_audio_pipeline(
+            job, payload, filename, video_cached_path
+        )
     except Exception as e:
         logger.error(f"❌ Job {job.id} failed during pipeline execution: {e}")
         job_service.update_status(job.id, JobStatus.FAILED, str(e))
         return
-    
+
     try:
         output_filename = f"{job.id}.mp4"
-        storage_path, bucket, key = storage_service.upload_local_video_to_minio(video_local_path, output_filename)
+        storage_path, bucket, key = storage_service.upload_local_video_to_minio(
+            video_local_path, output_filename
+        )
         logger.info(f"✅ Video uploaded to MinIO")
-        
-        public_storage_path = storage_service.get_video_public_url(
-                storage_path, expires_in=300
-            )
-        logger.info(f"✅ Public MiniIO url: {public_storage_path}")
 
     except Exception as e:
         logger.error(f"❌ Job {job.id} failed during upload to MinIO: {e}")
@@ -340,14 +339,11 @@ def handle_add_audio(job, payload, job_service, storage_service):
             error_message=str(e),
         )
         return
-    
+
     # update db
     try:
         job_service.update_status(
-            job.id,
-            status=JobStatus.DONE,
-            error_message=None,
-            video_path=storage_path
+            job.id, status=JobStatus.DONE, error_message=None, video_path=storage_path
         )
         # clear /tmp service...?
         logger.info(f"✅ Job {job.id} completed successfully")
@@ -360,11 +356,13 @@ def handle_add_audio(job, payload, job_service, storage_service):
             error_message=str(e),
         )
 
-#ideo_url = storage_service.get_video_url(video.storage_path)
+
+# ideo_url = storage_service.get_video_url(video.storage_path)
 #       if not video_url:
 #           logger.warning(f"❌ Video {job.video_id} has no storage_path")
 #           job_service.update_status(job.id, JobStatus.FAILED, "No video URL")
 #           return None
+
 
 def handle_auto_reframe(job, payload, job_service, storage_service):
     logger.info(f"⚙️  Processing AUTO-REFRAME job {job.id}")
@@ -381,16 +379,19 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
         clip_duration_sec = payload.get("clip_duration_sec")
         requested_profile = payload.get("content_profile", "auto")
         watermark = payload.get("watermark")
-        segments = job_service._build_auto_clip_ranges(video, clips_count, clip_duration_sec, requested_profile)
+        subtitles = bool(payload.get("subtitles", False))
+        segments = job_service._build_auto_clip_ranges(
+            video, clips_count, clip_duration_sec, requested_profile
+        )
         logger.info(f"✅ Auto-reframe calculations completed. Segments: {segments}")
 
     except Exception as e:
         logger.error(f"❌ Job {job.id} failed during auto-reframe calculations: {e}")
         job_service.update_status(job.id, JobStatus.FAILED, str(e))
         return
-    
+
     # Crear jobs hijos REFRAME y publicarlos en Redis
-    output_path_jobs=[]
+    output_path_jobs = []
     try:
         ranges, duration, resolved_profile = segments
         for start_sec, end_sec in ranges:
@@ -400,21 +401,10 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
                 start_sec=start_sec,
                 end_sec=end_sec,
                 watermark=watermark,
-                subtitles=True,
+                subtitles=subtitles,
                 output_style=payload.get("output_style", "vertical"),
                 content_profile=resolved_profile,
-                job_type=JobType.REFRAME
-            )
-            queue_service.publish_reframe_job(
-                job_id=str(new_job.id),
-                video_id=str(video.id),
-                user_id=str(job.user_id),
-                start_sec=start_sec,
-                end_sec=end_sec,
-                watermark=watermark,
-                subtitles=True,
-                output_style=payload.get("output_style", "vertical"),
-                content_profile=resolved_profile,
+                job_type=JobType.REFRAME,
             )
             output_path_jobs.append(str(new_job.id))
 
@@ -422,13 +412,11 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
         logger.error(f"❌ Job {job.id} failed during job creation: {e}")
         job_service.update_status(job.id, JobStatus.FAILED, str(e))
         return
-    
+
     # Marcar job padre como COMPLETADO (esta completado al enviar nuevos jobs hijos)
     try:
         job_service.update_status(
-            job_id=job.id,
-            status=JobStatus.DONE,
-            child_jobs=output_path_jobs
+            job_id=job.id, status=JobStatus.DONE, child_jobs=output_path_jobs
         )
         logger.info(f"✅ AUTO-REFRAME job {job.id} completed successfully")
     except Exception as e:
@@ -437,7 +425,7 @@ def handle_auto_reframe(job, payload, job_service, storage_service):
 
 
 def handle_reframe(job, payload, job_service, storage_service):
-    
+
     result = _get_video_from_job(job, job_service, storage_service)
     if not result:
         # ya se actualizó el estado dentro de _get_video_from_job...
@@ -446,21 +434,20 @@ def handle_reframe(job, payload, job_service, storage_service):
 
     try:
         video_cached_path = _resolve_source_video_path(video_storage_path)
-        video_local_path, srt_local_path = handle_reframe_pipeline(job, payload, filename, video_cached_path)
+        video_local_path, srt_local_path = handle_reframe_pipeline(
+            job, payload, filename, video_cached_path
+        )
     except Exception as e:
         logger.error(f"❌ Job {job.id} failed during pipeline execution: {e}")
         job_service.update_status(job.id, JobStatus.FAILED, str(e))
         return
-    
+
     try:
         output_filename = f"{job.id}.mp4"
-        storage_path, bucket, key = storage_service.upload_local_video_to_minio(video_local_path, output_filename)
+        storage_path, bucket, key = storage_service.upload_local_video_to_minio(
+            video_local_path, output_filename
+        )
         logger.info(f"✅ Video uploaded to MinIO")
-        
-        public_storage_path = storage_service.get_video_public_url(
-                storage_path, expires_in=300
-            )
-        logger.info(f"✅ Public MiniIO url: {public_storage_path}")
 
     except Exception as e:
         logger.error(f"❌ Job {job.id} failed during upload to MinIO: {e}")
@@ -470,21 +457,20 @@ def handle_reframe(job, payload, job_service, storage_service):
             error_message=str(e),
         )
         return
-    
+
     srt_storage_path = None
     if srt_local_path is not None:
         try:
             output_srt_filename = f"{job.id}.srt"
-            srt_storage_path, bucket, key = storage_service.upload_local_video_to_minio(srt_local_path, output_srt_filename)
+            srt_storage_path, bucket, key = storage_service.upload_local_video_to_minio(
+                srt_local_path, output_srt_filename
+            )
             logger.info(f"✅ Subtitles uploaded to MinIO")
 
-            public_srt_storage_path = storage_service.get_video_public_url(
-                    srt_storage_path, expires_in=300
-                )
-            logger.info(f"✅ Public Subtitles MiniIO url: {public_srt_storage_path}")
-
         except Exception as e:
-            logger.error(f"❌ Job {job.id} failed during upload Subtitles to MinIO: {e}")
+            logger.error(
+                f"❌ Job {job.id} failed during upload Subtitles to MinIO: {e}"
+            )
             job_service.update_status(
                 job.id,
                 JobStatus.FAILED,
@@ -500,7 +486,7 @@ def handle_reframe(job, payload, job_service, storage_service):
             status=JobStatus.DONE,
             error_message=None,
             video_path=storage_path,
-            subtitles_path=srt_storage_path
+            subtitles_path=srt_storage_path,
         )
         # clear /tmp service...?
         logger.info(f"✅ Job {job.id} completed successfully")
@@ -526,14 +512,14 @@ def worker_loop():
         db = SessionLocal()
 
         try:
-            #job_service = JobService(db) Falta desacoplarlo de pydantic y los esquemas para poder usarlo!
+            # job_service = JobService(db) Falta desacoplarlo de pydantic y los esquemas para poder usarlo!
             job_service = VideoWorkerService(db, storage_service, queue_service)
 
             handle_job(
                 payload=payload,
                 job_service=job_service,
                 queue_service=queue_service,
-                storage_service=storage_service
+                storage_service=storage_service,
             )
 
         finally:

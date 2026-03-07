@@ -191,7 +191,7 @@ class JobService:
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
         job_type: JobType = JobType.REFRAME,
         watermark: str | None,
-        subtitles: str | None,
+        subtitles: bool | None,
     ) -> JobReframeResponse:
 
         self._validate_time_range(start_sec, end_sec)
@@ -345,6 +345,7 @@ class JobService:
                 output_style=output_style,
                 content_profile=content_profile,
                 watermark=watermark,
+                subtitles=subtitles,
             )
         except Exception as e:
             job.status = JobStatus.FAILED
@@ -406,7 +407,7 @@ class JobService:
         output_style: Literal["vertical", "speaker_split"] = "vertical",
         content_profile: Literal["auto", "interview", "sports", "music"] = "auto",
         watermark: str | None = None,
-        subtitles: str | None = None,
+        subtitles: bool | None = None,
     ) -> JobReframeResponse:
 
         video = self._get_user_video(video_id, user_id)

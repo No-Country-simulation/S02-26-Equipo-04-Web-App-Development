@@ -9,7 +9,6 @@ class QueueService:
     def __init__(self, redis_client):
         self.redis = redis_client
 
-
     def publish_add_audio_job(
         self,
         job_id: str,
@@ -31,14 +30,13 @@ class QueueService:
             "audio_offset_sec": audio_offset_sec,
             "audio_start_sec": audio_start_sec,
             "audio_end_sec": audio_end_sec,
-            "audio_volume": audio_volume
+            "audio_volume": audio_volume,
         }
 
         self.redis.push_to_queue("reframe_queue", payload)
 
         logger.info(f"👷 Job: {job_id} sent to Worker via Redis")
-        
-        
+
     def publish_reframe_job(
         self,
         job_id: str,
@@ -62,12 +60,11 @@ class QueueService:
             "content_profile": content_profile,
             "type": JobType.REFRAME.value,
             "watermark": watermark,
-            "subtitles": subtitles
+            "subtitles": subtitles,
         }
         self.redis.push_to_queue("reframe_queue", payload)
 
         logger.info(f"👷 Job: {job_id} sent to Worker via Redis")
-
 
     def publish_auto_reframe_job(
         self,
@@ -77,9 +74,9 @@ class QueueService:
         clips_count: int,
         clip_duration_sec: int,
         watermark: str,
+        subtitles: bool = False,
         output_style: str = "vertical",
         content_profile: str = "interview",
-        
     ):
         payload = {
             "job_id": job_id,
@@ -90,7 +87,8 @@ class QueueService:
             "output_style": output_style,
             "content_profile": content_profile,
             "type": JobType.AUTO_REFRAME.value,
-            "watermark": watermark
+            "watermark": watermark,
+            "subtitles": subtitles,
         }
 
         self.redis.push_to_queue("reframe_queue", payload)
