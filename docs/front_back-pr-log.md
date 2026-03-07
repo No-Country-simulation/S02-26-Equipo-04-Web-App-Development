@@ -347,3 +347,29 @@ Priorizar mejor la secuencia previa y posterior a jugadas importantes (pre-gol +
 
 - `fix(frontend): stabilize home clip polling and orchestrator child sync`
 - `feat(audio): allow add-audio jobs to use generated clips as source`
+
+## Modo rapido local (worker)
+
+### Objetivo
+
+- Reducir tiempo de procesamiento en entorno local para iterar mas rapido durante demo/pruebas.
+
+### Cambios aplicados
+
+- `backend/worker/app/pipeline.py`
+  - Nuevo flag `WORKER_FAST_MODE` (optimizaciones activas en local).
+  - Parametros de salida adaptables por env:
+    - `WORKER_TARGET_FPS` (default fast: `24`),
+    - `WORKER_TARGET_MAX_W` (default fast: `854`),
+    - `WORKER_FFMPEG_PRESET` (default fast: `veryfast`),
+    - `WORKER_FFMPEG_CRF` (default fast: `28`),
+    - `WORKER_FACE_DETECTION_INTERVAL` (default fast: `2`).
+  - Encoder principal ahora usa preset/crf configurables.
+  - Deteccion de rostros por intervalo (cache entre frames) para bajar carga de CPU.
+- `backend/docker-compose.yml`
+  - Se activa `WORKER_FAST_MODE=true` para desarrollo local.
+  - Se define `WORKER_FACE_DETECTION_INTERVAL=2`.
+
+### Commit
+
+- `perf(worker): add fast local processing mode with tunable pipeline knobs`
