@@ -314,3 +314,36 @@ Priorizar mejor la secuencia previa y posterior a jugadas importantes (pre-gol +
 ### Commit
 
 - `fix(frontend): stop WebMediaPlayer saturation in Home clips grid`
+
+## Hotfix de polling estancado + audio sobre clips
+
+### Problemas detectados
+
+- En Home, la grilla de clips podia quedar estancada en `Procesando clip...` aunque en Biblioteca ya apareciera alguno terminado.
+- El progreso quedaba desincronizado y en algunos casos recien reflejaba cambios al navegar o recargar.
+- En Audio editor, el endpoint de mezcla aceptaba solo `video_id` y no permitia usar como fuente un clip ya generado.
+
+### Correcciones aplicadas
+
+- `frontend/src/app/app/page.tsx`
+  - Se estabilizo polling de estados usando `ref` para evitar reinicios de efecto en cada tick por cambios del mapa de estado.
+  - Se corrigio sincronizacion del job orquestador para mergear `child_jobs` nuevos (no solo la primera carga).
+  - Se re-habilito hydrate de respaldo desde Biblioteca aun cuando hay jobs en progreso, evitando panel congelado.
+- `backend/api/app/schemas/job.py`
+  - `JobAddAudioRequest` ahora acepta `source_clip_job_id` opcional.
+- `backend/api/app/api/v1/endpoints/job.py`
+  - `POST /jobs/add-audio/{video_id}` propaga `source_clip_job_id` al service.
+- `backend/api/app/services/job_service.py`
+  - Soporte para resolver clip fuente del usuario (`REFRAME`/`ADD_AUDIO`) y tomar su video generado como entrada de mezcla.
+  - Publicacion a cola incluye metadatos de fuente (`source_video_storage_path`, `source_video_filename`).
+- `backend/api/app/services/queue_service.py`
+  - Payload de ADD_AUDIO extendido con datos opcionales de fuente clip.
+- `backend/worker/app/worker.py`
+  - `handle_add_audio` usa video fuente del payload cuando viene de clip; fallback a flujo anterior por `video_id`.
+- `frontend/src/services/videoApi.ts` y `frontend/src/app/app/audio_editor/page.tsx`
+  - Frontend envia `source_clip_job_id` cuando el editor se abre desde un clip.
+
+### Commit
+
+- `fix(frontend): stabilize home clip polling and orchestrator child sync`
+- `feat(audio): allow add-audio jobs to use generated clips as source`
