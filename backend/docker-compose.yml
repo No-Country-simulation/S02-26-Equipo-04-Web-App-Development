@@ -31,6 +31,8 @@ services:
       - MINIO_PUBLIC_ENDPOINT=localhost:9000
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi_db
       - WORKER_PIPELINE_DEBUG=false
+      - WORKER_FAST_MODE=true
+      - WORKER_FACE_DETECTION_INTERVAL=2
       - LOG_LEVEL=INFO
       - WORKER_SOURCE_CACHE_DIR=/app/tmp/source_cache
       - WORKER_SOURCE_CACHE_TTL_SECONDS=1800

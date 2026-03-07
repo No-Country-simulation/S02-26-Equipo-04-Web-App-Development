@@ -51,6 +51,13 @@ DEBUG = os.getenv("WORKER_PIPELINE_DEBUG", "false").strip().lower() in {
     "on",
 }
 
+FAST_MODE = os.getenv("WORKER_FAST_MODE", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
 # output routes and dirs
 OUTPUT_DIR = Path("/tmp")
 NORMALIZED_VIDEO = OUTPUT_DIR / "normalized"
@@ -85,9 +92,14 @@ AUDIO_SAMPLE_RATE = 16000
 SPEECH_PERCENTILE = 65
 
 # output params
-TARGET_MAX_W = 1280
-TARGET_FPS = 30
+TARGET_MAX_W = int(os.getenv("WORKER_TARGET_MAX_W", "854" if FAST_MODE else "1280"))
+TARGET_FPS = int(os.getenv("WORKER_TARGET_FPS", "24" if FAST_MODE else "30"))
 OUTPUT_ASPECT = 9 / 16
+FFMPEG_PRESET = os.getenv("WORKER_FFMPEG_PRESET", "veryfast" if FAST_MODE else "fast")
+FFMPEG_CRF = int(os.getenv("WORKER_FFMPEG_CRF", "28" if FAST_MODE else "23"))
+FACE_DETECTION_INTERVAL = max(
+    1, int(os.getenv("WORKER_FACE_DETECTION_INTERVAL", "2" if FAST_MODE else "1"))
+)
 
 # loads and validates an OpenCV Haar Cascade classifier for face detection.
 face_cascade = cv2.CascadeClassifier(
@@ -99,6 +111,16 @@ if face_cascade.empty():
 # logger
 logger = logging.getLogger(__name__)
 logger.propagate = True
+
+if FAST_MODE:
+    logger.info(
+        "⚡ WORKER_FAST_MODE active (fps=%s, max_w=%s, preset=%s, crf=%s, face_detect_every=%s)",
+        TARGET_FPS,
+        TARGET_MAX_W,
+        FFMPEG_PRESET,
+        FFMPEG_CRF,
+        FACE_DETECTION_INTERVAL,
+    )
 
 _WHISPER_MODEL = None
 _WHISPER_MODEL_LOCK = Lock()
@@ -472,7 +494,14 @@ def init_stream_encoder(output_path, actual_w, actual_h, fps):
             s=f"{actual_w}x{actual_h}",
             framerate=fps,
         )
-        .output(output_path, vcodec="libx264", pix_fmt="yuv420p", movflags="+faststart")
+        .output(
+            output_path,
+            vcodec="libx264",
+            pix_fmt="yuv420p",
+            movflags="+faststart",
+            preset=FFMPEG_PRESET,
+            crf=FFMPEG_CRF,
+        )
         .overwrite_output()
         .global_args("-loglevel", "error")  # <--- errors only
         .run_async(pipe_stdin=True)
@@ -572,8 +601,8 @@ def normalize_video_segment(
                 r=target_fps,
                 acodec="aac",
                 audio_bitrate="128k",
-                preset="fast",
-                crf=23,
+                preset=FFMPEG_PRESET,
+                crf=FFMPEG_CRF,
                 movflags="+faststart",
             )
             .overwrite_output()
@@ -604,8 +633,8 @@ def normalize_video_segment(
             r=target_fps,
             acodec="aac",
             audio_bitrate="128k",
-            preset="fast",
-            crf=23,
+            preset=FFMPEG_PRESET,
+            crf=FFMPEG_CRF,
             movflags="+faststart",
         )
         .overwrite_output()
@@ -727,8 +756,8 @@ def merge_audio_track_and_add_watermark(
                 output_path,
                 vcodec="libx264",  # required because we applied filter
                 acodec="aac",
-                preset="fast",
-                crf=23,
+                preset=FFMPEG_PRESET,
+                crf=FFMPEG_CRF,
                 movflags="+faststart",
                 shortest=None,
             )
@@ -749,8 +778,8 @@ def merge_audio_track_and_add_watermark(
                 watermarked_video,
                 output_path,
                 vcodec="libx264",
-                preset="fast",
-                crf=23,
+                preset=FFMPEG_PRESET,
+                crf=FFMPEG_CRF,
                 movflags="+faststart",
             )
             .overwrite_output()
@@ -1125,6 +1154,7 @@ def stream_processing(
     candidate_frames = 0
     active_lock_frames = 0
     prev_gray = None
+    faces_cache = []
 
     # =============== LOOP BY FRAME ===============
     while True:
@@ -1140,7 +1170,10 @@ def stream_processing(
         if prev_gray is None:
             prev_gray = gray.copy()
 
-        faces = detect_face_centers(frame, gray, prev_gray)
+        should_detect_faces = frame_idx == 0 or frame_idx % FACE_DETECTION_INTERVAL == 0
+        if should_detect_faces:
+            faces_cache = detect_face_centers(frame, gray, prev_gray)
+        faces = faces_cache
 
         # decide QUIÉN
         active_center, candidate_center, candidate_frames, active_lock_frames = (
