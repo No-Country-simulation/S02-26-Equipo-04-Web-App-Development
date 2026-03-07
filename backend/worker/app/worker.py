@@ -309,10 +309,17 @@ def handle_reframe_pipeline(job, payload, filename, video_url):
 def handle_add_audio(job, payload, job_service, storage_service):
     logger.info(f"⚙️  Processing ADD_AUDIO job {job.id}")
 
-    result = _get_video_from_job(job, job_service, storage_service)
-    if not result:
-        return
-    video, filename, video_storage_path = result
+    source_video_storage_path = payload.get("source_video_storage_path")
+    source_video_filename = payload.get("source_video_filename")
+
+    if source_video_storage_path and source_video_filename:
+        filename = source_video_filename
+        video_storage_path = source_video_storage_path
+    else:
+        result = _get_video_from_job(job, job_service, storage_service)
+        if not result:
+            return
+        _, filename, video_storage_path = result
 
     try:
         video_cached_path = _resolve_source_video_path(video_storage_path)

@@ -147,6 +147,7 @@ class AutoClipSegment(BaseSchema):
 # ============ ADD AUDIO ============
 class JobAddAudioRequest(BaseSchema):
     audio_id: UUID
+    source_clip_job_id: UUID | None = None
     audio_offset_sec: int = Field(
         ge=0, description="Segundos del video donde empieza el audio"
     )

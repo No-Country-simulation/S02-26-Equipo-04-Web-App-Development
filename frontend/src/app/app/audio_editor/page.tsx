@@ -522,6 +522,7 @@ export default function AudioEditorPage() {
     try {
       const response = await videoApi.addAudioToVideo(selectedVideoId, token, {
         audio_id: selectedAudioId,
+        source_clip_job_id: focusedClip?.job_id,
         audio_offset_sec: Math.max(0, Math.floor(audioOffsetSec)),
         audio_start_sec: Math.max(0, Math.floor(audioStartSec)),
         audio_end_sec: Math.max(MIN_AUDIO_SEGMENT_SECONDS, Math.ceil(audioEndSec)),

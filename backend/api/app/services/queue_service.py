@@ -20,6 +20,8 @@ class QueueService:
         audio_start_sec: int,
         audio_end_sec: int,
         audio_volume: str,
+        source_video_storage_path: str | None = None,
+        source_video_filename: str | None = None,
     ):
         payload = {
             "job_id": job_id,
@@ -31,6 +33,8 @@ class QueueService:
             "audio_start_sec": audio_start_sec,
             "audio_end_sec": audio_end_sec,
             "audio_volume": audio_volume,
+            "source_video_storage_path": source_video_storage_path,
+            "source_video_filename": source_video_filename,
         }
 
         self.redis.push_to_queue("reframe_queue", payload)

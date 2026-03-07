@@ -55,7 +55,7 @@ async def reframe_video(
         color_filter=body.color_filter,
         output_style=body.output_style,
         content_profile=body.content_profile,
-        watermark=body.watermark
+        watermark=body.watermark,
     )
 
 
@@ -87,7 +87,7 @@ async def auto_reframe_video2(
         output_style=body.output_style,
         content_profile=body.content_profile,
         watermark=body.watermark,
-        subtitles=body.subtitles
+        subtitles=body.subtitles,
     )
 
 
@@ -114,14 +114,15 @@ async def add_audio(
         video_id=video_id,
         user_id=current_user.id,
         audio_id=body.audio_id,
-        audio_offset_sec=body.audio_offset_sec, #el audio empieza en el segundo 5 del video
+        source_clip_job_id=body.source_clip_job_id,
+        audio_offset_sec=body.audio_offset_sec,  # el audio empieza en el segundo 5 del video
         audio_start_sec=body.audio_start_sec,
         audio_end_sec=body.audio_end_sec,
         audio_volume=body.audio_volume,
-        #mix_original_audio=body.mix_original_audio,
-        #fade_in_sec=body.fade_in_sec,
-        #fade_out_sec=body.fade_in_sec,
-        #allow_loop=body.allow_loop #si audio es mas corto que el video, loop
+        # mix_original_audio=body.mix_original_audio,
+        # fade_in_sec=body.fade_in_sec,
+        # fade_out_sec=body.fade_in_sec,
+        # allow_loop=body.allow_loop #si audio es mas corto que el video, loop
     )
 
 

@@ -136,6 +136,7 @@ export type ReframeJobResponse = {
 
 export type AddAudioJobRequest = {
   audio_id: string;
+  source_clip_job_id?: string;
   audio_offset_sec: number;
   audio_start_sec: number;
   audio_end_sec: number;

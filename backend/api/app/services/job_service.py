@@ -170,6 +170,40 @@ class JobService:
 
         return audio
 
+    def _get_user_clip_source(
+        self, clip_job_id: UUID, user_id: UUID, expected_video_id: UUID | None = None
+    ) -> tuple[str, str]:
+        clip_job = (
+            self.db.query(Job)
+            .filter(
+                Job.id == clip_job_id,
+                Job.user_id == user_id,
+                Job.job_type.in_([JobType.REFRAME, JobType.ADD_AUDIO]),
+            )
+            .first()
+        )
+
+        if not clip_job:
+            raise NotFoundException("Clip source job not found")
+
+        if expected_video_id is not None and clip_job.video_id != expected_video_id:
+            raise JobParameterException()
+
+        output_map = (
+            clip_job.output_path if isinstance(clip_job.output_path, dict) else {}
+        )
+        source_storage_path = (
+            output_map.get("video") if isinstance(output_map, dict) else None
+        )
+        if (
+            not isinstance(source_storage_path, str)
+            or source_storage_path.strip() == ""
+        ):
+            raise JobParameterException("Selected clip has no generated video yet")
+
+        source_filename = f"clip_{clip_job.id}.mp4"
+        return source_storage_path, source_filename
+
     def _validate_time_range(self, start_sec: int, end_sec: int) -> None:
         if (
             start_sec < 0
@@ -567,6 +601,7 @@ class JobService:
         user_id: UUID,
         video_id: UUID,
         audio_id: UUID,
+        source_clip_job_id: UUID | None,
         audio_offset_sec: int,
         audio_start_sec: int,
         audio_end_sec: int,
@@ -578,6 +613,16 @@ class JobService:
         video = self._get_user_video(video_id, user_id)
 
         audio = self._get_user_audio(audio_id, user_id)
+
+        source_video_storage_path = video.storage_path
+        source_video_filename = video.original_filename
+
+        if source_clip_job_id is not None:
+            source_video_storage_path, source_video_filename = (
+                self._get_user_clip_source(
+                    source_clip_job_id, user_id, expected_video_id=video.id
+                )
+            )
 
         existing_job = None
         existing_job = (
@@ -621,6 +666,8 @@ class JobService:
                     audio_start_sec=audio_start_sec,
                     audio_end_sec=audio_end_sec,
                     audio_volume=audio_volume,
+                    source_video_storage_path=source_video_storage_path,
+                    source_video_filename=source_video_filename,
                 )
             except Exception as e:
                 existing_job.status = JobStatus.FAILED
@@ -660,6 +707,8 @@ class JobService:
                 audio_start_sec=audio_start_sec,
                 audio_end_sec=audio_end_sec,
                 audio_volume=audio_volume,
+                source_video_storage_path=source_video_storage_path,
+                source_video_filename=source_video_filename,
             )
         except Exception as e:
             job.status = JobStatus.FAILED
