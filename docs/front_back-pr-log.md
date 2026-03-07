@@ -292,3 +292,25 @@ Priorizar mejor la secuencia previa y posterior a jugadas importantes (pre-gol +
 - `docker compose up -d --build api worker` -> OK
 - `docker compose ps` -> `api` y `worker` saludables
 - `GET /api/v1/health` -> `200`
+
+## Hotfix de WebMediaPlayer (Home)
+
+### Problema detectado
+
+- En Home aparecia el warning repetido de Chrome:
+  - `Blocked attempt to create a WebMediaPlayer as there are too many WebMediaPlayers already in existence`.
+- Consecuencia: degradacion de rendimiento, preview inestable y sensacion de loop infinito.
+
+### Correcciones aplicadas
+
+- `frontend/src/app/app/page.tsx`
+  - Se corrigio el merge de `jobStatusMap` durante polling para no perder estados previos al consultar solo subset de jobs.
+  - Se evita repolling innecesario causado por reemplazar el mapa completo en cada ciclo.
+- `frontend/src/components/home/GeneratedClipsSection.tsx`
+  - Se limita la cantidad de previews de video activas en grilla (`MAX_ACTIVE_VIDEO_PREVIEWS=6`).
+  - Para el resto de clips se muestra tarjeta liviana con CTA `Abrir clip` en nueva pestaña.
+  - Se cambia `preload` de previews activas a `none` para bajar uso de memoria/decoders.
+
+### Commit
+
+- `fix(frontend): stop WebMediaPlayer saturation in Home clips grid`
