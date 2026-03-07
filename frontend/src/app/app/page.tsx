@@ -386,7 +386,7 @@ export default function AppHomePage() {
         let shouldContinuePolling = false;
 
         setJobStatusMap((prev) => {
-          const nextMap: Record<string, JobStatusInfo> = {};
+          const nextMap: Record<string, JobStatusInfo> = { ...prev };
 
           statuses.forEach((item) => {
             const previous = prev[item.job_id];
@@ -404,7 +404,8 @@ export default function AppHomePage() {
             }
           });
 
-          const hasDiff = Object.keys(nextMap).some((jobId) => {
+          const hasDiff = statuses.some((item) => {
+            const jobId = item.job_id;
             const current = prev[jobId];
             const next = nextMap[jobId];
             return !current || current.status !== next.status || current.outputPath !== next.outputPath || current.subtitlesPath !== next.subtitlesPath;

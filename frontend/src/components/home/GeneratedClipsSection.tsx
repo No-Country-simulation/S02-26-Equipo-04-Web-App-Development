@@ -25,6 +25,8 @@ const statusStyles: Record<Clip["status"], string> = {
   render: "border-neon-cyan/45 bg-neon-cyan/15 text-neon-cyan"
 };
 
+const MAX_ACTIVE_VIDEO_PREVIEWS = 6;
+
 export function GeneratedClipsSection({
   clips,
   showLoading,
@@ -56,19 +58,33 @@ export function GeneratedClipsSection({
         </div>
       ) : (
         <div className="mt-5 grid justify-center gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {clips.map((clip) => (
+          {clips.map((clip, index) => (
             <article
               key={clip.id}
               className="w-full max-w-sm rounded-2xl border border-white/15 bg-gradient-to-b from-night-900/70 to-night-800/45 p-4 transition hover:-translate-y-0.5 hover:border-neon-cyan/35"
             >
-              {clip.previewUrl ? (
+              {clip.previewUrl && index < MAX_ACTIVE_VIDEO_PREVIEWS ? (
                 <div className="overflow-hidden rounded-xl border border-neon-cyan/30 bg-black">
                   <video
                     controls
-                    preload="metadata"
+                    preload="none"
                     src={clip.previewUrl}
                     className="aspect-[9/16] w-full object-cover"
                   />
+                </div>
+              ) : clip.previewUrl ? (
+                <div className="aspect-[9/16] rounded-xl border border-neon-cyan/30 bg-[radial-gradient(circle_at_30%_20%,rgba(53,208,255,0.24),transparent_45%),radial-gradient(circle_at_70%_80%,rgba(255,79,216,0.2),transparent_45%)] p-3">
+                  <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-white/15 bg-black/25 p-3 text-center text-xs text-white/75">
+                    <p>{tr("Preview pausado para optimizar memoria del navegador.", "Preview paused to optimize browser memory.")}</p>
+                    <a
+                      href={clip.previewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex rounded-lg border border-neon-cyan/35 bg-neon-cyan/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-neon-cyan transition hover:bg-neon-cyan/20"
+                    >
+                      {tr("Abrir clip", "Open clip")}
+                    </a>
+                  </div>
                 </div>
               ) : (
                 <div className="aspect-[9/16] rounded-xl border border-neon-cyan/30 bg-[radial-gradient(circle_at_30%_20%,rgba(53,208,255,0.24),transparent_45%),radial-gradient(circle_at_70%_80%,rgba(255,79,216,0.2),transparent_45%)] p-3">
