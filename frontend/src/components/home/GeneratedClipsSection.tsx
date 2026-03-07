@@ -67,7 +67,7 @@ export function GeneratedClipsSection({
                 <div className="overflow-hidden rounded-xl border border-neon-cyan/30 bg-black">
                   <video
                     controls
-                    preload="none"
+                    preload="metadata"
                     src={clip.previewUrl}
                     className="aspect-[9/16] w-full object-cover"
                   />
