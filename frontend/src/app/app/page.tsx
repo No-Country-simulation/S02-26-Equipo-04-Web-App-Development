@@ -98,6 +98,19 @@ function mapUserClipsToCards(clips: UserClipItem[]): Clip[] {
   }));
 }
 
+function mapPendingSlotsToCards(total: number): Clip[] {
+  const safeTotal = Math.max(total, 0);
+  return Array.from({ length: safeTotal }, (_, index) => ({
+    id: `pending-${index + 1}`,
+    title: `Clip ${index + 1}`,
+    duration: "00:15",
+    preset: "Auto Reframe",
+    status: "render",
+    previewUrl: null,
+    subtitlesUrl: null
+  }));
+}
+
 function isTerminalStatus(status: string) {
   const normalized = status.toLowerCase();
   return normalized === "done" || normalized === "completed" || normalized === "failed" || normalized === "error";
@@ -184,8 +197,13 @@ export default function AppHomePage() {
     if (createdJobs.length > 0) {
       return mapJobsToClips(createdJobs, jobStatusMap, reframeFallbackClips);
     }
+
+    if (autoJobCount > 0 && reframeFallbackClips.length === 0) {
+      return mapPendingSlotsToCards(autoJobCount);
+    }
+
     return mapUserClipsToCards(reframeFallbackClips);
-  }, [createdJobs, jobStatusMap, fallbackClips]);
+  }, [createdJobs, jobStatusMap, fallbackClips, autoJobCount]);
 
   const clipProgress = useMemo(() => {
     const statusByJob = new Map<string, string>();
@@ -345,7 +363,22 @@ export default function AppHomePage() {
           }
         }
 
-        const statuses = await Promise.all(jobIds.map((jobId) => videoApi.getJobStatus(jobId, token)));
+        const jobsToPoll = jobIds.filter((jobId) => {
+          const cached = jobStatusMap[jobId];
+          if (!cached) {
+            return true;
+          }
+
+          return !isTerminalStatus(cached.status) || !cached.outputPath;
+        });
+
+        if (jobsToPoll.length === 0) {
+          setIsPollingStatuses(false);
+          window.clearInterval(intervalId);
+          return;
+        }
+
+        const statuses = await Promise.all(jobsToPoll.map((jobId) => videoApi.getJobStatus(jobId, token)));
         if (cancelled) {
           return;
         }
@@ -371,7 +404,11 @@ export default function AppHomePage() {
             }
           });
 
-          const hasDiff = JSON.stringify(prev) !== JSON.stringify(nextMap);
+          const hasDiff = Object.keys(nextMap).some((jobId) => {
+            const current = prev[jobId];
+            const next = nextMap[jobId];
+            return !current || current.status !== next.status || current.outputPath !== next.outputPath || current.subtitlesPath !== next.subtitlesPath;
+          });
           return hasDiff ? nextMap : prev;
         });
 
@@ -390,7 +427,7 @@ export default function AppHomePage() {
     setIsPollingStatuses(true);
     const intervalId = window.setInterval(() => {
       void syncStatuses();
-    }, 6000);
+    }, 7000);
     void syncStatuses();
 
     return () => {
@@ -398,7 +435,7 @@ export default function AppHomePage() {
       window.clearInterval(intervalId);
       setIsPollingStatuses(false);
     };
-  }, [createdJobs, orchestratorJobId, token, isEn]);
+  }, [createdJobs, orchestratorJobId, token, isEn, jobStatusMap]);
 
   const handleUpload = async (file: File) => {
     const isAudio = isAudioFile(file);
@@ -494,7 +531,8 @@ export default function AppHomePage() {
     const shouldHydrateFromLibrary =
       !isUploading &&
       !isCreatingJobs &&
-      (createdJobs.length === 0 || hasPendingTrackedJobs || (autoJobCount > 0 && createdJobs.length < autoJobCount));
+      !isPollingStatuses &&
+      (createdJobs.length === 0 || (!hasPendingTrackedJobs && autoJobCount > 0 && fallbackClips.length < autoJobCount));
 
     if (!shouldHydrateFromLibrary) {
       setIsHydratingClips(false);
@@ -503,7 +541,7 @@ export default function AppHomePage() {
 
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 20;
+    const maxAttempts = 8;
 
     const hydrateFromLibrary = async () => {
       try {
@@ -537,7 +575,7 @@ export default function AppHomePage() {
     setIsHydratingClips(true);
     const intervalId = window.setInterval(() => {
       void hydrateFromLibrary();
-    }, 5000);
+    }, 12000);
     void hydrateFromLibrary();
 
     return () => {
@@ -545,7 +583,7 @@ export default function AppHomePage() {
       window.clearInterval(intervalId);
       setIsHydratingClips(false);
     };
-  }, [token, uploadedVideo, createdJobs, jobStatusMap, isUploading, isCreatingJobs, autoJobCount]);
+  }, [token, uploadedVideo, createdJobs, jobStatusMap, isUploading, isCreatingJobs, autoJobCount, isPollingStatuses, fallbackClips.length]);
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
