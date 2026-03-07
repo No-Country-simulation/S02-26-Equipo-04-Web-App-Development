@@ -373,3 +373,25 @@ Priorizar mejor la secuencia previa y posterior a jugadas importantes (pre-gol +
 ### Commit
 
 - `perf(worker): add fast local processing mode with tunable pipeline knobs`
+
+## Hotfix de preview en Home (URLs expiran)
+
+### Problema detectado
+
+- En `Panel` los clips figuraban `LISTO`, pero el reproductor quedaba en negro con `0:00`.
+- En `Biblioteca` el mismo clip si previsualizaba correctamente.
+
+### Causa
+
+- En el polling de Home se preservaba siempre la URL anterior (`previous.outputPath`) aun cuando la API devolvia una URL presignada nueva.
+- Al expirar esa URL, el panel quedaba con un `src` vencido.
+
+### Correccion aplicada
+
+- `frontend/src/app/app/page.tsx`
+  - Se prioriza la URL devuelta en el tick actual de `/jobs/status`.
+  - Fallback a la URL previa solo si la nueva viene nula.
+
+### Commit
+
+- `fix(frontend): refresh home clip preview urls from latest status poll`
