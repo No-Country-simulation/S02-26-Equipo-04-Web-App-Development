@@ -238,3 +238,57 @@ Priorizar mejor la secuencia previa y posterior a jugadas importantes (pre-gol +
   - mayor peso al contexto previo (~62%) y cierre posterior,
   - minima longitud garantizada por clip.
 - Se reemplazo almacenamiento de duracion por almacenamiento de rango candidato (`start/end`) para mantener contexto exacto en deportes.
+
+## Hotfix de performance local (clips lentos)
+
+### Rama
+
+- `fix/local-clips-latency`
+
+### Problemas detectados
+
+- En local, la generacion de clips tardaba demasiado y el frontend demoraba en reflejar resultados.
+- En AUTO_REFRAME, los jobs hijos podian publicarse duplicados en Redis.
+- Se forzaban subtitulos en jobs hijos aunque el request no los pidiera.
+- El worker cargaba Whisper por job cuando habia subtitulos.
+- Home hacia polling redundante (estado de jobs + hidratacion de biblioteca en paralelo).
+
+### Cambios aplicados
+
+- Backend
+  - `backend/api/app/services/queue_service.py`
+    - `publish_auto_reframe_job` ahora incluye `subtitles` en payload.
+  - `backend/api/app/services/job_service.py`
+    - Se propaga `subtitles` al encolar AUTO_REFRAME y se corrigen tipos en `auto_reframe_video2`.
+  - `backend/worker/app/worker.py`
+    - AUTO_REFRAME usa el valor real de `subtitles`.
+    - Se elimina doble publish de jobs hijos.
+    - Se eliminan llamadas de URL publica MinIO usadas solo para logging.
+  - `backend/worker/app/pipeline.py`
+    - Cache lazy/singleton de modelo Whisper para evitar recarga por job.
+  - `backend/api/app/core/logging.py`
+    - Se reduce ruido de logs de librerias pesadas (`botocore`, `urllib3`, `multipart`, `httpx`, etc.).
+  - `backend/docker-compose.yml`
+    - Ajuste local a `DEBUG=False` y `LOG_LEVEL=INFO` para bajar overhead.
+
+- Frontend
+  - `frontend/src/app/app/page.tsx`
+    - Polling de estado optimizado: consulta solo jobs no terminales o sin output final.
+    - Hidratacion de biblioteca mas conservadora para evitar competencia con polling activo.
+    - Se muestran placeholders de clips pendientes cuando ya existe `autoJobCount`.
+
+### Commits realizados
+
+- `dca2cf8` - `fix(worker): avoid duplicated child jobs and honor subtitles flag`
+- `ef1aa86` - `perf(worker): reduce local processing overhead and noisy logging`
+- `4825e4f` - `fix(frontend): trim clip polling and keep pending cards visible`
+- `5e0fc8f` - `docs: add local clip latency troubleshooting logbook`
+
+### Validaciones locales
+
+- `npm run lint` en `frontend/` -> OK
+- `python3 -m py_compile` sobre archivos backend modificados -> OK
+- `docker compose config -q` -> OK
+- `docker compose up -d --build api worker` -> OK
+- `docker compose ps` -> `api` y `worker` saludables
+- `GET /api/v1/health` -> `200`
