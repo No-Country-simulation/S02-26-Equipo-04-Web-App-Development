@@ -14,7 +14,7 @@ import {
 } from "@/src/services/videoApi";
 import { useAuthStore } from "@/src/store/useAuthStore";
 import { useLocale } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const HOME_DRAFT_KEY = "home:uploaded-video-draft";
 type ClipOutputStyle = "vertical" | "speaker_split";
@@ -189,6 +189,11 @@ export default function AppHomePage() {
   const [withSubtitles, setWithSubtitles] = useState(false);
   const [watermark, setWatermark] = useState("Hacelo Corto");
   const [fallbackClips, setFallbackClips] = useState<UserClipItem[]>([]);
+  const jobStatusMapRef = useRef<Record<string, JobStatusInfo>>({});
+
+  useEffect(() => {
+    jobStatusMapRef.current = jobStatusMap;
+  }, [jobStatusMap]);
 
   const hasVideo = Boolean(uploadedVideo);
   const hasAudio = Boolean(uploadedAudio);
@@ -337,21 +342,29 @@ export default function AppHomePage() {
           }
 
           if (orchestratorStatus.child_jobs.length > 0) {
-            jobIds = orchestratorStatus.child_jobs;
-            setAutoJobCount((prev) => (prev > 0 ? prev : orchestratorStatus.child_jobs.length));
+            jobIds = Array.from(new Set([...jobIds, ...orchestratorStatus.child_jobs]));
+            setAutoJobCount((prev) => Math.max(prev, orchestratorStatus.child_jobs.length));
             setCreatedJobs((prev) => {
-              if (prev.length > 0) {
+              const existingById = new Map(prev.map((job) => [job.job_id, job]));
+              orchestratorStatus.child_jobs.forEach((jobId, index) => {
+                if (!existingById.has(jobId)) {
+                  existingById.set(jobId, {
+                    job_id: jobId,
+                    job_type: "AUTO_REFRAME",
+                    status: "PENDING",
+                    start_sec: index * 15,
+                    end_sec: (index + 1) * 15,
+                    created_at: new Date().toISOString()
+                  });
+                }
+              });
+
+              const merged = Array.from(existingById.values());
+              if (merged.length === prev.length) {
                 return prev;
               }
 
-              return orchestratorStatus.child_jobs.map((jobId, index) => ({
-                job_id: jobId,
-                job_type: "AUTO_REFRAME",
-                status: "PENDING",
-                start_sec: index * 15,
-                end_sec: (index + 1) * 15,
-                created_at: new Date().toISOString()
-              }));
+              return merged;
             });
           } else {
             const isOrchestratorOpen = !isTerminalStatus(orchestratorStatus.status);
@@ -364,7 +377,7 @@ export default function AppHomePage() {
         }
 
         const jobsToPoll = jobIds.filter((jobId) => {
-          const cached = jobStatusMap[jobId];
+          const cached = jobStatusMapRef.current[jobId];
           if (!cached) {
             return true;
           }
@@ -436,7 +449,7 @@ export default function AppHomePage() {
       window.clearInterval(intervalId);
       setIsPollingStatuses(false);
     };
-  }, [createdJobs, orchestratorJobId, token, isEn, jobStatusMap]);
+  }, [createdJobs, orchestratorJobId, token, isEn]);
 
   const handleUpload = async (file: File) => {
     const isAudio = isAudioFile(file);
@@ -532,8 +545,7 @@ export default function AppHomePage() {
     const shouldHydrateFromLibrary =
       !isUploading &&
       !isCreatingJobs &&
-      !isPollingStatuses &&
-      (createdJobs.length === 0 || (!hasPendingTrackedJobs && autoJobCount > 0 && fallbackClips.length < autoJobCount));
+      (createdJobs.length === 0 || hasPendingTrackedJobs || (autoJobCount > 0 && fallbackClips.length < autoJobCount));
 
     if (!shouldHydrateFromLibrary) {
       setIsHydratingClips(false);
@@ -584,7 +596,7 @@ export default function AppHomePage() {
       window.clearInterval(intervalId);
       setIsHydratingClips(false);
     };
-  }, [token, uploadedVideo, createdJobs, jobStatusMap, isUploading, isCreatingJobs, autoJobCount, isPollingStatuses, fallbackClips.length]);
+  }, [token, uploadedVideo, createdJobs, jobStatusMap, isUploading, isCreatingJobs, autoJobCount, fallbackClips.length]);
 
   return (
     <section className="w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
