@@ -395,3 +395,23 @@ Priorizar mejor la secuencia previa y posterior a jugadas importantes (pre-gol +
 ### Commit
 
 - `fix(frontend): refresh home clip preview urls from latest status poll`
+
+## Ajuste de miniaturas en Panel
+
+### Problema detectado
+
+- En `Panel` los clips se podian reproducir al tocar play, pero al cargar se veian grises/sin frame inicial.
+- En `Biblioteca` si aparecia miniatura inicial correctamente.
+
+### Causa
+
+- En Home la etiqueta `video` usaba `preload="none"`, por lo que el navegador no traia metadata/frame inicial hasta interaccion del usuario.
+
+### Correccion aplicada
+
+- `frontend/src/components/home/GeneratedClipsSection.tsx`
+  - Se cambia a `preload="metadata"` para que el Panel muestre miniatura inicial como Biblioteca.
+
+### Commit
+
+- `fix(frontend): load panel video metadata to display first-frame thumbnails`
