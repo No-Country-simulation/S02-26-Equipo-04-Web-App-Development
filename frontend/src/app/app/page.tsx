@@ -403,8 +403,8 @@ export default function AppHomePage() {
 
           statuses.forEach((item) => {
             const previous = prev[item.job_id];
-            const stableOutputPath = previous?.outputPath ?? item.output_path ?? null;
-            const stableSubtitlesPath = previous?.subtitlesPath ?? item.subtitles_path ?? null;
+            const stableOutputPath = item.output_path ?? previous?.outputPath ?? null;
+            const stableSubtitlesPath = item.subtitles_path ?? previous?.subtitlesPath ?? null;
             nextMap[item.job_id] = {
               status: item.status,
               outputPath: stableOutputPath,
